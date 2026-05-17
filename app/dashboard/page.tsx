@@ -91,6 +91,12 @@ export default function DashboardPage() {
             </li>
           </Link>
 
+          <Link href="/super-admin">
+            <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer">
+               Super Admin
+           </li>
+        </Link>
+
           <Link href="/chat">
             <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer">
               Chat interne
@@ -111,7 +117,7 @@ export default function DashboardPage() {
 
           <Link href="/stocks">
             <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer">
-              Stocks
+              stokages
             </li>
           </Link>
 
