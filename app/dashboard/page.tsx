@@ -19,7 +19,17 @@ import {
 
 export default function DashboardPage() {
   const router = useRouter();
+
+  const [userData, setUserData] = useState<any>(null);
   const [stats, setStats] = useState<any>(null);
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem("user");
+
+    if (storedUser) {
+      setUserData(JSON.parse(storedUser));
+    }
+  }, []);
 
   const fetchStats = async () => {
     const response = await fetch("http://localhost:5050/dashboard-stats");
@@ -202,12 +212,50 @@ export default function DashboardPage() {
         </ul>
       </aside>
 
-      <main className="flex-1 p-8">
-        <h1 className="text-4xl font-bold text-black">Tableau de bord</h1>
+    <main className="flex-1 p-8">
+  <h1 className="text-4xl font-bold text-black">
+    Tableau de bord
+  </h1>
 
-        <p className="text-gray-500 mt-2 mb-8">
-          Vue globale graphique des opérations logistiques en temps réel.
+  {userData && (
+    <div className="bg-white rounded-2xl shadow p-4 mt-4 mb-6">
+      <div className="flex flex-wrap gap-6 text-sm text-black">
+
+        <p>
+          <span className="font-bold">Entreprise :</span>{" "}
+          {userData.company_name || "N/A"}
         </p>
+
+        <p>
+          <span className="font-bold">Plan :</span>{" "}
+          {userData.plan_name || "N/A"}
+        </p>
+
+        <p>
+          <span className="font-bold">Abonnement :</span>{" "}
+          <span
+            className={
+              userData.subscription_status === "active"
+                ? "text-green-600 font-bold"
+                : "text-red-600 font-bold"
+            }
+          >
+            {userData.subscription_status || "N/A"}
+          </span>
+        </p>
+
+        <p>
+          <span className="font-bold">Super Admin :</span>{" "}
+          {userData.is_super_admin ? "Oui" : "Non"}
+        </p>
+
+      </div>
+    </div>
+  )}
+
+  <p className="text-gray-500 mt-2 mb-8">
+    Vue globale graphique des opérations logistiques en temps réel.
+  </p>
 
         <div className="grid grid-cols-4 gap-6 mb-8">
           <StatCard title="Produits" value={stats.total_produits} color="text-blue-500" />
