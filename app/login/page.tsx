@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { apiUrl } from "../lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -19,7 +20,7 @@ export default function LoginPage() {
     setError("");
 
     try {
-      const response = await fetch("http://localhost:5050/login", {
+      const response = await fetch(apiUrl("/login"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { apiUrl } from "../lib/api";
 
 export default function RegisterPage() {
 
@@ -36,9 +37,7 @@ export default function RegisterPage() {
 
     try {
 
-      const response = await fetch(
-        "http://localhost:5050/public/plans"
-      );
+      const response = await fetch(apiUrl("/public/plans"));
 
       const data =
         await response.json();
@@ -48,6 +47,10 @@ export default function RegisterPage() {
           ? data
           : []
       );
+
+      if (Array.isArray(data) && data.length > 0) {
+        setSelectedPlan((current: any) => current || data[0]);
+      }
 
     } catch (error) {
 
@@ -100,7 +103,7 @@ export default function RegisterPage() {
 
       const registerResponse =
         await fetch(
-          "http://localhost:5050/register-saas",
+          apiUrl("/register-saas"),
           {
             method: "POST",
 
@@ -137,57 +140,61 @@ export default function RegisterPage() {
 
       /* PAYMENT */
 
-      const paymentResponse =
-        await fetch(
-          "http://localhost:5050/payments/create",
-          {
-            method: "POST",
+      try {
+        const paymentResponse =
+          await fetch(
+            apiUrl("/payments/create"),
+            {
+              method: "POST",
 
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
 
-            body: JSON.stringify({
+              body: JSON.stringify({
 
-              company_id:
-                registerData.company?.id,
+                company_id:
+                  registerData.company?.id,
 
-              plan_id:
-                selectedPlan.id,
+                plan_id:
+                  selectedPlan.id,
 
-              amount:
-                selectedPlan.price_monthly,
+                amount:
+                  selectedPlan.price_monthly,
 
-              customer_name:
-                formData.company_name,
+                customer_name:
+                  formData.company_name,
 
-              customer_email:
-                formData.email,
+                customer_email:
+                  formData.email,
 
-              customer_phone:
-                formData.phone,
+                customer_phone:
+                  formData.phone,
 
-            }),
-          }
-        );
+              }),
+            }
+          );
 
-      const paymentData =
-        await paymentResponse.json();
+        const paymentData =
+          await paymentResponse.json().catch(() => ({}));
 
-      if (
-        paymentData.data?.payment_url
-      ) {
+        if (
+          paymentData.data?.payment_url
+        ) {
 
-        window.location.href =
-          paymentData.data.payment_url;
+          window.location.href =
+            paymentData.data.payment_url;
 
-        return;
+          return;
 
+        }
+      } catch (paymentError) {
+        console.error("Paiement non disponible :", paymentError);
       }
 
       setMessage(
-        "Entreprise créée avec succès."
+        "Entreprise créée avec succès. Vous pouvez vous connecter."
       );
 
       setTimeout(() => {
@@ -326,7 +333,7 @@ export default function RegisterPage() {
 
               {loading
                 ? "Chargement..."
-                : "Créer et payer"}
+                : "Créer une entreprise"}
 
             </button>
 
@@ -337,6 +344,12 @@ export default function RegisterPage() {
         {/* RIGHT */}
 
         <div className="space-y-6">
+
+          {plans.length === 0 && (
+            <div className="bg-white rounded-3xl shadow p-6 text-gray-600">
+              Chargement des plans...
+            </div>
+          )}
 
           {plans.map((plan) => (
 
