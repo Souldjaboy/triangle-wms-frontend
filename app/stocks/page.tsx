@@ -3,41 +3,57 @@
 import { useEffect, useState } from "react";
 
 export default function StocksPage() {
-  const [movements, setMovements] = useState([]);
-  const [products, setProducts] = useState([]);
-  const [warehouses, setWarehouses] = useState([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [warehouses, setWarehouses] = useState<any[]>([]);
+  const [movements, setMovements] = useState<any[]>([]);
   const [selectedType, setSelectedType] = useState("Entrée");
   const [userRole, setUserRole] = useState("");
-
-  const isAdmin = userRole === "admin";
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState<"success" | "error">("success");
 
   const [formData, setFormData] = useState({
+    type: "Entrée",
     product_reference: "",
     product_name: "",
+    location_code: "",
+    current_stock: "",
     quantity: "",
     source_warehouse: "",
     destination_warehouse: "",
-    location_code: "",
-    current_stock: "",
     reason: "",
   });
 
+  const authHeaders = () => ({
+    Authorization: `Bearer ${localStorage.getItem("token")}`,
+  });
+
   const fetchMovements = async () => {
-    const response = await fetch("http://localhost:5050/stock-movements");
+    const response = await fetch("http://localhost:5050/stock-movements", {
+      headers: authHeaders(),
+    });
+
     const data = await response.json();
-    setMovements(data);
+    setMovements(Array.isArray(data) ? data : []);
   };
 
   const fetchProducts = async () => {
-    const response = await fetch("http://localhost:5050/products");
+    const response = await fetch("http://localhost:5050/products", {
+      headers: authHeaders(),
+    });
+
     const data = await response.json();
-    setProducts(data);
+    setProducts(Array.isArray(data) ? data : []);
   };
 
   const fetchWarehouses = async () => {
-    const response = await fetch("http://localhost:5050/warehouses");
+    const response = await fetch("http://localhost:5050/warehouses", {
+      headers: authHeaders(),
+    });
+
     const data = await response.json();
-    setWarehouses(data);
+    setWarehouses(Array.isArray(data) ? data : []);
   };
 
   useEffect(() => {
@@ -49,44 +65,27 @@ export default function StocksPage() {
 
     if (savedUser) {
       const user = JSON.parse(savedUser);
+      setCurrentUser(user);
       setUserRole(user.role);
+
+      if (
+        user.role === "admin" ||
+        user.role === "super_admin" ||
+        user.is_super_admin === true
+      ) {
+        setIsAdmin(true);
+      }
     }
   }, []);
 
-  const resetForm = () => {
-    setFormData({
-      product_reference: "",
-      product_name: "",
-      quantity: "",
-      source_warehouse: "",
-      destination_warehouse: "",
-      location_code: "",
-      current_stock: "",
-      reason: "",
-    });
-  };
-
   const selectMovementType = (type: string) => {
     setSelectedType(type);
-    resetForm();
-  };
-
-  const handleProductSelect = (reference: string) => {
-    const selectedProduct: any = products.find(
-      (product: any) => product.reference === reference
-    );
 
     setFormData({
       ...formData,
-      product_reference: reference,
-      product_name: selectedProduct ? selectedProduct.name : "",
-      source_warehouse: selectedProduct ? selectedProduct.warehouse : "",
-      location_code: selectedProduct
-        ? selectedProduct.location_code ||
-          selectedProduct.emplacement_code ||
-          ""
-        : "",
-      current_stock: selectedProduct ? String(selectedProduct.stock || 0) : "",
+      type,
+      destination_warehouse: "",
+      reason: "",
     });
   };
 
@@ -97,51 +96,103 @@ export default function StocksPage() {
     });
   };
 
+  const handleProductSelect = (reference: string) => {
+    const product = products.find((p: any) => p.reference === reference);
+
+    if (!product) return;
+
+    setFormData({
+      ...formData,
+      product_reference: product.reference,
+      product_name: product.name,
+      current_stock: String(product.stock || 0),
+      source_warehouse: product.warehouse || "",
+      location_code:
+        product.location_code ||
+        product.emplacement_code ||
+        "",
+    });
+  };
+
   const handleSubmit = async (e: any) => {
     e.preventDefault();
+    setMessage("");
 
-    await fetch("http://localhost:5050/stock-movements", {
+    const payload = {
+      type: selectedType,
+      product_reference: formData.product_reference,
+      product_name: formData.product_name,
+      quantity: Number(formData.quantity || 0),
+      source_warehouse: formData.source_warehouse,
+      destination_warehouse: formData.destination_warehouse || "",
+      reason: formData.reason || formData.location_code || "",
+      status: "En attente",
+      user_name: currentUser?.fullname || "Utilisateur",
+      user_role: currentUser?.role || userRole || "Non défini",
+    };
+
+    const response = await fetch("http://localhost:5050/stock-movements", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...authHeaders(),
       },
-      body: JSON.stringify({
-        type: selectedType,
-        product_reference: formData.product_reference,
-        product_name: formData.product_name,
-        quantity: formData.quantity,
-        source_warehouse: formData.source_warehouse,
-        destination_warehouse: formData.destination_warehouse,
-        reason:
-          formData.reason +
-          (formData.location_code
-            ? ` | Emplacement: ${formData.location_code}`
-            : ""),
-      }),
+      body: JSON.stringify(payload),
     });
 
-    resetForm();
+    const data = await response.json();
+
+    if (!response.ok) {
+      setMessageType("error");
+      setMessage(data.error || "Erreur création mouvement.");
+      return;
+    }
+
+    setMessageType("success");
+    setMessage(`Demande ${selectedType} créée avec succès.`);
+
+    setFormData({
+      type: selectedType,
+      product_reference: "",
+      product_name: "",
+      location_code: "",
+      current_stock: "",
+      quantity: "",
+      source_warehouse: "",
+      destination_warehouse: "",
+      reason: "",
+    });
+
     fetchMovements();
     fetchProducts();
-    fetchWarehouses();
   };
 
   const validateMovement = async (id: number) => {
-    await fetch(`http://localhost:5050/stock-movements/${id}/validate`, {
+    const response = await fetch(`http://localhost:5050/stock-movements/${id}/validate`, {
       method: "PUT",
+      headers: authHeaders(),
     });
 
-    fetchMovements();
-    fetchProducts();
+    const data = await response.json().catch(() => ({}));
+    setMessageType(response.ok ? "success" : "error");
+    setMessage(response.ok ? "Mouvement validé et stock mis à jour." : data.error || "Erreur validation.");
+
+    await fetchMovements();
+    await fetchProducts();
   };
 
   const rejectMovement = async (id: number) => {
-    await fetch(`http://localhost:5050/stock-movements/${id}/reject`, {
+    const response = await fetch(`http://localhost:5050/stock-movements/${id}/reject`, {
       method: "PUT",
+      headers: authHeaders(),
     });
 
-    fetchMovements();
-    fetchProducts();
+    const data = await response.json().catch(() => ({}));
+    setMessageType(response.ok ? "success" : "error");
+    setMessage(response.ok ? "Mouvement refusé." : data.error || "Erreur refus.");
+
+    await fetchMovements();
+    await fetchProducts();
   };
 
   const getStatusColor = (status: string) => {
@@ -157,12 +208,22 @@ export default function StocksPage() {
       </h1>
 
       <p className="text-gray-500 mt-2 mb-2">
-        Suivi des entrées, sorties, transferts et inventaires avec emplacement exact.
+        Suivi des entrées, sorties, transferts et inventaires avec emplacements.
       </p>
 
       <p className="text-sm text-gray-500 mb-8">
         Rôle connecté : {userRole || "non connecté"}
       </p>
+
+      {message && (
+        <div className={`p-4 rounded-xl mb-6 font-bold ${
+          messageType === "success"
+            ? "bg-green-100 text-green-700"
+            : "bg-red-100 text-red-700"
+        }`}>
+          {message}
+        </div>
+      )}
 
       <div className="flex gap-3 mb-8">
         {["Entrée", "Sortie", "Transfert", "Inventaire"].map((type) => (
@@ -196,7 +257,9 @@ export default function StocksPage() {
           {products.map((product: any) => (
             <option key={product.id} value={product.reference}>
               {product.reference} - {product.name} | Stock : {product.stock} |{" "}
-              {product.location_code || product.emplacement_code || "Aucun emplacement"}
+              {product.location_code ||
+                product.emplacement_code ||
+                "Aucun emplacement"}
             </option>
           ))}
         </select>
@@ -233,6 +296,8 @@ export default function StocksPage() {
 
         <input
           type="number"
+          min="0"
+          step="1"
           name="quantity"
           placeholder={
             selectedType === "Inventaire"
@@ -371,14 +436,14 @@ export default function StocksPage() {
                       <>
                         <button
                           onClick={() => validateMovement(movement.id)}
-                          className="bg-green-500 text-white px-4 py-2 rounded-lg"
+                          className="bg-green-500 text-white px-4 py-2 rounded-xl font-bold"
                         >
                           Valider
                         </button>
 
                         <button
                           onClick={() => rejectMovement(movement.id)}
-                          className="bg-red-500 text-white px-4 py-2 rounded-lg"
+                          className="bg-red-500 text-white px-4 py-2 rounded-xl font-bold"
                         >
                           Refuser
                         </button>

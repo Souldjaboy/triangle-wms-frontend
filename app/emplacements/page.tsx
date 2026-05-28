@@ -1,211 +1,190 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+const API_URL = "http://localhost:5050";
 
 export default function EmplacementsPage() {
-  const [warehouses, setWarehouses] = useState([]);
-  const [locations, setLocations] = useState([]);
+  const [warehouses, setWarehouses] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [locations, setLocations] = useState<any[]>([]);
+  const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState<"success" | "error">("success");
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const [formData, setFormData] = useState({
     warehouse_id: "",
-    zone: "",
-    rayon: "",
-    etagere: "",
+    product_id: "",
+    product_reference: "",
+    product_name: "",
+    rayon_code: "A",
+    case_code: "1",
+    level_code: "1",
+    bin_mode: "single",
+    bin_code: "1",
+    bin_group: "",
     status: "Disponible",
   });
 
-  const fetchWarehouses = async () => {
-    const res = await fetch("http://localhost:5050/warehouses");
-    const data = await res.json();
-    setWarehouses(data);
-  };
+  const headers = () => ({
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+  });
 
-  const fetchLocations = async () => {
-    const res = await fetch("http://localhost:5050/locations");
-    const data = await res.json();
-    setLocations(data);
+  const fetchAll = async () => {
+    const [wRes, pRes, lRes] = await Promise.all([
+      fetch(`${API_URL}/warehouses`, { headers: headers() }),
+      fetch(`${API_URL}/products`, { headers: headers() }),
+      fetch(`${API_URL}/locations`, { headers: headers() }),
+    ]);
+    setWarehouses(await wRes.json().then((d) => (Array.isArray(d) ? d : [])).catch(() => []));
+    setProducts(await pRes.json().then((d) => (Array.isArray(d) ? d : [])).catch(() => []));
+    setLocations(await lRes.json().then((d) => (Array.isArray(d) ? d : [])).catch(() => []));
   };
 
   useEffect(() => {
-    fetchWarehouses();
-    fetchLocations();
+    const savedUser = localStorage.getItem("user");
+    if (savedUser) {
+      const user = JSON.parse(savedUser);
+      setIsAdmin(user.role === "admin" || user.role === "super_admin" || user.is_super_admin === true);
+    }
+    fetchAll();
   }, []);
 
-  const handleChange = (e: any) => {
+  const rayons = useMemo(() => Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i)), []);
+  const cases = useMemo(() => Array.from({ length: 30 }, (_, i) => String(i + 1)), []);
+  const levels = ["1", "2", "3", "Top"];
+  const bins = ["1", "2", "3"];
+
+  const handleChange = (e: any) => setFormData({ ...formData, [e.target.name]: e.target.value });
+
+  const handleProductSelect = (productId: string) => {
+    const product = products.find((p: any) => String(p.id) === String(productId));
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value,
+      product_id: productId,
+      product_reference: product?.reference || "",
+      product_name: product?.name || "",
     });
   };
+
+  const resetForm = () => setFormData({
+    warehouse_id: "",
+    product_id: "",
+    product_reference: "",
+    product_name: "",
+    rayon_code: "A",
+    case_code: "1",
+    level_code: "1",
+    bin_mode: "single",
+    bin_code: "1",
+    bin_group: "",
+    status: "Disponible",
+  });
 
   const handleSubmit = async (e: any) => {
     e.preventDefault();
+    setMessage("");
 
-    await fetch("http://localhost:5050/locations", {
+    if (!isAdmin) {
+      setMessageType("error");
+      setMessage("Seul l’administrateur peut créer des emplacements.");
+      return;
+    }
+
+    const selectedBins = formData.bin_mode === "full" ? "1,2,3" : formData.bin_code;
+
+    const response = await fetch(`${API_URL}/locations`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(formData),
+      headers: headers(),
+      body: JSON.stringify({
+        ...formData,
+        zone: formData.rayon_code,
+        rayon: `CASE-${formData.case_code}`,
+        etagere: `L${formData.level_code}-BIN-${selectedBins}`,
+        bin_code: selectedBins,
+      }),
     });
 
-    setFormData({
-      warehouse_id: "",
-      zone: "",
-      rayon: "",
-      etagere: "",
-      status: "Disponible",
-    });
+    const data = await response.json().catch(() => ({}));
 
-    fetchLocations();
+    if (!response.ok) {
+      setMessageType("error");
+      setMessage(data.error || "Erreur ajout emplacement");
+      return;
+    }
+
+    setMessageType("success");
+    setMessage(`Emplacement créé : ${data.emplacement_code || "OK"}`);
+    resetForm();
+    await fetchAll();
   };
 
   const handleDelete = async (id: number) => {
-    await fetch(`http://localhost:5050/locations/${id}`, {
-      method: "DELETE",
-    });
+    if (!isAdmin) return alert("Seul l’administrateur peut supprimer.");
+    if (!confirm("Supprimer cet emplacement ?")) return;
 
-    fetchLocations();
-  };
-
-  const handlePrint = () => {
-    window.print();
+    const response = await fetch(`${API_URL}/locations/${id}`, { method: "DELETE", headers: headers() });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return alert(data.error || "Erreur suppression emplacement");
+    await fetchAll();
   };
 
   return (
     <div className="min-h-screen bg-gray-100 p-8">
-      <div className="flex justify-between items-center mb-8 print:hidden">
-        <div>
-          <h1 className="text-4xl font-bold text-black mb-2">
-            Emplacements
-          </h1>
+      <h1 className="text-4xl font-bold text-black mb-2">Emplacements</h1>
+      <p className="text-gray-500 mb-8">Nouvelle hiérarchie : Rayon → Case → Level → Bin.</p>
 
-          <p className="text-gray-500">
-            Entrepôt → Zone → Rayon → Étagère → QR Code
-          </p>
-        </div>
+      {message && <div className={`p-4 rounded-xl mb-6 font-bold ${messageType === "success" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>{message}</div>}
 
-        <button
-          onClick={handlePrint}
-          className="bg-black text-white font-bold px-6 py-3 rounded-xl"
-        >
-          Imprimer les QR Codes
-        </button>
-      </div>
+      {isAdmin && (
+        <form onSubmit={handleSubmit} className="bg-white p-6 rounded-2xl shadow mb-10 grid grid-cols-4 gap-4">
+          <select name="warehouse_id" value={formData.warehouse_id} onChange={handleChange} className="border p-3 rounded-xl text-black" required>
+            <option value="">Choisir entrepôt</option>
+            {warehouses.map((w: any) => <option key={w.id} value={w.id}>{w.code} - {w.name}</option>)}
+          </select>
 
-      <form
-        onSubmit={handleSubmit}
-        className="bg-white p-6 rounded-2xl shadow mb-10 grid grid-cols-3 gap-4 print:hidden"
-      >
-        <select
-          name="warehouse_id"
-          value={formData.warehouse_id}
-          onChange={handleChange}
-          className="border p-3 rounded-xl text-black"
-          required
-        >
-          <option value="">Choisir entrepôt</option>
+          <select name="product_id" value={formData.product_id} onChange={(e) => handleProductSelect(e.target.value)} className="border p-3 rounded-xl text-black">
+            <option value="">Produit optionnel</option>
+            {products.map((p: any) => <option key={p.id} value={p.id}>{p.reference} - {p.name}</option>)}
+          </select>
 
-          {warehouses.map((warehouse: any) => (
-            <option key={warehouse.id} value={warehouse.id}>
-              {warehouse.code} - {warehouse.name}
-            </option>
-          ))}
-        </select>
+          <select name="rayon_code" value={formData.rayon_code} onChange={handleChange} className="border p-3 rounded-xl text-black" required>
+            {rayons.map((r) => <option key={r} value={r}>Rayon {r}</option>)}
+          </select>
 
-        <input
-          type="text"
-          name="zone"
-          placeholder="Zone ex: A"
-          value={formData.zone}
-          onChange={handleChange}
-          className="border p-3 rounded-xl text-black"
-          required
-        />
+          <select name="case_code" value={formData.case_code} onChange={handleChange} className="border p-3 rounded-xl text-black" required>
+            {cases.map((c) => <option key={c} value={c}>Case {c}</option>)}
+          </select>
 
-        <input
-          type="text"
-          name="rayon"
-          placeholder="Rayon ex: R1"
-          value={formData.rayon}
-          onChange={handleChange}
-          className="border p-3 rounded-xl text-black"
-          required
-        />
+          <select name="level_code" value={formData.level_code} onChange={handleChange} className="border p-3 rounded-xl text-black" required>
+            {levels.map((l) => <option key={l} value={l}>Level {l}</option>)}
+          </select>
 
-        <input
-          type="text"
-          name="etagere"
-          placeholder="Étagère ex: E2"
-          value={formData.etagere}
-          onChange={handleChange}
-          className="border p-3 rounded-xl text-black"
-          required
-        />
+          <select name="bin_mode" value={formData.bin_mode} onChange={handleChange} className="border p-3 rounded-xl text-black">
+            <option value="single">Un seul Bin</option>
+            <option value="full">Full Bin : Bin 1 + 2 + 3</option>
+            <option value="group">Groupe de Bins</option>
+          </select>
 
-        <select
-          name="status"
-          value={formData.status}
-          onChange={handleChange}
-          className="border p-3 rounded-xl text-black"
-        >
-          <option value="Disponible">Disponible</option>
-          <option value="Occupé">Occupé</option>
-          <option value="Bloqué">Bloqué</option>
-        </select>
+          {formData.bin_mode === "single" && <select name="bin_code" value={formData.bin_code} onChange={handleChange} className="border p-3 rounded-xl text-black">{bins.map((b) => <option key={b} value={b}>Bin {b}</option>)}</select>}
 
-        <button
-          type="submit"
-          className="bg-yellow-500 text-black font-bold rounded-xl py-3"
-        >
-          Créer emplacement QR
-        </button>
-      </form>
+          {formData.bin_mode === "group" && <select name="bin_group" value={formData.bin_group} onChange={(e) => setFormData({ ...formData, bin_group: e.target.value, bin_code: e.target.value })} className="border p-3 rounded-xl text-black"><option value="1,2">Bin 1 + 2</option><option value="2,3">Bin 2 + 3</option><option value="1,3">Bin 1 + 3</option></select>}
 
-      <div className="bg-white rounded-2xl shadow p-6 print:shadow-none">
-        <h2 className="text-2xl font-bold text-black mb-5 print:text-center">
-          QR Codes des emplacements
-        </h2>
+          <select name="status" value={formData.status} onChange={handleChange} className="border p-3 rounded-xl text-black"><option value="Disponible">Disponible</option><option value="Occupé">Occupé</option></select>
 
-        <div className="grid grid-cols-4 gap-6 print:grid-cols-3">
-          {locations.map((location: any) => (
-            <div
-              key={location.id}
-              className="border rounded-2xl p-4 text-center bg-white"
-            >
-              {location.qr_code ? (
-                <img
-                  src={location.qr_code}
-                  alt={location.emplacement_code}
-                  className="w-32 h-32 mx-auto mb-3"
-                />
-              ) : (
-                <div className="w-32 h-32 mx-auto mb-3 flex items-center justify-center border text-gray-400">
-                  Aucun QR
-                </div>
-              )}
+          <button type="submit" className="bg-yellow-500 text-black font-bold rounded-xl py-3 col-span-4">Ajouter emplacement</button>
+        </form>
+      )}
 
-              <p className="font-bold text-black text-sm">
-                {location.emplacement_code}
-              </p>
-
-              <p className="text-xs text-gray-500 mt-1">
-                {location.warehouse_code} / Zone {location.zone}
-              </p>
-
-              <p className="text-xs text-gray-500">
-                Rayon {location.rayon} / Étagère {location.etagere}
-              </p>
-
-              <button
-                onClick={() => handleDelete(location.id)}
-                className="bg-red-500 text-white px-3 py-2 rounded-lg mt-4 print:hidden"
-              >
-                Supprimer
-              </button>
-            </div>
-          ))}
-        </div>
+      <div className="bg-white rounded-2xl shadow p-6 overflow-x-auto">
+        <h2 className="text-2xl font-bold text-black mb-5">Liste des emplacements</h2>
+        {locations.length === 0 ? <p className="text-gray-500">Aucun emplacement enregistré.</p> : (
+          <table className="w-full text-left">
+            <thead><tr className="border-b text-gray-500"><th className="py-3">Code</th><th>Entrepôt</th><th>Produit</th><th>Rayon</th><th>Case</th><th>Level</th><th>Bin</th><th>Mode</th><th>Statut</th>{isAdmin && <th>Actions</th>}</tr></thead>
+            <tbody>{locations.map((l: any) => <tr key={l.id} className="border-b"><td className="py-4 font-bold text-blue-600">{l.emplacement_code}</td><td>{l.warehouse_name || l.warehouse_code || l.warehouse_id}</td><td>{l.product_reference ? `${l.product_reference} - ${l.product_name}` : "-"}</td><td>{l.rayon_code || l.zone}</td><td>{l.case_code || l.rayon}</td><td>{l.level_code || l.etagere}</td><td>{l.bin_code || "-"}</td><td>{l.bin_mode || "single"}</td><td>{l.status}</td>{isAdmin && <td><button onClick={() => handleDelete(l.id)} className="bg-red-600 text-white px-4 py-2 rounded-xl font-bold">Supprimer</button></td>}</tr>)}</tbody>
+          </table>
+        )}
       </div>
     </div>
   );

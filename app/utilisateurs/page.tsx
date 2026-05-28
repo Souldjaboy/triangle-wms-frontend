@@ -1,377 +1,307 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Html5Qrcode } from "html5-qrcode";
+import { useEffect, useRef, useState } from "react";
 
-export default function UtilisateursPage() {
-  const [users, setUsers] = useState<any[]>([]);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [uploading, setUploading] = useState(false);
+export default function PointagePage() {
+  const [records, setRecords] = useState<any[]>([]);
+  const [actionType, setActionType] = useState("checkin");
   const [message, setMessage] = useState("");
+  const [countdown, setCountdown] = useState(5);
+  const [lastCode, setLastCode] = useState("");
 
-  const [formData, setFormData] = useState({
-    fullname: "",
-    email: "",
-    password: "",
-    role: "magasinier",
-    is_active: true,
-    profile_image_url: "",
-  });
+  const scannerRef = useRef<Html5Qrcode | null>(null);
 
-  const fetchUsers = async () => {
+  const fetchAttendance = async () => {
     try {
-      const response = await fetch("http://localhost:5050/users");
-      const data = await response.json();
+      const res = await fetch("http://localhost:5050/attendance/today");
 
-      setUsers(Array.isArray(data) ? data : []);
+      const text = await res.text();
+
+      try {
+        const data = JSON.parse(text);
+        setRecords(Array.isArray(data) ? data : []);
+      } catch {
+        console.error("Réponse backend invalide :", text);
+        setRecords([]);
+      }
+
+      setCountdown(5);
     } catch (error) {
-      console.error(error);
-      setUsers([]);
+      console.error("Erreur fetch attendance :", error);
     }
   };
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
-
-  const handleChange = (e: any) => {
-    const value =
-      e.target.type === "checkbox" ? e.target.checked : e.target.value;
-
-    setFormData({
-      ...formData,
-      [e.target.name]: value,
-    });
-  };
-
-  const handlePhotoUpload = async (e: any) => {
-    const file = e.target.files?.[0];
-
-    if (!file) return;
-
-    setUploading(true);
-    setMessage("");
-
-    const uploadData = new FormData();
-    uploadData.append("photo", file);
-
-    const response = await fetch("http://localhost:5050/upload-user-photo", {
-      method: "POST",
-      body: uploadData,
-    });
-
-    const data = await response.json();
-
-    if (data.profile_image_url) {
-      setFormData({
-        ...formData,
-        profile_image_url: data.profile_image_url,
-      });
-
-      setMessage("Photo uploadée avec succès.");
+  const extractBadgeCode = (decodedText: string) => {
+    try {
+      const parsed = JSON.parse(decodedText);
+      return parsed.badge_code || decodedText.trim();
+    } catch {
+      const match = decodedText.match(/TRIANGLE-EMP-\d+/);
+      return match ? match[0] : decodedText.trim();
     }
-
-    setUploading(false);
   };
 
-  const resetForm = () => {
-    setEditingId(null);
+  const sendScan = async (decodedText: string) => {
+    const badgeCode = extractBadgeCode(decodedText);
 
-    setFormData({
-      fullname: "",
-      email: "",
-      password: "",
-      role: "magasinier",
-      is_active: true,
-      profile_image_url: "",
-    });
-  };
+    if (!badgeCode || badgeCode === lastCode) return;
 
-  const handleSubmit = async (e: any) => {
-    e.preventDefault();
+    setLastCode(badgeCode);
 
-    if (editingId) {
-      await fetch(`http://localhost:5050/users/${editingId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      });
-    } else {
-      await fetch("http://localhost:5050/users", {
+    try {
+      const response = await fetch("http://localhost:5050/attendance/scan", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          badge_code: badgeCode,
+          action_type: actionType,
+        }),
       });
+
+      const text = await response.text();
+
+      let data: any = {};
+
+      try {
+        data = JSON.parse(text);
+      } catch {
+        console.error("Réponse scan invalide :", text);
+      }
+
+      if (!response.ok) {
+        setMessage(data.error || "Erreur scan QR");
+      } else {
+        setMessage(`${data.user?.fullname || "Employé"} - ${data.action} enregistré`);
+        await fetchAttendance();
+      }
+    } catch (error) {
+      console.error(error);
+      setMessage("Erreur QR Code");
     }
 
-    setMessage(
-      editingId
-        ? "Utilisateur modifié avec succès."
-        : "Utilisateur ajouté avec succès."
-    );
-
-    resetForm();
-    fetchUsers();
+    setTimeout(() => {
+      setLastCode("");
+    }, 3000);
   };
 
-  const handleEdit = (user: any) => {
-    setEditingId(user.id);
+  useEffect(() => {
+    fetchAttendance();
 
-    setFormData({
-      fullname: user.fullname || "",
-      email: user.email || "",
-      password: "",
-      role: user.role || "magasinier",
-      is_active: user.is_active !== false,
-      profile_image_url: user.profile_image_url || "",
+    const refresh = setInterval(fetchAttendance, 5000);
+
+    const counter = setInterval(() => {
+      setCountdown((prev) => (prev > 1 ? prev - 1 : 5));
+    }, 1000);
+
+    return () => {
+      clearInterval(refresh);
+      clearInterval(counter);
+    };
+  }, []);
+
+  useEffect(() => {
+    const startScanner = async () => {
+      try {
+        if (scannerRef.current) return;
+
+        const scanner = new Html5Qrcode("reader");
+        scannerRef.current = scanner;
+
+        await scanner.start(
+          { facingMode: "environment" },
+          {
+            fps: 10,
+            qrbox: {
+              width: 250,
+              height: 250,
+            },
+          },
+          async (decodedText) => {
+            await sendScan(decodedText);
+          },
+          () => {}
+        );
+      } catch (error) {
+        console.error(error);
+        setMessage("Impossible de démarrer la caméra.");
+      }
+    };
+
+    startScanner();
+
+    return () => {
+      if (scannerRef.current && scannerRef.current.isScanning) {
+        scannerRef.current.stop().catch(() => {});
+      }
+    };
+  }, [actionType, lastCode]);
+
+  const formatTime = (value: string) => {
+    if (!value) return "-";
+    return new Date(value).toLocaleTimeString("fr-FR", {
+      hour: "2-digit",
+      minute: "2-digit",
     });
   };
 
-  const handleDelete = async (id: number) => {
-    await fetch(`http://localhost:5050/users/${id}`, {
-      method: "DELETE",
-    });
-
-    setMessage("Utilisateur supprimé.");
-    fetchUsers();
+  const statusColor = (status: string) => {
+    if (status === "Présent") return "bg-green-600 text-white";
+    if (status === "En pause") return "bg-yellow-500 text-black";
+    if (status === "Terminé") return "bg-blue-600 text-white";
+    return "bg-red-600 text-white";
   };
 
-  const getRoleColor = (role: string) => {
-    if (role === "admin") return "bg-red-100 text-red-700";
-    if (role === "responsable_logistique") return "bg-blue-100 text-blue-700";
-    if (role === "chef_magasin") return "bg-purple-100 text-purple-700";
-    if (role === "direction") return "bg-green-100 text-green-700";
-    return "bg-yellow-100 text-yellow-700";
-  };
+  const present = records.filter((r) => r.status === "Présent").length;
+  const absent = records.filter((r) => r.status === "Absent").length;
+  const pause = records.filter((r) => r.status === "En pause").length;
+  const late = records.filter((r) => Number(r.late_minutes || 0) > 0).length;
+
+  const salaryTotal = records.reduce(
+    (sum, r) => sum + Number(r.calculated_salary || 0),
+    0
+  );
 
   return (
-    <div className="min-h-screen bg-gray-100 p-8">
-      <h1 className="text-4xl font-bold text-black mb-2">
-        Utilisateurs
-      </h1>
+    <div className="min-h-screen bg-gray-100 p-8 text-black">
+      <div className="mb-8">
+        <h1 className="text-4xl font-bold">Pointage Employés</h1>
+        <p className="text-gray-500">
+          Mise à jour automatique dans {countdown} seconde(s)
+        </p>
+      </div>
 
-      <p className="text-gray-500 mb-8">
-        Gestion des comptes, rôles, photos et accès au système.
-      </p>
-
-      {message && (
-        <div className="bg-green-100 text-green-700 p-4 rounded-xl mb-6 font-bold">
-          {message}
-        </div>
-      )}
-
-      <form
-        onSubmit={handleSubmit}
-        className="bg-white p-6 rounded-2xl shadow mb-10 grid grid-cols-3 gap-4"
-      >
-        <div className="col-span-3 flex items-center gap-6 border rounded-2xl p-4">
-          {formData.profile_image_url ? (
-            <img
-              src={formData.profile_image_url}
-              alt="Photo utilisateur"
-              className="w-24 h-24 object-cover rounded-full border"
-            />
-          ) : (
-            <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center text-4xl">
-              👤
-            </div>
-          )}
-
-          <div className="flex-1">
-            <p className="font-bold text-black mb-2">
-              Photo utilisateur
-            </p>
-
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handlePhotoUpload}
-              className="border p-3 rounded-xl text-black w-full"
-            />
-
-            {uploading && (
-              <p className="text-blue-600 font-bold mt-2">
-                Upload en cours...
-              </p>
-            )}
-
-            <input
-              type="text"
-              name="profile_image_url"
-              placeholder="URL photo utilisateur"
-              value={formData.profile_image_url}
-              onChange={handleChange}
-              className="border p-3 rounded-xl text-black w-full mt-3"
-            />
-          </div>
+      <div className="grid grid-cols-5 gap-5 mb-8">
+        <div className="bg-white p-6 rounded-2xl shadow">
+          <p className="text-gray-500">Présents</p>
+          <h2 className="text-4xl font-bold text-green-600">{present}</h2>
         </div>
 
-        <input
-          type="text"
-          name="fullname"
-          placeholder="Nom complet"
-          value={formData.fullname}
-          onChange={handleChange}
-          className="border p-3 rounded-xl text-black"
-          required
-        />
+        <div className="bg-white p-6 rounded-2xl shadow">
+          <p className="text-gray-500">Absents</p>
+          <h2 className="text-4xl font-bold text-red-600">{absent}</h2>
+        </div>
 
-        <input
-          type="email"
-          name="email"
-          placeholder="Adresse email"
-          value={formData.email}
-          onChange={handleChange}
-          className="border p-3 rounded-xl text-black"
-          required
-        />
+        <div className="bg-white p-6 rounded-2xl shadow">
+          <p className="text-gray-500">En pause</p>
+          <h2 className="text-4xl font-bold text-yellow-600">{pause}</h2>
+        </div>
 
-        <input
-          type="text"
-          name="password"
-          placeholder={
-            editingId ? "Nouveau mot de passe optionnel" : "Mot de passe"
-          }
-          value={formData.password}
-          onChange={handleChange}
-          className="border p-3 rounded-xl text-black"
-          required={!editingId}
-        />
+        <div className="bg-white p-6 rounded-2xl shadow">
+          <p className="text-gray-500">Retards</p>
+          <h2 className="text-4xl font-bold text-orange-600">{late}</h2>
+        </div>
+
+        <div className="bg-white p-6 rounded-2xl shadow">
+          <p className="text-gray-500">Salaire jour</p>
+          <h2 className="text-2xl font-bold">
+            {salaryTotal.toLocaleString()} FCFA
+          </h2>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow p-6 mb-8">
+        <h2 className="text-2xl font-bold mb-4">Scanner badge QR</h2>
 
         <select
-          name="role"
-          value={formData.role}
-          onChange={handleChange}
-          className="border p-3 rounded-xl text-black"
+          value={actionType}
+          onChange={(e) => setActionType(e.target.value)}
+          className="border p-4 rounded-xl w-full mb-4 text-black"
         >
-          <option value="admin">Administrateur</option>
-          <option value="responsable_logistique">Responsable logistique</option>
-          <option value="chef_magasin">Chef magasin</option>
-          <option value="magasinier">Magasinier</option>
-          <option value="direction">Direction</option>
+          <option value="checkin">Début travail</option>
+          <option value="pause_start">Début pause</option>
+          <option value="pause_end">Fin pause</option>
+          <option value="checkout">Fin travail</option>
         </select>
 
-        <label className="flex items-center gap-3 text-black">
-          <input
-            type="checkbox"
-            name="is_active"
-            checked={formData.is_active}
-            onChange={handleChange}
-          />
-          Compte actif
-        </label>
+        <div id="reader" className="w-full overflow-hidden rounded-2xl border" />
 
-        <button
-          type="submit"
-          className={`font-bold rounded-xl py-3 ${
-            editingId ? "bg-blue-500 text-white" : "bg-yellow-500 text-black"
-          }`}
-        >
-          {editingId ? "Modifier utilisateur" : "Ajouter utilisateur"}
-        </button>
+        {message && (
+          <div className="mt-4 bg-green-100 text-green-700 p-4 rounded-xl font-bold">
+            {message}
+          </div>
+        )}
+      </div>
 
-        {editingId && (
+      <div className="bg-white rounded-2xl shadow overflow-x-auto">
+        <div className="p-6 border-b flex justify-between items-center">
+          <div>
+            <h2 className="text-2xl font-bold">Feuille de pointage du jour</h2>
+            <p className="text-gray-500">
+              Mise à jour automatique toutes les 5 secondes
+            </p>
+          </div>
+
           <button
-            type="button"
-            onClick={resetForm}
-            className="bg-gray-500 text-white font-bold rounded-xl py-3"
+            onClick={() => window.print()}
+            className="bg-black text-white px-6 py-3 rounded-xl font-bold"
           >
-            Annuler
+            Imprimer
           </button>
-        )}
-      </form>
+        </div>
 
-      <div className="bg-white rounded-2xl shadow p-6">
-        <h2 className="text-2xl font-bold text-black mb-5">
-          Liste des utilisateurs
-        </h2>
+        <table className="w-full">
+          <thead className="bg-gray-100">
+            <tr>
+              <th className="p-4 text-left">Employé</th>
+              <th className="p-4 text-left">Badge</th>
+              <th className="p-4 text-left">Statut</th>
+              <th className="p-4 text-left">Arrivée</th>
+              <th className="p-4 text-left">Pause sortie</th>
+              <th className="p-4 text-left">Pause retour</th>
+              <th className="p-4 text-left">Partir</th>
+              <th className="p-4 text-left">Retard</th>
+              <th className="p-4 text-left">Heures</th>
+              <th className="p-4 text-left">Salaire</th>
+            </tr>
+          </thead>
 
-        {users.length === 0 ? (
-          <p className="text-gray-500">
-            Aucun utilisateur trouvé.
-          </p>
-        ) : (
-          <table className="w-full text-left">
-            <thead>
-              <tr className="border-b text-gray-500">
-                <th className="py-3">Photo</th>
-                <th>Nom</th>
-                <th>Email</th>
-                <th>Rôle</th>
-                <th>Statut</th>
-                <th>Date création</th>
-                <th>Actions</th>
+          <tbody>
+            {records.map((r) => (
+              <tr key={r.user_id} className="border-t hover:bg-gray-50">
+                <td className="p-4 font-bold">
+                  {r.fullname}
+                  <div className="text-xs text-gray-500">{r.role}</div>
+                </td>
+
+                <td className="p-4 font-mono text-sm">{r.badge_code || "-"}</td>
+
+                <td className="p-4">
+                  <span
+                    className={`${statusColor(
+                      r.status
+                    )} px-4 py-2 rounded-full text-sm font-bold`}
+                  >
+                    {r.status}
+                  </span>
+                </td>
+
+                <td className="p-4">{formatTime(r.check_in)}</td>
+                <td className="p-4">{formatTime(r.break_out)}</td>
+                <td className="p-4">{formatTime(r.break_in)}</td>
+                <td className="p-4">{formatTime(r.check_out)}</td>
+
+                <td className="p-4">
+                  {Number(r.late_minutes || 0) > 0
+                    ? `${r.late_minutes} min`
+                    : "-"}
+                </td>
+
+                <td className="p-4">
+                  {Number(r.worked_hours || 0) > 0
+                    ? `${r.worked_hours} h`
+                    : "-"}
+                </td>
+
+                <td className="p-4 font-bold">
+                  {Number(r.calculated_salary || 0).toLocaleString()} FCFA
+                </td>
               </tr>
-            </thead>
-
-            <tbody>
-              {users.map((user: any) => (
-                <tr key={user.id} className="border-b">
-                  <td className="py-4">
-                    {user.profile_image_url ? (
-                      <img
-                        src={user.profile_image_url}
-                        alt={user.fullname}
-                        className="w-14 h-14 object-cover rounded-full border"
-                      />
-                    ) : (
-                      <div className="w-14 h-14 rounded-full bg-gray-200 flex items-center justify-center text-2xl">
-                        👤
-                      </div>
-                    )}
-                  </td>
-
-                  <td className="font-bold">{user.fullname}</td>
-
-                  <td>{user.email}</td>
-
-                  <td>
-                    <span
-                      className={`px-3 py-1 rounded-full text-sm font-bold ${getRoleColor(
-                        user.role
-                      )}`}
-                    >
-                      {user.role}
-                    </span>
-                  </td>
-
-                  <td>
-                    {user.is_active ? (
-                      <span className="text-green-600 font-bold">Actif</span>
-                    ) : (
-                      <span className="text-red-600 font-bold">Inactif</span>
-                    )}
-                  </td>
-
-                  <td>
-                    {user.created_at
-                      ? new Date(user.created_at).toLocaleDateString("fr-FR")
-                      : "-"}
-                  </td>
-
-                  <td className="space-x-2">
-                    <button
-                      onClick={() => handleEdit(user)}
-                      className="bg-blue-500 text-white px-4 py-2 rounded-lg"
-                    >
-                      Modifier
-                    </button>
-
-                    <button
-                      onClick={() => handleDelete(user.id)}
-                      className="bg-red-500 text-white px-4 py-2 rounded-lg"
-                    >
-                      Supprimer
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );

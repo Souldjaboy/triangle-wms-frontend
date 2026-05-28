@@ -2,213 +2,873 @@
 
 import { useEffect, useState } from "react";
 
+import {
+  Plus,
+  ShieldCheck,
+} from "lucide-react";
+
 export default function SuperAdminPage() {
-  const [overview, setOverview] = useState<any>(null);
+
   const [companies, setCompanies] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
+  const [plans, setPlans] = useState<any[]>([]);
+
+  const [loading, setLoading] = useState(true);
+
   const [message, setMessage] = useState("");
 
-  const fetchData = async () => {
-    const overviewRes = await fetch("http://localhost:5050/super-admin/overview");
-    const overviewData = await overviewRes.json();
-    setOverview(overviewData);
+  const [newPlan, setNewPlan] = useState({
+    name: "",
+    price_monthly: "",
+    max_users: "",
+    max_warehouses: "",
+    max_products: "",
+    max_movements_monthly: "",
+    trial_days: "",
+    modules: "",
+  });
 
-    const companiesRes = await fetch("http://localhost:5050/super-admin/companies");
-    const companiesData = await companiesRes.json();
-    setCompanies(Array.isArray(companiesData) ? companiesData : []);
+  const getHeaders = () => ({
+    "Content-Type": "application/json",
+    Authorization:
+      `Bearer ${localStorage.getItem("token")}`,
+  });
+
+  const fetchAll = async (
+    showLoading = false
+  ) => {
+
+    try {
+
+      if (showLoading) {
+        setLoading(true);
+      }
+
+      const headers = getHeaders();
+
+      const companiesResponse =
+        await fetch(
+          "http://localhost:5050/super-admin/companies",
+          { headers }
+        );
+
+      const usersResponse =
+        await fetch(
+          "http://localhost:5050/super-admin/users",
+          { headers }
+        );
+
+      const plansResponse =
+        await fetch(
+          "http://localhost:5050/super-admin/plans",
+          { headers }
+        );
+
+      const companiesData =
+        await companiesResponse.json();
+
+      const usersData =
+        await usersResponse.json();
+
+      const plansData =
+        await plansResponse.json();
+
+      setCompanies(
+        Array.isArray(companiesData)
+          ? companiesData
+          : []
+      );
+
+      setUsers(
+        Array.isArray(usersData)
+          ? usersData
+          : []
+      );
+
+      setPlans(
+        Array.isArray(plansData)
+          ? plansData
+          : []
+      );
+
+    } catch (error) {
+
+      console.error(error);
+
+    } finally {
+
+      if (showLoading) {
+        setLoading(false);
+      }
+
+    }
+
   };
 
   useEffect(() => {
-    fetchData();
+    fetchAll(true);
   }, []);
 
-  const changeCompanyStatus = async (companyId: number, status: string) => {
-    await fetch(`http://localhost:5050/super-admin/companies/${companyId}/status`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
-    });
+  const updatePlanField = (
+    id: number,
+    field: string,
+    value: any
+  ) => {
 
-    setMessage(
-      status === "active"
-        ? "Entreprise réactivée avec succès."
-        : "Entreprise suspendue avec succès."
+    setPlans((prev: any[]) =>
+      prev.map((plan) =>
+        plan.id === id
+          ? {
+              ...plan,
+              [field]: value,
+            }
+          : plan
+      )
     );
 
-    fetchData();
   };
 
-  const renewSubscription = async (companyId: number) => {
-    await fetch(`http://localhost:5050/super-admin/subscriptions/${companyId}/renew`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        months: 1,
-        payment_mode: "manual",
-      }),
-    });
+  const updatePlan = async (plan: any) => {
 
-    setMessage("Abonnement renouvelé pour 1 mois.");
-    fetchData();
+    try {
+
+      await fetch(
+        `http://localhost:5050/super-admin/plans/${plan.id}`,
+        {
+          method: "PUT",
+          headers: getHeaders(),
+          body: JSON.stringify(plan),
+        }
+      );
+
+      setMessage("Plan SaaS modifié.");
+
+      await fetchAll();
+
+    } catch (error) {
+
+      console.error(error);
+
+    }
+
   };
 
-  const giveFreeAccess = async (companyId: number) => {
-    await fetch(`http://localhost:5050/super-admin/subscriptions/${companyId}/free`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-    });
+  const createPlan = async () => {
 
-    setMessage("Accès gratuit accordé à l’entreprise.");
-    fetchData();
+    try {
+
+      await fetch(
+        "http://localhost:5050/super-admin/plans",
+        {
+          method: "POST",
+          headers: getHeaders(),
+          body: JSON.stringify({
+            name: newPlan.name,
+            price_monthly:
+              Number(newPlan.price_monthly || 0),
+
+            max_users:
+              Number(newPlan.max_users || 0),
+
+            max_warehouses:
+              Number(newPlan.max_warehouses || 0),
+
+            max_products:
+              Number(newPlan.max_products || 0),
+
+            max_movements_monthly:
+              Number(
+                newPlan.max_movements_monthly || 0
+              ),
+
+            trial_days:
+              Number(newPlan.trial_days || 15),
+
+            modules:
+              newPlan.modules,
+          }),
+        }
+      );
+
+      setMessage("Plan ajouté.");
+
+      setNewPlan({
+        name: "",
+        price_monthly: "",
+        max_users: "",
+        max_warehouses: "",
+        max_products: "",
+        max_movements_monthly: "",
+        trial_days: "",
+        modules: "",
+      });
+
+      await fetchAll();
+
+    } catch (error) {
+
+      console.error(error);
+
+    }
+
   };
 
-  if (!overview) {
+  const deletePlan = async (
+    id: number
+  ) => {
+
+    if (
+      !confirm("Supprimer ce plan ?")
+    ) return;
+
+    try {
+
+      await fetch(
+        `http://localhost:5050/super-admin/plans/${id}`,
+        {
+          method: "DELETE",
+          headers: getHeaders(),
+        }
+      );
+
+      setPlans((prev) =>
+        prev.filter(
+          (plan) => plan.id !== id
+        )
+      );
+
+      setMessage("Plan supprimé.");
+
+    } catch (error) {
+
+      console.error(error);
+
+    }
+
+  };
+
+  const deleteUser = async (
+    id: number
+  ) => {
+
+    if (
+      !confirm(
+        "Supprimer cet utilisateur ?"
+      )
+    ) return;
+
+    try {
+
+      await fetch(
+        `http://localhost:5050/super-admin/users/${id}`,
+        {
+          method: "DELETE",
+          headers: getHeaders(),
+        }
+      );
+
+      setUsers((prev) =>
+        prev.filter(
+          (user) => user.id !== id
+        )
+      );
+
+      setMessage(
+        "Utilisateur supprimé."
+      );
+
+    } catch (error) {
+
+      console.error(error);
+
+    }
+
+  };
+
+  const deleteCompany = async (
+    id: number
+  ) => {
+
+    if (
+      !confirm(
+        "Supprimer définitivement cette entreprise ?"
+      )
+    ) return;
+
+    try {
+
+      await fetch(
+        `http://localhost:5050/super-admin/companies/${id}`,
+        {
+          method: "DELETE",
+          headers: getHeaders(),
+        }
+      );
+
+      setCompanies((prev) =>
+        prev.filter(
+          (company) =>
+            company.id !== id
+        )
+      );
+
+      setMessage(
+        "Entreprise supprimée."
+      );
+
+    } catch (error) {
+
+      console.error(error);
+
+    }
+
+  };
+
+  const changeCompanyStatus = async (
+    companyId: number,
+    status: string
+  ) => {
+
+    try {
+
+      await fetch(
+        `http://localhost:5050/super-admin/companies/${companyId}/status`,
+        {
+          method: "PUT",
+          headers: getHeaders(),
+          body: JSON.stringify({
+            status,
+          }),
+        }
+      );
+
+      setCompanies((prev) =>
+        prev.map((company) =>
+          company.id === companyId
+            ? {
+                ...company,
+                subscription_status:
+                  status,
+              }
+            : company
+        )
+      );
+
+      setMessage(
+        status === "active"
+          ? "Entreprise réactivée."
+          : "Entreprise suspendue."
+      );
+
+    } catch (error) {
+
+      console.error(error);
+
+    }
+
+  };
+
+  const renewSubscription = async (
+    companyId: number
+  ) => {
+
+    try {
+
+      await fetch(
+        `http://localhost:5050/super-admin/subscriptions/${companyId}/renew`,
+        {
+          method: "PUT",
+          headers: getHeaders(),
+          body: JSON.stringify({
+            months: 1,
+          }),
+        }
+      );
+
+      setMessage(
+        "Abonnement renouvelé."
+      );
+
+    } catch (error) {
+
+      console.error(error);
+
+    }
+
+  };
+
+  const giveFreeAccess = async (
+    companyId: number
+  ) => {
+
+    try {
+
+      await fetch(
+        `http://localhost:5050/super-admin/subscriptions/${companyId}/free`,
+        {
+          method: "PUT",
+          headers: getHeaders(),
+        }
+      );
+
+      setMessage(
+        "Accès gratuit accordé."
+      );
+
+    } catch (error) {
+
+      console.error(error);
+
+    }
+
+  };
+
+  if (loading) {
+
     return (
-      <div className="min-h-screen bg-gray-100 p-8 text-black">
-        Chargement du Super Admin...
+      <div className="p-10 text-black">
+        Chargement...
       </div>
     );
+
   }
 
   return (
     <div className="min-h-screen bg-gray-100 p-8">
-      <h1 className="text-4xl font-bold text-black mb-2">
-        Super Admin SaaS
-      </h1>
 
-      <p className="text-gray-500 mb-8">
-        Contrôle global des entreprises, abonnements, paiements et accès clients.
-      </p>
+      <div className="flex items-center gap-4 mb-8">
+
+        <ShieldCheck
+          size={45}
+          className="text-yellow-500"
+        />
+
+        <div>
+
+          <h1 className="text-4xl font-bold text-black">
+            Super Admin SaaS
+          </h1>
+
+          <p className="text-gray-500">
+            Gestion complète Triangle WMS Pro
+          </p>
+
+        </div>
+
+      </div>
 
       {message && (
+
         <div className="bg-green-100 text-green-700 p-4 rounded-xl mb-6 font-bold">
           {message}
         </div>
+
       )}
 
-      <div className="grid grid-cols-4 gap-6 mb-8">
-        <Card title="Entreprises" value={overview.total_companies} />
-        <Card title="Actives" value={overview.active_companies} />
-        <Card title="Suspendues" value={overview.suspended_companies} />
-        <Card title="Plans" value={overview.total_plans} />
-      </div>
+      {/* CREATE PLAN */}
 
-      <div className="grid grid-cols-3 gap-6 mb-8">
-        <Card title="Abonnements actifs" value={overview.active_subscriptions} />
-        <Card title="Essais gratuits" value={overview.trial_subscriptions} />
-        <Card title="Revenus payés" value={`${overview.total_revenue} FCFA`} />
-      </div>
+      <div className="bg-white rounded-2xl shadow p-6 mb-10">
 
-      <div className="bg-white rounded-2xl shadow p-6">
-        <h2 className="text-2xl font-bold text-black mb-5">
-          Entreprises clientes
+        <h2 className="text-2xl font-bold text-black mb-6">
+          Ajouter un plan SaaS
         </h2>
 
-        {companies.length === 0 ? (
-          <p className="text-gray-500">Aucune entreprise trouvée.</p>
-        ) : (
-          <div className="space-y-4">
-            {companies.map((company: any) => (
-              <div key={company.id} className="border rounded-2xl p-5">
-                <div className="flex justify-between items-start gap-6">
-                  <div>
-                    <p className="text-xl font-bold text-black">
-                      {company.name}
-                    </p>
+        <div className="grid grid-cols-4 gap-4">
 
-                    <p className="text-sm text-gray-500">
-                      Responsable : {company.responsible_name || "-"}
-                    </p>
+          <input
+            className="border rounded-xl p-3 text-black"
+            placeholder="Nom"
+            value={newPlan.name}
+            onChange={(e) =>
+              setNewPlan({
+                ...newPlan,
+                name: e.target.value,
+              })
+            }
+          />
 
-                    <p className="text-sm text-gray-500">
-                      Email : {company.email || "-"} | Téléphone :{" "}
-                      {company.phone || "-"}
-                    </p>
+          <input
+            type="number"
+            className="border rounded-xl p-3 text-black"
+            placeholder="Prix"
+            value={newPlan.price_monthly}
+            onChange={(e) =>
+              setNewPlan({
+                ...newPlan,
+                price_monthly:
+                  e.target.value,
+              })
+            }
+          />
 
-                    <p className="text-sm text-gray-500">
-                      Plan :{" "}
-                      <span className="font-bold text-blue-600">
-                        {company.plan_name || "-"}
-                      </span>{" "}
-                      | Abonnement :{" "}
-                      <span className="font-bold">
-                        {company.subscription_status || "-"}
-                      </span>
-                    </p>
+          <input
+            type="number"
+            className="border rounded-xl p-3 text-black"
+            placeholder="Utilisateurs"
+            value={newPlan.max_users}
+            onChange={(e) =>
+              setNewPlan({
+                ...newPlan,
+                max_users:
+                  e.target.value,
+              })
+            }
+          />
 
-                    <p className="text-sm text-gray-500">
-                      Expiration :{" "}
-                      {company.end_date
-                        ? new Date(company.end_date).toLocaleDateString("fr-FR")
-                        : "Illimité / Non défini"}
-                    </p>
+          <input
+            type="number"
+            className="border rounded-xl p-3 text-black"
+            placeholder="Entrepôts"
+            value={newPlan.max_warehouses}
+            onChange={(e) =>
+              setNewPlan({
+                ...newPlan,
+                max_warehouses:
+                  e.target.value,
+              })
+            }
+          />
 
-                    <p className="text-sm text-gray-500">
-                      Statut entreprise :{" "}
-                      <span
-                        className={
-                          company.status === "active"
-                            ? "text-green-600 font-bold"
-                            : "text-red-600 font-bold"
-                        }
-                      >
-                        {company.status}
-                      </span>
-                    </p>
-                  </div>
+        </div>
 
-                  <div className="flex flex-col gap-3 min-w-[220px]">
-                    {company.status === "active" ? (
-                      <button
-                        onClick={() => changeCompanyStatus(company.id, "suspended")}
-                        className="bg-red-600 text-white px-4 py-2 rounded-xl font-bold"
-                      >
-                        Suspendre
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => changeCompanyStatus(company.id, "active")}
-                        className="bg-green-600 text-white px-4 py-2 rounded-xl font-bold"
-                      >
-                        Réactiver
-                      </button>
-                    )}
+        <button
+          onClick={createPlan}
+          className="mt-6 bg-yellow-500 text-black px-8 py-3 rounded-xl font-bold flex items-center gap-2"
+        >
 
-                    <button
-                      onClick={() => renewSubscription(company.id)}
-                      className="bg-yellow-500 text-black px-4 py-2 rounded-xl font-bold"
-                    >
-                      Renouveler 1 mois
-                    </button>
+          <Plus size={18} />
 
-                    <button
-                      onClick={() => giveFreeAccess(company.id)}
-                      className="bg-black text-white px-4 py-2 rounded-xl font-bold"
-                    >
-                      Accès gratuit
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+          Ajouter le plan
+
+        </button>
+
       </div>
 
-      <a
-        href="/assistant"
-        className="fixed bottom-6 right-6 bg-black text-white px-5 py-4 rounded-full shadow-2xl font-bold hover:scale-105 transition z-50"
-      >
-        🤖 Triangle IA
-      </a>
-    </div>
-  );
-}
+      {/* COMPANIES */}
 
-function Card({ title, value }: any) {
-  return (
-    <div className="bg-white p-6 rounded-2xl shadow">
-      <p className="text-gray-500">{title}</p>
-      <h2 className="text-3xl font-bold text-black">{value ?? 0}</h2>
+      <div className="bg-white rounded-2xl shadow p-6 mb-10 overflow-x-auto">
+
+        <h2 className="text-2xl font-bold text-black mb-6">
+          Entreprises
+        </h2>
+
+        <table className="w-full">
+
+          <thead className="bg-gray-100">
+
+            <tr>
+
+              <th className="p-4 text-left text-black">
+                Nom
+              </th>
+
+              <th className="p-4 text-left text-black">
+                Statut
+              </th>
+
+              <th className="p-4 text-left text-black">
+                Actions
+              </th>
+
+            </tr>
+
+          </thead>
+
+          <tbody>
+
+            {companies.map((company) => (
+
+              <tr
+                key={company.id}
+                className="border-t"
+              >
+
+                <td className="p-4 text-black font-semibold">
+                  {company.name}
+                </td>
+
+                <td className="p-4 text-black">
+                  {company.subscription_status}
+                </td>
+
+                <td className="p-4 flex gap-2 flex-wrap">
+
+                  <button
+                    onClick={() =>
+                      changeCompanyStatus(
+                        company.id,
+                        "suspended"
+                      )
+                    }
+                    className="bg-orange-500 text-white px-3 py-2 rounded-xl"
+                  >
+                    Suspendre
+                  </button>
+
+                  <button
+                    onClick={() =>
+                      changeCompanyStatus(
+                        company.id,
+                        "active"
+                      )
+                    }
+                    className="bg-green-600 text-white px-3 py-2 rounded-xl"
+                  >
+                    Réactiver
+                  </button>
+
+                  <button
+                    onClick={() =>
+                      renewSubscription(
+                        company.id
+                      )
+                    }
+                    className="bg-blue-600 text-white px-3 py-2 rounded-xl"
+                  >
+                    Renouveler
+                  </button>
+
+                  <button
+                    onClick={() =>
+                      giveFreeAccess(
+                        company.id
+                      )
+                    }
+                    className="bg-purple-600 text-white px-3 py-2 rounded-xl"
+                  >
+                    Gratuit
+                  </button>
+
+                  <button
+                    onClick={() =>
+                      deleteCompany(
+                        company.id
+                      )
+                    }
+                    className="bg-red-600 text-white px-3 py-2 rounded-xl"
+                  >
+                    Supprimer
+                  </button>
+
+                </td>
+
+              </tr>
+
+            ))}
+
+          </tbody>
+
+        </table>
+
+      </div>
+
+      {/* USERS */}
+
+      <div className="bg-white rounded-2xl shadow p-6 mb-10 overflow-x-auto">
+
+        <h2 className="text-2xl font-bold text-black mb-6">
+          Utilisateurs
+        </h2>
+
+        <table className="w-full">
+
+          <thead className="bg-gray-100">
+
+            <tr>
+
+              <th className="p-4 text-left text-black">
+                Nom
+              </th>
+
+              <th className="p-4 text-left text-black">
+                Email
+              </th>
+
+              <th className="p-4 text-left text-black">
+                Rôle
+              </th>
+
+              <th className="p-4 text-left text-black">
+                Action
+              </th>
+
+            </tr>
+
+          </thead>
+
+          <tbody>
+
+            {users.map((user) => (
+
+              <tr
+                key={user.id}
+                className="border-t"
+              >
+
+                <td className="p-4 text-black">
+                  {user.fullname}
+                </td>
+
+                <td className="p-4 text-black">
+                  {user.email}
+                </td>
+
+                <td className="p-4 text-black">
+                  {user.role}
+                </td>
+
+                <td className="p-4">
+
+                  <button
+                    onClick={() =>
+                      deleteUser(
+                        user.id
+                      )
+                    }
+                    className="bg-red-600 text-white px-4 py-2 rounded-xl"
+                  >
+                    Supprimer
+                  </button>
+
+                </td>
+
+              </tr>
+
+            ))}
+
+          </tbody>
+
+        </table>
+
+      </div>
+
+      {/* PLANS */}
+
+      <div className="bg-white rounded-2xl shadow p-6 overflow-x-auto">
+
+        <h2 className="text-2xl font-bold text-black mb-6">
+          Plans SaaS
+        </h2>
+
+        <table className="w-full">
+
+          <thead className="bg-gray-100">
+
+            <tr>
+
+              <th className="p-4 text-left text-black">
+                Nom
+              </th>
+
+              <th className="p-4 text-left text-black">
+                Prix
+              </th>
+
+              <th className="p-4 text-left text-black">
+                Utilisateurs
+              </th>
+
+              <th className="p-4 text-left text-black">
+                Actions
+              </th>
+
+            </tr>
+
+          </thead>
+
+          <tbody>
+
+            {plans.map((plan) => (
+
+              <tr
+                key={plan.id}
+                className="border-t"
+              >
+
+                <td className="p-4">
+
+                  <input
+                    value={plan.name}
+                    onChange={(e) =>
+                      updatePlanField(
+                        plan.id,
+                        "name",
+                        e.target.value
+                      )
+                    }
+                    className="border rounded-lg p-2 text-black"
+                  />
+
+                </td>
+
+                <td className="p-4">
+
+                  <input
+                    type="number"
+                    value={plan.price_monthly}
+                    onChange={(e) =>
+                      updatePlanField(
+                        plan.id,
+                        "price_monthly",
+                        e.target.value
+                      )
+                    }
+                    className="border rounded-lg p-2 text-black"
+                  />
+
+                </td>
+
+                <td className="p-4">
+
+                  <input
+                    type="number"
+                    value={plan.max_users}
+                    onChange={(e) =>
+                      updatePlanField(
+                        plan.id,
+                        "max_users",
+                        e.target.value
+                      )
+                    }
+                    className="border rounded-lg p-2 text-black"
+                  />
+
+                </td>
+
+                <td className="p-4 flex gap-2">
+
+                  <button
+                    onClick={() =>
+                      updatePlan(plan)
+                    }
+                    className="bg-blue-600 text-white px-4 py-2 rounded-xl"
+                  >
+                    Modifier
+                  </button>
+
+                  <button
+                    onClick={() =>
+                      deletePlan(
+                        plan.id
+                      )
+                    }
+                    className="bg-red-600 text-white px-4 py-2 rounded-xl"
+                  >
+                    Supprimer
+                  </button>
+
+                </td>
+
+              </tr>
+
+            ))}
+
+          </tbody>
+
+        </table>
+
+      </div>
+
     </div>
   );
 }

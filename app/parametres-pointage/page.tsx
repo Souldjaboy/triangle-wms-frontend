@@ -24,14 +24,21 @@ export default function ParametresPointagePage() {
     monthly_salary: "",
   });
 
+  const authHeaders = () => ({
+    Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+  });
+
   const fetchData = async () => {
     const groupsRes = await fetch(
-      "http://localhost:5050/attendance/settings/schedule-groups"
+      "http://localhost:5050/attendance/settings/schedule-groups",
+      { headers: authHeaders() }
     );
     const groupsData = await groupsRes.json();
     setGroups(Array.isArray(groupsData) ? groupsData : []);
 
-    const usersRes = await fetch("http://localhost:5050/users");
+    const usersRes = await fetch("http://localhost:5050/users", {
+      headers: authHeaders(),
+    });
     const usersData = await usersRes.json();
     setUsers(Array.isArray(usersData) ? usersData : []);
   };
@@ -61,6 +68,7 @@ export default function ParametresPointagePage() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...authHeaders(),
       },
       body: JSON.stringify(groupForm),
     });
@@ -90,6 +98,7 @@ export default function ParametresPointagePage() {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
+        ...authHeaders(),
       },
       body: JSON.stringify({
         schedule_group_id: userForm.schedule_group_id,

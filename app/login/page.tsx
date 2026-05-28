@@ -59,8 +59,8 @@ export default function LoginPage() {
           </h1>
 
           <p className="text-gray-300 text-lg">
-            Gestion professionnelle des stocks,
-            entrepôts, inventaires et documents logistiques.
+            Gestion professionnelle des stocks, entrepôts, inventaires,
+            documents logistiques et abonnements SaaS.
           </p>
 
           <div className="mt-10">
@@ -85,10 +85,7 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form
-            onSubmit={handleLogin}
-            className="space-y-5"
-          >
+          <form onSubmit={handleLogin} className="space-y-5">
             <div>
               <label className="block text-black font-bold mb-2">
                 Email
@@ -127,6 +124,13 @@ export default function LoginPage() {
               {loading ? "Connexion..." : "Se connecter"}
             </button>
           </form>
+
+          <p className="text-gray-500 text-sm mt-5 text-center">
+            Pas encore de compte ?{" "}
+            <a href="/register" className="text-blue-600 font-bold">
+              Créer une entreprise
+            </a>
+          </p>
         </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export default function ChatPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -10,6 +10,34 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [receiverId, setReceiverId] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
+
+  const mediaRecorderRef = useRef<any>(null);
+  const audioChunksRef = useRef<any[]>([]);
+
+  const getHeaders = () => ({
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${localStorage.getItem("token")}`,
+  });
+
+  const fetchUsers = async () => {
+    const res = await fetch("http://localhost:5050/users", {
+      headers: getHeaders(),
+    });
+
+    const data = await res.json();
+    setUsers(Array.isArray(data) ? data : []);
+  };
+
+  const fetchConversations = async (userId: number) => {
+    const res = await fetch(
+      `http://localhost:5050/chat/conversations/${userId}`,
+      { headers: getHeaders() }
+    );
+
+    const data = await res.json();
+    setConversations(Array.isArray(data) ? data : []);
+  };
 
   useEffect(() => {
     const savedUser = localStorage.getItem("user");
@@ -23,22 +51,14 @@ export default function ChatPage() {
     fetchUsers();
   }, []);
 
-  const fetchUsers = async () => {
-    const res = await fetch("http://localhost:5050/users");
-    const data = await res.json();
-    setUsers(Array.isArray(data) ? data : []);
-  };
-
-  const fetchConversations = async (userId: number) => {
-    const res = await fetch(`http://localhost:5050/chat/conversations/${userId}`);
-    const data = await res.json();
-    setConversations(Array.isArray(data) ? data : []);
-  };
-
   const fetchMessages = async (conversation: any) => {
     setSelectedConversation(conversation);
 
-    const res = await fetch(`http://localhost:5050/chat/messages/${conversation.id}`);
+    const res = await fetch(
+      `http://localhost:5050/chat/messages/${conversation.id}`,
+      { headers: getHeaders() }
+    );
+
     const data = await res.json();
     setMessages(Array.isArray(data) ? data : []);
   };
@@ -49,13 +69,13 @@ export default function ChatPage() {
       return;
     }
 
-    const receiver = users.find((u: any) => String(u.id) === String(receiverId));
+    const receiver = users.find(
+      (u: any) => String(u.id) === String(receiverId)
+    );
 
     const res = await fetch("http://localhost:5050/chat/conversations", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: getHeaders(),
       body: JSON.stringify({
         title: `${currentUser.fullname} / ${receiver?.fullname}`,
         type: "private",
@@ -66,9 +86,13 @@ export default function ChatPage() {
 
     const conversation = await res.json();
 
+    if (!res.ok) {
+      alert(conversation.error || "Erreur création conversation.");
+      return;
+    }
+
     await fetchConversations(currentUser.id);
-    setSelectedConversation(conversation);
-    setMessages([]);
+    await fetchMessages(conversation);
   };
 
   const sendMessage = async () => {
@@ -76,14 +100,14 @@ export default function ChatPage() {
 
     await fetch("http://localhost:5050/chat/messages", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: getHeaders(),
       body: JSON.stringify({
         conversation_id: selectedConversation.id,
         sender_id: currentUser.id,
         receiver_id: receiverId ? Number(receiverId) : null,
         content: newMessage,
+        message_type: "text",
+        audio_url: "",
       }),
     });
 
@@ -91,22 +115,95 @@ export default function ChatPage() {
     fetchMessages(selectedConversation);
   };
 
+  const startRecording = async () => {
+    if (!selectedConversation) return;
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+      });
+
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: "audio/webm",
+      });
+
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, {
+          type: "audio/webm",
+        });
+
+        if (audioBlob.size === 0) {
+          alert("Aucun son enregistré. Vérifie le micro.");
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append("audio", audioBlob, "voice-message.webm");
+
+        const uploadResponse = await fetch(
+          "http://localhost:5050/chat/upload-audio",
+          {
+            method: "POST",
+            body: formData,
+          }
+        );
+
+        const uploadData = await uploadResponse.json();
+
+        await fetch("http://localhost:5050/chat/messages", {
+          method: "POST",
+          headers: getHeaders(),
+          body: JSON.stringify({
+            conversation_id: selectedConversation.id,
+            sender_id: currentUser.id,
+            receiver_id: receiverId ? Number(receiverId) : null,
+            content: "",
+            message_type: "audio",
+            audio_url: uploadData.audio_url,
+          }),
+        });
+
+        fetchMessages(selectedConversation);
+      };
+
+      mediaRecorder.start(1000);
+      setIsRecording(true);
+    } catch (error) {
+      alert("Micro non autorisé ou indisponible.");
+      console.error(error);
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
   if (!currentUser) {
     return (
-      <div className="min-h-screen bg-gray-100 p-8 text-black">
-        Vous devez être connecté pour utiliser le chat.
+      <div className="p-8 text-black">
+        Vous devez être connecté.
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-gray-100 p-8">
-      <h1 className="text-4xl font-bold text-black mb-2">
-        Chat interne
-      </h1>
+      <h1 className="text-4xl font-bold text-black mb-2">Chat interne</h1>
 
       <p className="text-gray-500 mb-8">
-        Communication interne entre les utilisateurs du WMS.
+        Messages écrits, messages vocaux et réunions vidéo.
       </p>
 
       <div className="grid grid-cols-3 gap-8">
@@ -133,7 +230,7 @@ export default function ChatPage() {
 
           <button
             onClick={createConversation}
-            className="bg-yellow-500 text-black font-bold rounded-xl py-3 w-full mb-8"
+            className="bg-yellow-500 text-black font-bold rounded-xl py-3 w-full mb-6"
           >
             Créer conversation
           </button>
@@ -159,10 +256,6 @@ export default function ChatPage() {
                   <p className="font-bold text-black">
                     {conversation.title}
                   </p>
-
-                  <p className="text-sm text-gray-500">
-                    Type : {conversation.type}
-                  </p>
                 </button>
               ))}
             </div>
@@ -172,7 +265,7 @@ export default function ChatPage() {
         <div className="col-span-2 bg-white rounded-2xl shadow p-6 flex flex-col h-[650px]">
           {!selectedConversation ? (
             <div className="flex-1 flex items-center justify-center text-gray-500">
-              Sélectionne une conversation.
+              Sélectionne ou crée une conversation.
             </div>
           ) : (
             <>
@@ -181,9 +274,31 @@ export default function ChatPage() {
                   {selectedConversation.title}
                 </h2>
 
-                <p className="text-gray-500">
-                  Conversation interne sécurisée
-                </p>
+                <div className="flex gap-3 mt-4">
+                  <button
+                    onClick={() => {
+                      const roomName = `Triangle-WMS-Conversation-${selectedConversation.id}`;
+                      window.open(
+                        `https://meet.jit.si/${roomName}`,
+                        "_blank"
+                      );
+                    }}
+                    className="bg-green-600 text-white px-5 py-2 rounded-xl font-bold"
+                  >
+                    🎥 Vidéo
+                  </button>
+
+                  <button
+                    onClick={isRecording ? stopRecording : startRecording}
+                    className={`px-5 py-2 rounded-xl font-bold ${
+                      isRecording
+                        ? "bg-red-600 text-white"
+                        : "bg-black text-white"
+                    }`}
+                  >
+                    {isRecording ? "⏹ Stop" : "🎤 Vocal"}
+                  </button>
+                </div>
               </div>
 
               <div className="flex-1 overflow-y-auto space-y-4 mb-4">
@@ -198,7 +313,9 @@ export default function ChatPage() {
                     return (
                       <div
                         key={message.id}
-                        className={`flex ${mine ? "justify-end" : "justify-start"}`}
+                        className={`flex ${
+                          mine ? "justify-end" : "justify-start"
+                        }`}
                       >
                         <div
                           className={`max-w-lg rounded-2xl p-4 ${
@@ -208,30 +325,27 @@ export default function ChatPage() {
                           }`}
                         >
                           {!mine && (
-                            <div className="flex items-center gap-3 mb-2">
-                              {message.profile_image_url ? (
-                                <img
-                                  src={message.profile_image_url}
-                                  alt={message.sender_name}
-                                  className="w-8 h-8 object-cover rounded-full"
-                                />
-                              ) : (
-                                <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center">
-                                  👤
-                                </div>
-                              )}
-
-                              <p className="text-sm font-bold">
-                                {message.sender_name} ({message.sender_role})
-                              </p>
-                            </div>
+                            <p className="text-sm font-bold mb-2">
+                              {message.sender_name} ({message.sender_role})
+                            </p>
                           )}
 
-                          <p>{message.content}</p>
+                          {message.message_type === "audio" &&
+                          message.audio_url ? (
+                            <audio
+                              controls
+                              src={message.audio_url}
+                              className="mt-2 w-full"
+                            />
+                          ) : (
+                            <p>{message.content}</p>
+                          )}
 
                           <p className="text-xs opacity-70 mt-2">
                             {message.created_at
-                              ? new Date(message.created_at).toLocaleString("fr-FR")
+                              ? new Date(message.created_at).toLocaleString(
+                                  "fr-FR"
+                                )
                               : ""}
                           </p>
                         </div>
@@ -254,6 +368,7 @@ export default function ChatPage() {
                 />
 
                 <button
+                  type="button"
                   onClick={sendMessage}
                   className="bg-black text-white font-bold px-8 rounded-xl"
                 >

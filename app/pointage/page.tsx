@@ -181,7 +181,7 @@ export default function PointagePage() {
 
           {attendance.length === 0 ? (
             <p className="text-gray-500">
-              Aucun pointage aujourd’hui.
+              Aucun pointage aujourd'hui.
             </p>
           ) : (
             <table className="w-full text-left">

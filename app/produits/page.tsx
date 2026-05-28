@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 
 export default function ProduitsPage() {
-  const [produits, setProduits] = useState([]);
-  const [locations, setLocations] = useState([]);
+  const [produits, setProduits] = useState<any[]>([]);
+  const [locations, setLocations] = useState<any[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [userRole, setUserRole] = useState("");
 
@@ -30,29 +30,42 @@ export default function ProduitsPage() {
     location_code: "",
   });
 
-  const fetchProduits = async () => {
-    const response = await fetch("http://localhost:5050/products");
-    const data = await response.json();
-    setProduits(data);
-  };
-
-  const fetchLocations = async () => {
-    const response = await fetch("http://localhost:5050/locations");
-    const data = await response.json();
-    setLocations(data);
-  };
-
-  useEffect(() => {
-    fetchProduits();
-    fetchLocations();
-
-    const savedUser = localStorage.getItem("user");
-
-    if (savedUser) {
-      const user = JSON.parse(savedUser);
-      setUserRole(user.role);
+const fetchProduits = async () => {
+  const response = await fetch(
+    "http://localhost:5050/products",
+    {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
     }
-  }, []);
+  );
+
+  const data = await response.json();
+
+  setProduits(Array.isArray(data) ? data : []);
+};
+
+const fetchLocations = async () => {
+  const response = await fetch(
+    "http://localhost:5050/locations"
+  );
+
+  const data = await response.json();
+
+  setLocations(Array.isArray(data) ? data : []);
+};
+
+useEffect(() => {
+  fetchProduits();
+  fetchLocations();
+
+  const savedUser = localStorage.getItem("user");
+
+  if (savedUser) {
+    const user = JSON.parse(savedUser);
+    setUserRole(user.role);
+  }
+}, []);
 
   const handleChange = (e: any) => {
     const value =
@@ -100,49 +113,59 @@ export default function ProduitsPage() {
     });
   };
 
-  const handleSubmit = async (e: any) => {
-    e.preventDefault();
+const handleSubmit = async (e: any) => {
+  e.preventDefault();
 
-    if (!canAddProduct) {
-      alert("Vous n'avez pas l'autorisation.");
+  if (!canAddProduct) {
+    alert("Vous n'avez pas l'autorisation.");
+    return;
+  }
+
+  const savedUser = localStorage.getItem("user");
+  const user = savedUser ? JSON.parse(savedUser) : null;
+
+  const payload = {
+    ...formData,
+    user_name: user?.fullname || "Utilisateur",
+    user_role: user?.role || userRole,
+  };
+
+  const headers = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${localStorage.getItem("token")}`,
+  };
+
+  let response;
+
+  if (editingId) {
+    if (!isAdmin) {
+      alert("Seul l'administrateur peut modifier.");
       return;
     }
 
-    const savedUser = localStorage.getItem("user");
-    const user = savedUser ? JSON.parse(savedUser) : null;
+    response = await fetch(`http://localhost:5050/products/${editingId}`, {
+      method: "PUT",
+      headers,
+      body: JSON.stringify(payload),
+    });
+  } else {
+    response = await fetch("http://localhost:5050/products", {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+    });
+  }
 
-    const payload = {
-      ...formData,
-      user_name: user?.fullname || "Utilisateur",
-      user_role: user?.role || userRole,
-    };
+  const data = await response.json();
 
-    if (editingId) {
-      if (!isAdmin) {
-        alert("Seul l'administrateur peut modifier.");
-        return;
-      }
+  if (!response.ok) {
+    alert(data.error || "Erreur enregistrement produit.");
+    return;
+  }
 
-      await fetch(`http://localhost:5050/products/${editingId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-    } else {
-      await fetch("http://localhost:5050/products", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-    }
-
-    resetForm();
-    fetchProduits();
-  };
+  resetForm();
+  await fetchProduits();
+};
 
   const handleEdit = (produit: any) => {
     if (!isAdmin) {

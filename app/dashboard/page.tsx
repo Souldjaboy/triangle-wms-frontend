@@ -1,4 +1,28 @@
 "use client";
+import {
+  LayoutDashboard,
+  Search,
+  Bot,
+  ShieldCheck,
+  QrCode,
+  MessageCircle,
+  Bell,
+  Package,
+  Handshake,
+  Boxes,
+  ClipboardList,
+  Warehouse,
+  MapPin,
+  ScanLine,
+  FileText,
+  BarChart3,
+  TriangleAlert,
+  Activity,
+  Users,
+  ClipboardCheck,
+  Settings,
+  LogOut,
+} from "lucide-react";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -76,140 +100,207 @@ export default function DashboardPage() {
     })
   );
 
+  const role = String(userData?.role || "").toLowerCase();
+  const isAdminLike =
+    userData?.is_super_admin === true ||
+    role === "admin" ||
+    role === "super_admin";
+
   return (
     <div className="min-h-screen flex bg-gray-100">
       <aside className="w-64 bg-black text-white p-6 overflow-y-auto">
         <h1 className="text-2xl font-bold text-yellow-500">TRIANGLE</h1>
         <p className="text-sm text-gray-400 mb-10">WMS PRO</p>
 
-        <ul className="space-y-3">
-          <Link href="/dashboard">
-            <li className="bg-yellow-500 text-black p-3 rounded-lg font-semibold cursor-pointer">
-              Tableau de bord
-            </li>
-          </Link>
+       <ul className="space-y-3">
 
-          <Link href="/recherche">
-            <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer">
-              Recherche
-            </li>
-          </Link>
+  <Link href="/dashboard">
+    <li className="bg-yellow-500 text-black p-3 rounded-lg font-semibold cursor-pointer flex items-center gap-3">
+      <LayoutDashboard size={20} />
+      Tableau de bord
+    </li>
+  </Link>
 
-          <Link href="/assistant">
-            <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer">
-              Assistant IA
-            </li>
-          </Link>
+  <Link href="/recherche">
+    <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+      <Search size={20} />
+      Recherche
+    </li>
+  </Link>
 
-          <Link href="/super-admin">
-            <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer">
-               Super Admin
-           </li>
-        </Link>
+  <Link href="/assistant">
+    <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+      <Bot size={20} />
+      Assistant IA
+    </li>
+  </Link>
 
-          <Link href="/chat">
-            <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer">
-              Chat interne
-            </li>
-          </Link>
+  {userData?.is_super_admin === true && (
+    <Link href="/super-admin">
+      <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+        <ShieldCheck size={20} />
+        Super Admin
+      </li>
+    </Link>
+  )}
 
-          <Link href="/notifications">
-            <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer">
-              Notifications
-            </li>
-          </Link>
 
-          <Link href="/produits">
-            <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer">
-              Produits
-            </li>
-          </Link>
+  <Link href="/chat">
+    <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+      <MessageCircle size={20} />
+      Chat interne
+    </li>
+  </Link>
 
-          <Link href="/stocks">
-            <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer">
-              stokages
-            </li>
-          </Link>
+  <Link href="/notifications">
+    <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+      <Bell size={20} />
+      Notifications
+    </li>
+  </Link>
 
-          <Link href="/inventaires">
-            <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer">
-              Inventaires
-            </li>
-          </Link>
+  <Link href="/produits">
+    <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+      <Package size={20} />
+      Produits
+    </li>
+  </Link>
 
-          <Link href="/entrepots">
-            <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer">
-              Entrepôts
-            </li>
-          </Link>
+  {isAdminLike && (
+    <Link href="/partenaires">
+      <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+        <Handshake size={20} />
+        Partenaires
+      </li>
+    </Link>
+  )}
 
-          <Link href="/emplacements">
-            <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer">
-              Emplacements
-            </li>
-          </Link>
+  <Link href="/stocks">
+    <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+      <Boxes size={20} />
+      Stockages
+    </li>
+  </Link>
 
-          <Link href="/scanner">
-            <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer">
-              Scanner QR
-            </li>
-          </Link>
+  <Link href="/inventaires">
+    <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+      <ClipboardList size={20} />
+      Inventaires
+    </li>
+  </Link>
 
-          <Link href="/documents">
-            <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer">
-              Documents
-            </li>
-          </Link>
+  {isAdminLike && (
+    <>
+      <Link href="/entrepots">
+        <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+          <Warehouse size={20} />
+          Entrepôts
+        </li>
+      </Link>
 
-          <Link href="/rapports">
-            <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer">
-              Rapports
-            </li>
-          </Link>
+      <Link href="/emplacements">
+        <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+          <MapPin size={20} />
+          Emplacements
+        </li>
+      </Link>
+    </>
+  )}
 
-          <Link href="/alertes">
-            <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer">
-              Alertes
-            </li>
-          </Link>
+  <Link href="/scanner">
+    <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+      <ScanLine size={20} />
+      Scanner QR
+    </li>
+  </Link>
 
-          <Link href="/activites">
-            <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer">
-              Activités
-            </li>
-          </Link>
+  {isAdminLike && (
+    <>
+      <Link href="/documents">
+        <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+          <FileText size={20} />
+          Documents
+        </li>
+      </Link>
 
-          <Link href="/utilisateurs">
-            <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer">
-              Utilisateurs
-            </li>
-          </Link>
+      <Link href="/rapports">
+        <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+          <BarChart3 size={20} />
+          Rapports
+        </li>
+      </Link>
 
-          <Link href="/pointage">
-            <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer">
-              Pointage
-            </li>
-          </Link>
+      <Link href="/alertes">
+        <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+          <TriangleAlert size={20} />
+          Alertes
+        </li>
+      </Link>
 
-          <Link href="/parametres-pointage">
-            <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer">
-              Paramètres pointage
-            </li>
-          </Link>
+      <Link href="/activites">
+        <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+          <Activity size={20} />
+          Activités
+        </li>
+      </Link>
 
-          <Link href="/parametres">
-            <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer">
-              Paramètres
-            </li>
-          </Link>
+      <Link href="/utilisateurs">
+        <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+          <Users size={20} />
+          Utilisateurs
+        </li>
+      </Link>
 
-          <button
-            onClick={handleLogout}
-            className="w-full text-left p-3 bg-red-600 hover:bg-red-700 rounded-lg cursor-pointer font-bold text-white mt-8"
-          >
-            Déconnexion
-          </button>
-        </ul>
+      <Link href="/badges">
+        <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+          Badges
+        </li>
+      </Link>
+    </>
+  )}
+
+
+  <Link href="/attendance-scan">
+    <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+      <QrCode size={20} />
+      Pointage QR
+    </li>
+  </Link>
+
+  <Link href="/pointage">
+    <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+      <ClipboardCheck size={20} />
+      Pointage
+    </li>
+  </Link>
+
+  {isAdminLike && (
+    <>
+      <Link href="/parametres-pointage">
+        <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+          <Settings size={20} />
+          Paramètres pointage
+        </li>
+      </Link>
+
+      <Link href="/parametres">
+        <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+          <Settings size={20} />
+          Paramètres
+        </li>
+      </Link>
+    </>
+  )}
+
+  <button
+    onClick={handleLogout}
+    className="w-full text-left p-3 bg-red-600 hover:bg-red-700 rounded-lg cursor-pointer font-bold text-white mt-8 flex items-center gap-3"
+  >
+    <LogOut size={20} />
+    Déconnexion
+  </button>
+
+</ul>
       </aside>
 
     <main className="flex-1 p-8">

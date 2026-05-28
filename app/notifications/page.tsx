@@ -7,7 +7,11 @@ export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<any[]>([]);
 
   const fetchNotifications = async (userId: number) => {
-    const res = await fetch(`http://localhost:5050/notifications/${userId}`);
+    const res = await fetch(`http://localhost:5050/notifications/${userId}`, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+      },
+    });
     const data = await res.json();
     setNotifications(Array.isArray(data) ? data : []);
   };
@@ -25,6 +29,9 @@ export default function NotificationsPage() {
   const markAsRead = async (id: number) => {
     await fetch(`http://localhost:5050/notifications/${id}/read`, {
       method: "PUT",
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+      },
     });
 
     if (currentUser) {

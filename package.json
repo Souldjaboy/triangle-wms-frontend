@@ -3,14 +3,18 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "next dev --webpack",
+    "dev:local": "NEXT_TEST_WASM_DIR=$PWD/node_modules/@next/swc-wasm-nodejs ./node-local node_modules/next/dist/bin/next dev --webpack",
+    "build": "next build --webpack",
+    "build:local": "NEXT_TEST_WASM_DIR=$PWD/node_modules/@next/swc-wasm-nodejs ./node-local node_modules/next/dist/bin/next build --webpack",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
     "html5-qrcode": "^2.3.8",
+    "lucide-react": "^1.16.0",
     "next": "16.2.6",
+    "qrcode.react": "^4.2.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "recharts": "^3.8.1"
@@ -24,5 +28,10 @@
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "optionalDependencies": {
+    "@next/swc-darwin-x64": "^16.2.6",
+    "@next/swc-wasm-nodejs": "^16.2.6",
+    "@next/swc-wasm-web": "npm:null@*"
   }
 }

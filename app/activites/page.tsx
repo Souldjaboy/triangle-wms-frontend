@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 export default function ActivitesPage() {
-  const [activities, setActivities] = useState([]);
+  const [activities, setActivities] = useState<any[]>([]);
 
   const fetchActivities = async () => {
     const response = await fetch("http://localhost:5050/activities");
