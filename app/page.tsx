@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { apiUrl } from "./lib/api";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -9,7 +10,7 @@ export default function LoginPage() {
   const handleLogin = async (e: any) => {
     e.preventDefault();
 
-    const response = await fetch("http://localhost:5050/login", {
+    const response = await fetch(apiUrl("/login"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -65,6 +66,13 @@ export default function LoginPage() {
             Se connecter
           </button>
         </form>
+
+        <p className="text-gray-500 text-sm mt-5 text-center">
+          Pas encore de compte ?{" "}
+          <a href="/register" className="text-blue-600 font-bold">
+            Créer une entreprise
+          </a>
+        </p>
       </div>
     </div>
   );

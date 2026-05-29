@@ -4,6 +4,36 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiUrl } from "../lib/api";
 
+const DEFAULT_PLANS = [
+  {
+    id: 1,
+    name: "Starter",
+    price_monthly: 5000,
+    max_users: 3,
+    max_warehouses: 1,
+    max_products: 200,
+    trial_days: 15,
+  },
+  {
+    id: 2,
+    name: "Standard",
+    price_monthly: 10000,
+    max_users: 10,
+    max_warehouses: 3,
+    max_products: 1000,
+    trial_days: 15,
+  },
+  {
+    id: 3,
+    name: "Premium",
+    price_monthly: 15000,
+    max_users: "Illimité",
+    max_warehouses: "Illimité",
+    max_products: "Illimité",
+    trial_days: 15,
+  },
+];
+
 export default function RegisterPage() {
 
   const router = useRouter();
@@ -42,19 +72,20 @@ export default function RegisterPage() {
       const data =
         await response.json();
 
-      setPlans(
-        Array.isArray(data)
+      const availablePlans =
+        Array.isArray(data) && data.length > 0
           ? data
-          : []
-      );
+          : DEFAULT_PLANS;
 
-      if (Array.isArray(data) && data.length > 0) {
-        setSelectedPlan((current: any) => current || data[0]);
-      }
+      setPlans(availablePlans);
+
+      setSelectedPlan((current: any) => current || availablePlans[0]);
 
     } catch (error) {
 
       console.error(error);
+      setPlans(DEFAULT_PLANS);
+      setSelectedPlan((current: any) => current || DEFAULT_PLANS[0]);
 
     }
 
