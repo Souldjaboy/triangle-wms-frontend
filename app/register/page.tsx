@@ -155,10 +155,16 @@ export default function RegisterPage() {
           }
         );
 
-      const registerData =
-        await registerResponse.json().catch(() => ({
-          error: "Réponse serveur invalide."
-        }));
+      const registerText = await registerResponse.text();
+      let registerData: any = {};
+
+      try {
+        registerData = registerText ? JSON.parse(registerText) : {};
+      } catch {
+        registerData = {
+          error: `Réponse serveur invalide : ${registerText.slice(0, 160)}`
+        };
+      }
 
       if (
         !registerResponse.ok
