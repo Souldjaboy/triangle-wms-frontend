@@ -27,6 +27,7 @@ import {
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { apiUrl } from "../lib/api";
 import {
   BarChart,
   Bar,
@@ -46,6 +47,7 @@ export default function DashboardPage() {
 
   const [userData, setUserData] = useState<any>(null);
   const [stats, setStats] = useState<any>(null);
+  const [statsError, setStatsError] = useState("");
 
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
@@ -56,9 +58,24 @@ export default function DashboardPage() {
   }, []);
 
   const fetchStats = async () => {
-    const response = await fetch("http://localhost:5050/dashboard-stats");
-    const data = await response.json();
-    setStats(data);
+    try {
+      const response = await fetch(apiUrl("/dashboard-stats"), {
+        cache: "no-store",
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setStatsError(data.error || "Erreur chargement tableau de bord.");
+        setStats({});
+        return;
+      }
+
+      setStats(data);
+    } catch (error) {
+      console.error(error);
+      setStatsError("Backend inaccessible pour le tableau de bord.");
+      setStats({});
+    }
   };
 
   useEffect(() => {
@@ -75,6 +92,16 @@ export default function DashboardPage() {
     return (
       <div className="min-h-screen bg-gray-100 p-8 text-black">
         Chargement du tableau de bord...
+      </div>
+    );
+  }
+
+  if (statsError) {
+    return (
+      <div className="min-h-screen bg-gray-100 p-8 text-black">
+        <div className="bg-red-100 text-red-700 p-4 rounded-xl font-bold">
+          {statsError}
+        </div>
       </div>
     );
   }
