@@ -147,12 +147,18 @@ export default function RegisterPage() {
               ...formData,
               plan_id:
                 selectedPlan.id,
+              plan_name:
+                selectedPlan.name,
+              plan_price:
+                selectedPlan.price_monthly,
             }),
           }
         );
 
       const registerData =
-        await registerResponse.json();
+        await registerResponse.json().catch(() => ({
+          error: "Réponse serveur invalide."
+        }));
 
       if (
         !registerResponse.ok

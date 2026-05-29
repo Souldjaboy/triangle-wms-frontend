@@ -7,29 +7,38 @@ type RouteContext = {
 };
 
 async function proxyRequest(request: Request, context: RouteContext) {
-  const params = await context.params;
-  const path = params.path?.join("/") || "";
-  const sourceUrl = new URL(request.url);
-  const targetUrl = `${BACKEND_URL.replace(/\/$/, "")}/${path}${sourceUrl.search}`;
-  const headers = new Headers(request.headers);
+  try {
+    const params = await context.params;
+    const path = params.path?.join("/") || "";
+    const sourceUrl = new URL(request.url);
+    const targetUrl = `${BACKEND_URL.replace(/\/$/, "")}/${path}${sourceUrl.search}`;
+    const headers = new Headers(request.headers);
 
-  headers.delete("host");
-  headers.delete("content-length");
+    headers.delete("host");
+    headers.delete("content-length");
 
-  const response = await fetch(targetUrl, {
-    method: request.method,
-    headers,
-    body: request.method === "GET" || request.method === "HEAD"
-      ? undefined
-      : await request.arrayBuffer(),
-    cache: "no-store",
-  });
+    const response = await fetch(targetUrl, {
+      method: request.method,
+      headers,
+      body: request.method === "GET" || request.method === "HEAD"
+        ? undefined
+        : await request.arrayBuffer(),
+      cache: "no-store",
+    });
 
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers: response.headers,
-  });
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+    });
+  } catch (error) {
+    console.error("Erreur proxy API :", error);
+
+    return Response.json(
+      { error: "Backend inaccessible depuis le frontend." },
+      { status: 502 }
+    );
+  }
 }
 
 export async function GET(request: Request, context: RouteContext) {
