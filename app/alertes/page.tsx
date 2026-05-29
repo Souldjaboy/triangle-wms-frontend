@@ -6,7 +6,7 @@ export default function AlertesPage() {
   const [alerts, setAlerts] = useState<any>(null);
 
   const fetchAlerts = async () => {
-    const response = await fetch("http://localhost:5050/alerts");
+    const response = await fetch("/api/alerts");
     const data = await response.json();
     setAlerts(data);
   };

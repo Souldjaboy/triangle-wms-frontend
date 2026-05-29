@@ -14,7 +14,7 @@ export default function PointagePage() {
 
   const fetchAttendance = async () => {
     try {
-      const res = await fetch("http://localhost:5050/attendance/today");
+      const res = await fetch("/api/attendance/today");
 
       const text = await res.text();
 
@@ -50,7 +50,7 @@ export default function PointagePage() {
     setLastCode(badgeCode);
 
     try {
-      const response = await fetch("http://localhost:5050/attendance/scan", {
+      const response = await fetch("/api/attendance/scan", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

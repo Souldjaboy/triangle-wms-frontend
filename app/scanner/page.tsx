@@ -14,11 +14,11 @@ export default function ScannerPage() {
   const scannerRef = useRef<any>(null);
 
   const fetchData = async () => {
-    const locationsRes = await fetch("http://localhost:5050/locations");
+    const locationsRes = await fetch("/api/locations");
     const locationsData = await locationsRes.json();
     setLocations(Array.isArray(locationsData) ? locationsData : []);
 
-    const productsRes = await fetch("http://localhost:5050/products");
+    const productsRes = await fetch("/api/products");
     const productsData = await productsRes.json();
     setProducts(Array.isArray(productsData) ? productsData : []);
   };
@@ -88,7 +88,7 @@ export default function ScannerPage() {
     const savedUser = localStorage.getItem("user");
     const user = savedUser ? JSON.parse(savedUser) : null;
 
-    await fetch("http://localhost:5050/stock-movements", {
+    await fetch("/api/stock-movements", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

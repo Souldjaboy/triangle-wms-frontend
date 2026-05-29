@@ -17,7 +17,7 @@ export default function ParametresPage() {
   });
 
   const fetchSettings = async () => {
-    const response = await fetch("http://localhost:5050/company-settings");
+    const response = await fetch("/api/company-settings");
     const data = await response.json();
 
     if (data) {
@@ -55,7 +55,7 @@ export default function ParametresPage() {
     const uploadData = new FormData();
     uploadData.append("logo", file);
 
-    const response = await fetch("http://localhost:5050/upload-logo", {
+    const response = await fetch("/api/upload-logo", {
       method: "POST",
       body: uploadData,
     });
@@ -88,7 +88,7 @@ export default function ParametresPage() {
   const handleSubmit = async (e: any) => {
     e.preventDefault();
 
-    await fetch("http://localhost:5050/company-settings", {
+    await fetch("/api/company-settings", {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",

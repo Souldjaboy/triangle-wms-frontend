@@ -30,13 +30,13 @@ export default function ParametresPointagePage() {
 
   const fetchData = async () => {
     const groupsRes = await fetch(
-      "http://localhost:5050/attendance/settings/schedule-groups",
+      "/api/attendance/settings/schedule-groups",
       { headers: authHeaders() }
     );
     const groupsData = await groupsRes.json();
     setGroups(Array.isArray(groupsData) ? groupsData : []);
 
-    const usersRes = await fetch("http://localhost:5050/users", {
+    const usersRes = await fetch("/api/users", {
       headers: authHeaders(),
     });
     const usersData = await usersRes.json();
@@ -64,7 +64,7 @@ export default function ParametresPointagePage() {
   const createGroup = async (e: any) => {
     e.preventDefault();
 
-    await fetch("http://localhost:5050/attendance/settings/schedule-groups", {
+    await fetch("/api/attendance/settings/schedule-groups", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -94,7 +94,7 @@ export default function ParametresPointagePage() {
       return;
     }
 
-    await fetch(`http://localhost:5050/attendance/settings/users/${userForm.user_id}`, {
+    await fetch(`/api/attendance/settings/users/${userForm.user_id}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",

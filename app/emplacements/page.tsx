@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-const API_URL = "http://localhost:5050";
+const API_URL = "/api";
 
 export default function EmplacementsPage() {
   const [warehouses, setWarehouses] = useState<any[]>([]);

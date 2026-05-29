@@ -3,7 +3,7 @@
 import { Html5Qrcode } from "html5-qrcode";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-const API_URL = "http://localhost:5050";
+const API_URL = "/api";
 
 type ActionType = "checkin" | "pause_start" | "pause_end" | "checkout";
 

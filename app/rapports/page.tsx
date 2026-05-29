@@ -9,15 +9,15 @@ export default function RapportsPage() {
   const [activeReport, setActiveReport] = useState("produits");
 
   const fetchData = async () => {
-    const productsRes = await fetch("http://localhost:5050/products");
+    const productsRes = await fetch("/api/products");
     const productsData = await productsRes.json();
     setProducts(Array.isArray(productsData) ? productsData : []);
 
-    const movementsRes = await fetch("http://localhost:5050/stock-movements");
+    const movementsRes = await fetch("/api/stock-movements");
     const movementsData = await movementsRes.json();
     setMovements(Array.isArray(movementsData) ? movementsData : []);
 
-    const alertsRes = await fetch("http://localhost:5050/alerts");
+    const alertsRes = await fetch("/api/alerts");
     const alertsData = await alertsRes.json();
     setAlerts(alertsData);
   };

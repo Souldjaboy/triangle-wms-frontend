@@ -48,19 +48,19 @@ export default function SuperAdminPage() {
 
       const companiesResponse =
         await fetch(
-          "http://localhost:5050/super-admin/companies",
+          "/api/super-admin/companies",
           { headers }
         );
 
       const usersResponse =
         await fetch(
-          "http://localhost:5050/super-admin/users",
+          "/api/super-admin/users",
           { headers }
         );
 
       const plansResponse =
         await fetch(
-          "http://localhost:5050/super-admin/plans",
+          "/api/super-admin/plans",
           { headers }
         );
 
@@ -133,7 +133,7 @@ export default function SuperAdminPage() {
     try {
 
       await fetch(
-        `http://localhost:5050/super-admin/plans/${plan.id}`,
+        `/api/super-admin/plans/${plan.id}`,
         {
           method: "PUT",
           headers: getHeaders(),
@@ -158,7 +158,7 @@ export default function SuperAdminPage() {
     try {
 
       await fetch(
-        "http://localhost:5050/super-admin/plans",
+        "/api/super-admin/plans",
         {
           method: "POST",
           headers: getHeaders(),
@@ -224,7 +224,7 @@ export default function SuperAdminPage() {
     try {
 
       await fetch(
-        `http://localhost:5050/super-admin/plans/${id}`,
+        `/api/super-admin/plans/${id}`,
         {
           method: "DELETE",
           headers: getHeaders(),
@@ -260,7 +260,7 @@ export default function SuperAdminPage() {
     try {
 
       await fetch(
-        `http://localhost:5050/super-admin/users/${id}`,
+        `/api/super-admin/users/${id}`,
         {
           method: "DELETE",
           headers: getHeaders(),
@@ -298,7 +298,7 @@ export default function SuperAdminPage() {
     try {
 
       await fetch(
-        `http://localhost:5050/super-admin/companies/${id}`,
+        `/api/super-admin/companies/${id}`,
         {
           method: "DELETE",
           headers: getHeaders(),
@@ -332,7 +332,7 @@ export default function SuperAdminPage() {
     try {
 
       await fetch(
-        `http://localhost:5050/super-admin/companies/${companyId}/status`,
+        `/api/super-admin/companies/${companyId}/status`,
         {
           method: "PUT",
           headers: getHeaders(),
@@ -375,7 +375,7 @@ export default function SuperAdminPage() {
     try {
 
       await fetch(
-        `http://localhost:5050/super-admin/subscriptions/${companyId}/renew`,
+        `/api/super-admin/subscriptions/${companyId}/renew`,
         {
           method: "PUT",
           headers: getHeaders(),
@@ -404,7 +404,7 @@ export default function SuperAdminPage() {
     try {
 
       await fetch(
-        `http://localhost:5050/super-admin/subscriptions/${companyId}/free`,
+        `/api/super-admin/subscriptions/${companyId}/free`,
         {
           method: "PUT",
           headers: getHeaders(),

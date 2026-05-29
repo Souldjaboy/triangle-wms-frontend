@@ -7,7 +7,7 @@ export default function BadgesPage() {
   const [users, setUsers] = useState<any[]>([]);
 
   const fetchUsers = async () => {
-    const response = await fetch("http://localhost:5050/users", {
+    const response = await fetch("/api/users", {
       headers: {
         Authorization: `Bearer ${localStorage.getItem("token")}`,
       },

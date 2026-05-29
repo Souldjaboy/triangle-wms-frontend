@@ -6,7 +6,7 @@ export default function ActivitesPage() {
   const [activities, setActivities] = useState<any[]>([]);
 
   const fetchActivities = async () => {
-    const response = await fetch("http://localhost:5050/activities");
+    const response = await fetch("/api/activities");
     const data = await response.json();
     setActivities(data);
   };

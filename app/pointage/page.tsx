@@ -22,7 +22,7 @@ export default function PointagePage() {
   }, []);
 
   const fetchAttendance = async () => {
-    const res = await fetch("http://localhost:5050/attendance/today");
+    const res = await fetch("/api/attendance/today");
     const data = await res.json();
 
     setAttendance(Array.isArray(data) ? data : []);
@@ -30,7 +30,7 @@ export default function PointagePage() {
 
   const fetchHistory = async (userId: number) => {
     const res = await fetch(
-      `http://localhost:5050/attendance/history/${userId}`
+      `/api/attendance/history/${userId}`
     );
 
     const data = await res.json();
@@ -41,7 +41,7 @@ export default function PointagePage() {
   const handleCheck = async (actionType: string) => {
     if (!currentUser) return;
 
-    const response = await fetch("http://localhost:5050/attendance/check", {
+    const response = await fetch("/api/attendance/check", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

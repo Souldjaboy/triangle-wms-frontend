@@ -32,7 +32,7 @@ export default function ProduitsPage() {
 
 const fetchProduits = async () => {
   const response = await fetch(
-    "http://localhost:5050/products",
+    "/api/products",
     {
       headers: {
         Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -47,7 +47,7 @@ const fetchProduits = async () => {
 
 const fetchLocations = async () => {
   const response = await fetch(
-    "http://localhost:5050/locations"
+    "/api/locations"
   );
 
   const data = await response.json();
@@ -143,13 +143,13 @@ const handleSubmit = async (e: any) => {
       return;
     }
 
-    response = await fetch(`http://localhost:5050/products/${editingId}`, {
+    response = await fetch(`/api/products/${editingId}`, {
       method: "PUT",
       headers,
       body: JSON.stringify(payload),
     });
   } else {
-    response = await fetch("http://localhost:5050/products", {
+    response = await fetch("/api/products", {
       method: "POST",
       headers,
       body: JSON.stringify(payload),
@@ -201,7 +201,7 @@ const handleSubmit = async (e: any) => {
       return;
     }
 
-    await fetch(`http://localhost:5050/products/${id}`, {
+    await fetch(`/api/products/${id}`, {
       method: "DELETE",
     });
 

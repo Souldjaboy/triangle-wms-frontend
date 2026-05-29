@@ -30,7 +30,7 @@ export default function StocksPage() {
   });
 
   const fetchMovements = async () => {
-    const response = await fetch("http://localhost:5050/stock-movements", {
+    const response = await fetch("/api/stock-movements", {
       headers: authHeaders(),
     });
 
@@ -39,7 +39,7 @@ export default function StocksPage() {
   };
 
   const fetchProducts = async () => {
-    const response = await fetch("http://localhost:5050/products", {
+    const response = await fetch("/api/products", {
       headers: authHeaders(),
     });
 
@@ -48,7 +48,7 @@ export default function StocksPage() {
   };
 
   const fetchWarehouses = async () => {
-    const response = await fetch("http://localhost:5050/warehouses", {
+    const response = await fetch("/api/warehouses", {
       headers: authHeaders(),
     });
 
@@ -131,7 +131,7 @@ export default function StocksPage() {
       user_role: currentUser?.role || userRole || "Non défini",
     };
 
-    const response = await fetch("http://localhost:5050/stock-movements", {
+    const response = await fetch("/api/stock-movements", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -168,7 +168,7 @@ export default function StocksPage() {
   };
 
   const validateMovement = async (id: number) => {
-    const response = await fetch(`http://localhost:5050/stock-movements/${id}/validate`, {
+    const response = await fetch(`/api/stock-movements/${id}/validate`, {
       method: "PUT",
       headers: authHeaders(),
     });
@@ -182,7 +182,7 @@ export default function StocksPage() {
   };
 
   const rejectMovement = async (id: number) => {
-    const response = await fetch(`http://localhost:5050/stock-movements/${id}/reject`, {
+    const response = await fetch(`/api/stock-movements/${id}/reject`, {
       method: "PUT",
       headers: authHeaders(),
     });

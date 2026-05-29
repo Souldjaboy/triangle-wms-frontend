@@ -7,7 +7,7 @@ export default function InventairesPage() {
 
   const fetchInventories = async () => {
     try {
-      const response = await fetch("http://localhost:5050/inventory-history");
+      const response = await fetch("/api/inventory-history");
       const data = await response.json();
 
       setInventories(Array.isArray(data) ? data : []);

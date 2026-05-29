@@ -22,7 +22,7 @@ export default function PartenairesPage() {
   });
 
   const fetchPartners = async () => {
-    const response = await fetch("http://localhost:5050/partners", {
+    const response = await fetch("/api/partners", {
       headers: {
         Authorization: `Bearer ${localStorage.getItem("token")}`,
       },
@@ -46,7 +46,7 @@ export default function PartenairesPage() {
   const createPartner = async (e: any) => {
     e.preventDefault();
 
-    const response = await fetch("http://localhost:5050/partners", {
+    const response = await fetch("/api/partners", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -85,7 +85,7 @@ export default function PartenairesPage() {
   const deletePartner = async (id: number) => {
     if (!confirm("Supprimer ce partenaire ?")) return;
 
-    await fetch(`http://localhost:5050/partners/${id}`, {
+    await fetch(`/api/partners/${id}`, {
       method: "DELETE",
       headers: {
         Authorization: `Bearer ${localStorage.getItem("token")}`,

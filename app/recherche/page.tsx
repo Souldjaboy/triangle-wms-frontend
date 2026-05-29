@@ -13,7 +13,7 @@ export default function RecherchePage() {
     setLoading(true);
 
     const response = await fetch(
-      `http://localhost:5050/search?q=${encodeURIComponent(query)}`
+      `/api/search?q=${encodeURIComponent(query)}`
     );
 
     const data = await response.json();

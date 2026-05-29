@@ -21,7 +21,7 @@ export default function ChatPage() {
   });
 
   const fetchUsers = async () => {
-    const res = await fetch("http://localhost:5050/users", {
+    const res = await fetch("/api/users", {
       headers: getHeaders(),
     });
 
@@ -31,7 +31,7 @@ export default function ChatPage() {
 
   const fetchConversations = async (userId: number) => {
     const res = await fetch(
-      `http://localhost:5050/chat/conversations/${userId}`,
+      `/api/chat/conversations/${userId}`,
       { headers: getHeaders() }
     );
 
@@ -55,7 +55,7 @@ export default function ChatPage() {
     setSelectedConversation(conversation);
 
     const res = await fetch(
-      `http://localhost:5050/chat/messages/${conversation.id}`,
+      `/api/chat/messages/${conversation.id}`,
       { headers: getHeaders() }
     );
 
@@ -73,7 +73,7 @@ export default function ChatPage() {
       (u: any) => String(u.id) === String(receiverId)
     );
 
-    const res = await fetch("http://localhost:5050/chat/conversations", {
+    const res = await fetch("/api/chat/conversations", {
       method: "POST",
       headers: getHeaders(),
       body: JSON.stringify({
@@ -98,7 +98,7 @@ export default function ChatPage() {
   const sendMessage = async () => {
     if (!selectedConversation || !newMessage.trim()) return;
 
-    await fetch("http://localhost:5050/chat/messages", {
+    await fetch("/api/chat/messages", {
       method: "POST",
       headers: getHeaders(),
       body: JSON.stringify({
@@ -150,7 +150,7 @@ export default function ChatPage() {
         formData.append("audio", audioBlob, "voice-message.webm");
 
         const uploadResponse = await fetch(
-          "http://localhost:5050/chat/upload-audio",
+          "/api/chat/upload-audio",
           {
             method: "POST",
             body: formData,
@@ -159,7 +159,7 @@ export default function ChatPage() {
 
         const uploadData = await uploadResponse.json();
 
-        await fetch("http://localhost:5050/chat/messages", {
+        await fetch("/api/chat/messages", {
           method: "POST",
           headers: getHeaders(),
           body: JSON.stringify({

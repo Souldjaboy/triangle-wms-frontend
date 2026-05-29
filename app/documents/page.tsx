@@ -9,12 +9,12 @@ export default function DocumentsPage() {
 
   const fetchData = async () => {
     try {
-      const docsRes = await fetch("http://localhost:5050/documents");
+      const docsRes = await fetch("/api/documents");
       const docsData = await docsRes.json();
       const docsArray = Array.isArray(docsData) ? docsData : [];
       setDocuments(docsArray);
 
-      const movementsRes = await fetch("http://localhost:5050/stock-movements");
+      const movementsRes = await fetch("/api/stock-movements");
       const movementsData = await movementsRes.json();
       const movementsArray = Array.isArray(movementsData) ? movementsData : [];
 
@@ -59,7 +59,7 @@ export default function DocumentsPage() {
   const generateDocument = async (movement: any, type?: string) => {
     const finalType = type || getDefaultDocumentType(movement);
 
-    await fetch(`http://localhost:5050/documents/from-movement/${movement.id}`, {
+    await fetch(`/api/documents/from-movement/${movement.id}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

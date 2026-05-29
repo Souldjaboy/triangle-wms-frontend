@@ -18,7 +18,7 @@ export default function WarehousesPage() {
   });
 
   const fetchWarehouses = async () => {
-    const response = await fetch("http://localhost:5050/warehouses", {
+    const response = await fetch("/api/warehouses", {
       headers: {
         Authorization: `Bearer ${localStorage.getItem("token")}`,
       },
@@ -84,13 +84,13 @@ export default function WarehousesPage() {
     let response;
 
     if (editingId) {
-      response = await fetch(`http://localhost:5050/warehouses/${editingId}`, {
+      response = await fetch(`/api/warehouses/${editingId}`, {
         method: "PUT",
         headers,
         body: JSON.stringify(formData),
       });
     } else {
-      response = await fetch("http://localhost:5050/warehouses", {
+      response = await fetch("/api/warehouses", {
         method: "POST",
         headers,
         body: JSON.stringify(formData),
@@ -135,7 +135,7 @@ export default function WarehousesPage() {
 
     if (!confirm("Supprimer cet entrepôt ?")) return;
 
-    await fetch(`http://localhost:5050/warehouses/${id}`, {
+    await fetch(`/api/warehouses/${id}`, {
       method: "DELETE",
       headers: {
         Authorization: `Bearer ${localStorage.getItem("token")}`,
