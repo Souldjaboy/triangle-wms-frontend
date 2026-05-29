@@ -7,9 +7,10 @@ export default function ProduitsPage() {
   const [locations, setLocations] = useState<any[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [userRole, setUserRole] = useState("");
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
-  const isAdmin = userRole === "admin";
-  const canAddProduct = userRole === "admin" || userRole === "magasinier";
+  const isAdmin = userRole === "admin" || userRole === "super_admin" || isSuperAdmin;
+  const canAddProduct = isAdmin || userRole === "magasinier";
 
   const [formData, setFormData] = useState({
     reference: "",
@@ -64,6 +65,11 @@ useEffect(() => {
   if (savedUser) {
     const user = JSON.parse(savedUser);
     setUserRole(user.role);
+    setIsSuperAdmin(
+      user.is_super_admin === true ||
+        user.is_super_admin === "true" ||
+        user.is_super_admin === 1
+    );
   }
 }, []);
 
@@ -203,6 +209,9 @@ const handleSubmit = async (e: any) => {
 
     await fetch(`/api/products/${id}`, {
       method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
     });
 
     fetchProduits();
