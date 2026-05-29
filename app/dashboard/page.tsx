@@ -128,8 +128,13 @@ export default function DashboardPage() {
   );
 
   const role = String(userData?.role || "").toLowerCase();
-  const isAdminLike =
+  const isSuperAdmin =
     userData?.is_super_admin === true ||
+    userData?.is_super_admin === "true" ||
+    userData?.is_super_admin === 1 ||
+    role === "super_admin";
+  const isAdminLike =
+    isSuperAdmin ||
     role === "admin" ||
     role === "super_admin";
 
@@ -162,7 +167,7 @@ export default function DashboardPage() {
     </li>
   </Link>
 
-  {userData?.is_super_admin === true && (
+  {isSuperAdmin && (
     <Link href="/super-admin">
       <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
         <ShieldCheck size={20} />
@@ -364,7 +369,7 @@ export default function DashboardPage() {
 
         <p>
           <span className="font-bold">Super Admin :</span>{" "}
-          {userData.is_super_admin ? "Oui" : "Non"}
+          {isSuperAdmin ? "Oui" : "Non"}
         </p>
 
       </div>
