@@ -9,6 +9,7 @@ export default function ScannerPage() {
   const [locations, setLocations] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [matchedLocation, setMatchedLocation] = useState<any>(null);
+  const [scanDetails, setScanDetails] = useState<any>(null);
   const [inventoryValues, setInventoryValues] = useState<any>({});
   const [message, setMessage] = useState("");
 
@@ -32,16 +33,36 @@ export default function ScannerPage() {
     }
   };
 
-  const selectLocationByCode = (code: string, sourceValue = code) => {
+  const resolveScan = async (code: string) => {
+    const response = await fetch(
+      `/api/scan/resolve/${encodeURIComponent(code)}`,
+      { headers: headers() }
+    );
+
+    return response.json();
+  };
+
+  const selectLocationByCode = async (code: string, sourceValue = code) => {
     const cleanCode = normalizeScanValue(code);
     setResult(sourceValue);
     setMessage("");
+    setScanDetails(null);
 
     const found = locations.find(
       (location: any) => location.emplacement_code === cleanCode
     );
 
     setMatchedLocation(found || null);
+
+    const data = await resolveScan(cleanCode).catch(() => null);
+
+    if (data && !data.error) {
+      setScanDetails(data);
+
+      if (data.type === "location") {
+        setMatchedLocation(data.location);
+      }
+    }
   };
 
   const fetchData = async () => {
@@ -97,15 +118,41 @@ export default function ScannerPage() {
   }, [locations]);
 
   const productsInLocation = matchedLocation
-    ? products.filter((product: any) => {
+    ? (scanDetails?.type === "location" && Array.isArray(scanDetails.products)
+        ? scanDetails.products
+        : products.filter((product: any) => {
         return (
           product.location_id === matchedLocation.id ||
           product.id === matchedLocation.product_id ||
           product.location_code === matchedLocation.emplacement_code ||
           product.emplacement_code === matchedLocation.emplacement_code
         );
-      })
+      }))
     : [];
+
+  const scanAttendance = async (action_type: string) => {
+    const badgeCode = scanDetails?.employee?.badge_code;
+
+    if (!badgeCode) return;
+
+    const response = await fetch("/api/attendance/scan", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        badge_code: badgeCode,
+        action_type,
+      }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    setMessage(
+      response.ok
+        ? `${data.user?.fullname || "Employé"} : ${data.action} enregistré`
+        : data.error || "Erreur pointage"
+    );
+  };
 
   const getProductsForLocation = (location: any) =>
     products.filter((product: any) => {
@@ -390,6 +437,138 @@ export default function ScannerPage() {
                       ))}
                     </div>
                   )}
+                </div>
+              )}
+
+              {scanDetails?.type === "product" && (
+                <div className="space-y-4">
+                  <div className="border rounded-xl p-4">
+                    <h3 className="text-xl font-bold text-black mb-3">
+                      Produit scanné
+                    </h3>
+
+                    <p>
+                      <strong>Référence :</strong>{" "}
+                      {scanDetails.product.reference}
+                    </p>
+                    <p>
+                      <strong>Nom :</strong> {scanDetails.product.name}
+                    </p>
+                    <p>
+                      <strong>Catégorie :</strong>{" "}
+                      {scanDetails.product.category || "-"}
+                    </p>
+                    <p>
+                      <strong>Stock total :</strong>{" "}
+                      {scanDetails.product.stock}{" "}
+                      {scanDetails.product.unit || ""}
+                    </p>
+                    <p>
+                      <strong>Emplacement :</strong>{" "}
+                      {scanDetails.product.location_code ||
+                        scanDetails.product.emplacement_code ||
+                        "-"}
+                    </p>
+                    <p>
+                      <strong>Rayon / Case / Level / Bin :</strong>{" "}
+                      {scanDetails.product.rayon_code || "-"} /{" "}
+                      {scanDetails.product.case_code || "-"} /{" "}
+                      {scanDetails.product.level_code || "-"} /{" "}
+                      {scanDetails.product.bin_code || "-"}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    {["Entrée", "Sortie", "Transfert", "Inventaire"].map(
+                      (type) => (
+                        <a
+                          key={type}
+                          href={`/stocks?type=${encodeURIComponent(
+                            type
+                          )}&product=${encodeURIComponent(
+                            scanDetails.product.reference
+                          )}`}
+                          className="bg-yellow-500 text-black text-center font-bold rounded-xl py-3"
+                        >
+                          {type}
+                        </a>
+                      )
+                    )}
+                  </div>
+
+                  <div>
+                    <h3 className="text-xl font-bold text-black mb-4">
+                      Historique produit
+                    </h3>
+                    {(scanDetails.movements || []).length === 0 ? (
+                      <p className="text-gray-500">Aucun mouvement.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {scanDetails.movements.map((movement: any) => (
+                          <div key={movement.id} className="border rounded-xl p-3">
+                            <p className="font-bold">
+                              {movement.type} | {movement.quantity} |{" "}
+                              {movement.status}
+                            </p>
+                            <p className="text-sm text-gray-500">
+                              {movement.reason || "-"}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {scanDetails?.type === "employee" && (
+                <div className="space-y-4">
+                  <div className="border rounded-xl p-4">
+                    <h3 className="text-xl font-bold text-black mb-3">
+                      Employé scanné
+                    </h3>
+                    <p>
+                      <strong>Nom :</strong> {scanDetails.employee.fullname}
+                    </p>
+                    <p>
+                      <strong>Rôle :</strong> {scanDetails.employee.role}
+                    </p>
+                    <p>
+                      <strong>Badge :</strong>{" "}
+                      {scanDetails.employee.badge_code || "-"}
+                    </p>
+                    <p>
+                      <strong>Statut du jour :</strong>{" "}
+                      {scanDetails.today?.status || "Aucun pointage"}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => scanAttendance("checkin")}
+                      className="bg-green-500 text-white font-bold rounded-xl py-3"
+                    >
+                      Début travail
+                    </button>
+                    <button
+                      onClick={() => scanAttendance("pause_start")}
+                      className="bg-yellow-500 text-black font-bold rounded-xl py-3"
+                    >
+                      Début pause
+                    </button>
+                    <button
+                      onClick={() => scanAttendance("pause_end")}
+                      className="bg-blue-500 text-white font-bold rounded-xl py-3"
+                    >
+                      Fin pause
+                    </button>
+                    <button
+                      onClick={() => scanAttendance("checkout")}
+                      className="bg-red-500 text-white font-bold rounded-xl py-3"
+                    >
+                      Fin travail
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

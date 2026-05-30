@@ -6,7 +6,11 @@ export default function AlertesPage() {
   const [alerts, setAlerts] = useState<any>(null);
 
   const fetchAlerts = async () => {
-    const response = await fetch("/api/alerts");
+    const response = await fetch("/api/alerts", {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+      },
+    });
     const data = await response.json();
     setAlerts(data);
   };
@@ -59,15 +63,15 @@ export default function AlertesPage() {
         </div>
       </div>
 
-      <Section title="Produits en stock faible" data={alerts.stock_faible} />
-      <Section title="Produits en rupture" data={alerts.rupture_stock} />
-      <Section title="Validations en attente" data={alerts.validations_en_attente} />
-      <Section title="Mouvements refusés" data={alerts.mouvements_refuses} />
+      <Section title="Produits en stock faible" data={alerts.stock_faible} actionType="product" />
+      <Section title="Produits en rupture" data={alerts.rupture_stock} actionType="product" />
+      <Section title="Validations en attente" data={alerts.validations_en_attente} actionType="movement" />
+      <Section title="Mouvements refusés" data={alerts.mouvements_refuses} actionType="movement" />
     </div>
   );
 }
 
-function Section({ title, data }: any) {
+function Section({ title, data, actionType }: any) {
   return (
     <div className="bg-white rounded-2xl shadow p-6 mb-8">
       <h2 className="text-2xl font-bold text-black mb-5">
@@ -86,6 +90,7 @@ function Section({ title, data }: any) {
               <th>Entrepôt</th>
               <th>Emplacement</th>
               <th>Statut</th>
+              <th>Action</th>
             </tr>
           </thead>
 
@@ -110,6 +115,21 @@ function Section({ title, data }: any) {
 
                 <td className="font-bold">
                   {item.status || "-"}
+                </td>
+
+                <td>
+                  <a
+                    href={
+                      actionType === "movement"
+                        ? `/stocks?movement=${item.id || ""}`
+                        : `/stocks?product=${encodeURIComponent(
+                            item.reference || item.product_reference || ""
+                          )}`
+                    }
+                    className="bg-yellow-500 text-black px-4 py-2 rounded-xl font-bold inline-block"
+                  >
+                    Ouvrir
+                  </a>
                 </td>
               </tr>
             ))}

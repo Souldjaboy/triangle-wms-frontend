@@ -48,7 +48,12 @@ const fetchProduits = async () => {
 
 const fetchLocations = async () => {
   const response = await fetch(
-    "/api/locations"
+    "/api/locations",
+    {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
+    }
   );
 
   const data = await response.json();

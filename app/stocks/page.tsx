@@ -12,6 +12,8 @@ export default function StocksPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error">("success");
+  const [urlPresetApplied, setUrlPresetApplied] = useState(false);
+  const [highlightMovementId, setHighlightMovementId] = useState<number | null>(null);
 
   const [formData, setFormData] = useState({
     type: "Entrée",
@@ -78,6 +80,44 @@ export default function StocksPage() {
     }
   }, []);
 
+  useEffect(() => {
+    if (urlPresetApplied || products.length === 0) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const type = params.get("type");
+    const productReference = params.get("product");
+    const movementId = params.get("movement");
+
+    if (movementId) {
+      setHighlightMovementId(Number(movementId));
+    }
+
+    if (type && ["Entrée", "Sortie", "Transfert", "Inventaire"].includes(type)) {
+      setSelectedType(type);
+    }
+
+    if (productReference) {
+      const product = products.find(
+        (item: any) => item.reference === productReference
+      );
+
+      if (product) {
+        setFormData((current) => ({
+          ...current,
+          type: type || current.type,
+          product_reference: product.reference,
+          product_name: product.name,
+          current_stock: String(product.stock || 0),
+          source_warehouse: product.warehouse || "",
+          location_code:
+            product.location_code || product.emplacement_code || "",
+        }));
+      }
+    }
+
+    setUrlPresetApplied(true);
+  }, [products, urlPresetApplied]);
+
   const selectMovementType = (type: string) => {
     setSelectedType(type);
 
@@ -125,6 +165,7 @@ export default function StocksPage() {
       quantity: Number(formData.quantity || 0),
       source_warehouse: formData.source_warehouse,
       destination_warehouse: formData.destination_warehouse || "",
+      location_code: formData.location_code,
       reason: formData.reason || formData.location_code || "",
       status: "En attente",
       user_name: currentUser?.fullname || "Utilisateur",
@@ -168,9 +209,27 @@ export default function StocksPage() {
   };
 
   const validateMovement = async (id: number) => {
+    const movement = movements.find((item: any) => item.id === id);
+    const correctedQuantity = prompt(
+      "Quantité finale à valider",
+      String(movement?.final_quantity || movement?.quantity || "")
+    );
+
+    if (correctedQuantity === null) return;
+
     const response = await fetch(`/api/stock-movements/${id}/validate`, {
       method: "PUT",
-      headers: authHeaders(),
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeaders(),
+      },
+      body: JSON.stringify({
+        final_quantity: Number(correctedQuantity),
+        correction_note:
+          Number(correctedQuantity) !== Number(movement?.quantity || 0)
+            ? "Quantité corrigée avant validation"
+            : "",
+      }),
     });
 
     const data = await response.json().catch(() => ({}));
@@ -182,9 +241,19 @@ export default function StocksPage() {
   };
 
   const rejectMovement = async (id: number) => {
+    const rejectionReason = prompt("Motif du refus", "");
+
+    if (rejectionReason === null) return;
+
     const response = await fetch(`/api/stock-movements/${id}/reject`, {
       method: "PUT",
-      headers: authHeaders(),
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeaders(),
+      },
+      body: JSON.stringify({
+        rejection_reason: rejectionReason,
+      }),
     });
 
     const data = await response.json().catch(() => ({}));
@@ -412,7 +481,12 @@ export default function StocksPage() {
 
           <tbody>
             {movements.map((movement: any) => (
-              <tr key={movement.id} className="border-b">
+              <tr
+                key={movement.id}
+                className={`border-b ${
+                  highlightMovementId === movement.id ? "bg-yellow-50" : ""
+                }`}
+              >
                 <td className="py-4 font-bold">
                   {movement.type}
                 </td>
