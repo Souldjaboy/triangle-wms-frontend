@@ -39,6 +39,61 @@ export default function NotificationsPage() {
     }
   };
 
+  const canApprove =
+    currentUser?.is_super_admin === true ||
+    ["admin", "super_admin", "responsable_entrepot", "chef_entrepot"].includes(
+      String(currentUser?.role || "").toLowerCase()
+    );
+
+  const refresh = () => {
+    if (currentUser) fetchNotifications(currentUser.id);
+  };
+
+  const validateMovement = async (notification: any) => {
+    const quantity = prompt("Quantité finale à valider", "");
+    if (quantity === null) return;
+
+    const response = await fetch(
+      `/api/stock-movements/${notification.related_entity_id}/validate`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+        },
+        body: JSON.stringify({
+          final_quantity: quantity ? Number(quantity) : undefined,
+          correction_note: quantity ? "Validation depuis notification" : "",
+        }),
+      }
+    );
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) alert(data.error || "Erreur validation.");
+    refresh();
+  };
+
+  const rejectMovement = async (notification: any) => {
+    const reason = prompt("Motif du refus", "");
+    if (reason === null) return;
+
+    const response = await fetch(
+      `/api/stock-movements/${notification.related_entity_id}/reject`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+        },
+        body: JSON.stringify({ rejection_reason: reason }),
+      }
+    );
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) alert(data.error || "Erreur refus.");
+    refresh();
+  };
+
   const openNotification = async (notification: any) => {
     if (!notification.is_read) {
       await markAsRead(notification.id);
@@ -134,6 +189,25 @@ export default function NotificationsPage() {
                   </button>
 
                   <div className="flex gap-2">
+                    {canApprove &&
+                      notification.related_entity_type === "stock_movement" &&
+                      String(notification.type || "").includes("pending") && (
+                        <>
+                          <button
+                            onClick={() => validateMovement(notification)}
+                            className="bg-green-600 text-white px-4 py-2 rounded-xl font-bold"
+                          >
+                            Valider
+                          </button>
+                          <button
+                            onClick={() => rejectMovement(notification)}
+                            className="bg-red-600 text-white px-4 py-2 rounded-xl font-bold"
+                          >
+                            Refuser
+                          </button>
+                        </>
+                      )}
+
                     {notification.action_url && (
                       <button
                         onClick={() => openNotification(notification)}

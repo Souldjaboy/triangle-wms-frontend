@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 export default function ParametresPage() {
   const [message, setMessage] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [isReadOnly, setIsReadOnly] = useState(false);
 
   const [formData, setFormData] = useState({
     company_name: "",
@@ -34,6 +35,11 @@ export default function ParametresPage() {
   };
 
   useEffect(() => {
+    const savedUser = localStorage.getItem("user");
+    if (savedUser) {
+      const user = JSON.parse(savedUser);
+      setIsReadOnly(user.role === "direction" || user.role === "client");
+    }
     fetchSettings();
   }, []);
 
@@ -88,10 +94,16 @@ export default function ParametresPage() {
   const handleSubmit = async (e: any) => {
     e.preventDefault();
 
+    if (isReadOnly) {
+      setMessage("Vous avez un accès lecture seule.");
+      return;
+    }
+
     await fetch("/api/company-settings", {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
       },
       body: JSON.stringify(formData),
     });
@@ -202,9 +214,10 @@ export default function ParametresPage() {
 
           <button
             type="submit"
+            disabled={isReadOnly}
             className="bg-yellow-500 text-black font-bold rounded-xl py-3"
           >
-            Enregistrer les paramètres
+            {isReadOnly ? "Lecture seule" : "Enregistrer les paramètres"}
           </button>
         </form>
 

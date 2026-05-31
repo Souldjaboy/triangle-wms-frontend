@@ -6,6 +6,7 @@ export default function ParametresPointagePage() {
   const [groups, setGroups] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [message, setMessage] = useState("");
+  const [canSeeSalary, setCanSeeSalary] = useState(false);
 
   const [groupForm, setGroupForm] = useState({
     name: "",
@@ -44,6 +45,11 @@ export default function ParametresPointagePage() {
   };
 
   useEffect(() => {
+    const savedUser = localStorage.getItem("user");
+    if (savedUser) {
+      const user = JSON.parse(savedUser);
+      setCanSeeSalary(user.is_super_admin === true || user.role === "super_admin" || user.role === "direction");
+    }
     fetchData();
   }, []);
 
@@ -223,7 +229,7 @@ export default function ParametresPointagePage() {
           className="bg-white rounded-2xl shadow p-6 grid grid-cols-1 gap-4"
         >
           <h2 className="text-2xl font-bold text-black mb-2">
-            Affecter horaire & salaire
+            Affecter horaire{canSeeSalary ? " & salaire" : ""}
           </h2>
 
           <select
@@ -264,6 +270,7 @@ export default function ParametresPointagePage() {
             ))}
           </select>
 
+          {canSeeSalary && (
           <select
             name="salary_type"
             value={userForm.salary_type}
@@ -274,7 +281,10 @@ export default function ParametresPointagePage() {
             <option value="journalier">Salaire journalier</option>
             <option value="mensuel">Salaire mensuel</option>
           </select>
+          )}
 
+          {canSeeSalary ? (
+          <>
           <input
             type="number"
             name="hourly_rate"
@@ -292,6 +302,12 @@ export default function ParametresPointagePage() {
             onChange={handleUserChange}
             className="border p-3 rounded-xl text-black"
           />
+          </>
+          ) : (
+            <div className="bg-blue-100 text-blue-700 rounded-xl p-3 font-bold">
+              Vous pouvez gérer les horaires, mais les salaires sont masqués.
+            </div>
+          )}
 
           <input
             type="number"
@@ -367,10 +383,10 @@ export default function ParametresPointagePage() {
                 <th className="py-3">Employé</th>
                 <th>Rôle</th>
                 <th>Groupe horaire</th>
-                <th>Type salaire</th>
-                <th>Taux horaire</th>
-                <th>Journalier</th>
-                <th>Mensuel</th>
+                {canSeeSalary && <th>Type salaire</th>}
+                {canSeeSalary && <th>Taux horaire</th>}
+                {canSeeSalary && <th>Journalier</th>}
+                {canSeeSalary && <th>Mensuel</th>}
               </tr>
             </thead>
 
@@ -386,10 +402,10 @@ export default function ParametresPointagePage() {
                     <td className="py-4 font-bold">{user.fullname}</td>
                     <td>{user.role}</td>
                     <td>{group ? group.name : "-"}</td>
-                    <td>{user.salary_type || "-"}</td>
-                    <td>{user.hourly_rate || 0} FCFA</td>
-                    <td>{user.daily_rate || 0} FCFA</td>
-                    <td>{user.monthly_salary || 0} FCFA</td>
+                    {canSeeSalary && <td>{user.salary_type || "-"}</td>}
+                    {canSeeSalary && <td>{user.hourly_rate || 0} FCFA</td>}
+                    {canSeeSalary && <td>{user.daily_rate || 0} FCFA</td>}
+                    {canSeeSalary && <td>{user.monthly_salary || 0} FCFA</td>}
                   </tr>
                 );
               })}

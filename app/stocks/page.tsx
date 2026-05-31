@@ -10,6 +10,7 @@ export default function StocksPage() {
   const [userRole, setUserRole] = useState("");
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isReadOnly, setIsReadOnly] = useState(false);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error">("success");
   const [urlPresetApplied, setUrlPresetApplied] = useState(false);
@@ -69,6 +70,7 @@ export default function StocksPage() {
       const user = JSON.parse(savedUser);
       setCurrentUser(user);
       setUserRole(user.role);
+      setIsReadOnly(user.role === "direction" || user.role === "client");
 
       if (
         user.role === "admin" ||
@@ -322,9 +324,16 @@ export default function StocksPage() {
         ))}
       </div>
 
+      {isReadOnly && (
+        <div className="bg-blue-100 text-blue-700 p-4 rounded-xl mb-6 font-bold">
+          Vous avez un accès lecture seule.
+        </div>
+      )}
+
+      {!isReadOnly && (
       <form
         onSubmit={handleSubmit}
-        className="bg-white p-6 rounded-2xl shadow mb-10 grid grid-cols-3 gap-4"
+        className="bg-white p-6 rounded-2xl shadow mb-10 grid grid-cols-1 md:grid-cols-3 gap-4"
       >
         <select
           name="product_reference"
@@ -441,6 +450,7 @@ export default function StocksPage() {
           Créer demande {selectedType}
         </button>
       </form>
+      )}
 
       <div className="grid grid-cols-4 gap-6 mb-8">
         <div className="bg-white p-6 rounded-2xl shadow">

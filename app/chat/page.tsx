@@ -11,6 +11,7 @@ export default function ChatPage() {
   const [newMessage, setNewMessage] = useState("");
   const [receiverId, setReceiverId] = useState("");
   const [isRecording, setIsRecording] = useState(false);
+  const [meetingMessage, setMeetingMessage] = useState("");
 
   const mediaRecorderRef = useRef<any>(null);
   const audioChunksRef = useRef<any[]>([]);
@@ -213,6 +214,41 @@ export default function ChatPage() {
     }
   };
 
+  const createMeeting = async () => {
+    if (!selectedConversation || !currentUser) return;
+
+    const participantIds = Array.from(
+      new Set([
+        currentUser.id,
+        ...messages.flatMap((message: any) => [
+          message.sender_id,
+          message.receiver_id,
+        ]),
+        receiverId ? Number(receiverId) : null,
+      ].filter(Boolean))
+    );
+
+    const response = await fetch("/api/meetings", {
+      method: "POST",
+      headers: getHeaders(),
+      body: JSON.stringify({
+        title: selectedConversation.title || "Réunion Triangle WMS",
+        conversation_id: selectedConversation.id,
+        participants: participantIds,
+      }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      alert(data.error || "Erreur création réunion.");
+      return;
+    }
+
+    setMeetingMessage("Réunion créée et notifications envoyées.");
+    window.open(data.meeting_url, "_blank");
+  };
+
   if (!currentUser) {
     return (
       <div className="p-8 text-black">
@@ -299,12 +335,10 @@ export default function ChatPage() {
 
                 <div className="flex gap-3 mt-4">
                   <button
-                    onClick={() => {
-                      alert("Réunion vidéo en préparation. Le chat texte et vocal reste disponible.");
-                    }}
-                    className="bg-gray-500 text-white px-5 py-2 rounded-xl font-bold"
+                    onClick={createMeeting}
+                    className="bg-green-600 text-white px-5 py-2 rounded-xl font-bold"
                   >
-                    Vidéo en préparation
+                    Créer réunion vidéo
                   </button>
 
                   <button
@@ -318,6 +352,12 @@ export default function ChatPage() {
                     {isRecording ? "⏹ Stop" : "🎤 Vocal"}
                   </button>
                 </div>
+
+                {meetingMessage && (
+                  <div className="bg-green-100 text-green-700 p-3 rounded-xl mt-3 font-bold">
+                    {meetingMessage}
+                  </div>
+                )}
               </div>
 
               <div className="flex-1 overflow-y-auto space-y-4 mb-4">

@@ -8,6 +8,10 @@ export default function PointagePage() {
   const [history, setHistory] = useState<any[]>([]);
   const [message, setMessage] = useState("");
 
+  const authHeaders = () => ({
+    Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+  });
+
   useEffect(() => {
     const savedUser = localStorage.getItem("user");
 
@@ -22,7 +26,7 @@ export default function PointagePage() {
   }, []);
 
   const fetchAttendance = async () => {
-    const res = await fetch("/api/attendance/today");
+    const res = await fetch("/api/attendance/today", { headers: authHeaders() });
     const data = await res.json();
 
     setAttendance(Array.isArray(data) ? data : []);
@@ -30,7 +34,8 @@ export default function PointagePage() {
 
   const fetchHistory = async (userId: number) => {
     const res = await fetch(
-      `/api/attendance/history/${userId}`
+      `/api/attendance/history/${userId}`,
+      { headers: authHeaders() }
     );
 
     const data = await res.json();
@@ -45,6 +50,7 @@ export default function PointagePage() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...authHeaders(),
       },
       body: JSON.stringify({
         user_id: currentUser.id,
