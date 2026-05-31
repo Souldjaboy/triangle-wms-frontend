@@ -9,8 +9,9 @@ export default function ProduitsPage() {
   const [userRole, setUserRole] = useState("");
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
+  const isReadOnly = userRole === "direction" || userRole === "client";
   const isAdmin = userRole === "admin" || userRole === "super_admin" || isSuperAdmin;
-  const canAddProduct = isAdmin || userRole === "magasinier";
+  const canAddProduct = !isReadOnly && (isAdmin || userRole === "magasinier");
 
   const [formData, setFormData] = useState({
     reference: "",

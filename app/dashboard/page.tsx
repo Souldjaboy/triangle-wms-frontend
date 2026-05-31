@@ -137,6 +137,13 @@ export default function DashboardPage() {
     isSuperAdmin ||
     role === "admin" ||
     role === "super_admin";
+  const isWarehouseManager =
+    role === "responsable_entrepot" ||
+    role === "chef_entrepot" ||
+    role === "responsable d'entrepôt";
+  const isReadOnlyRole = role === "direction" || role === "client";
+  const canManageWarehouse = isAdminLike || isWarehouseManager;
+  const canViewReports = canManageWarehouse || isReadOnlyRole;
 
   return (
     <div className="min-h-screen flex bg-gray-100">
@@ -198,7 +205,7 @@ export default function DashboardPage() {
     </li>
   </Link>
 
-  {isAdminLike && (
+  {canManageWarehouse && (
     <Link href="/partenaires">
       <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
         <Handshake size={20} />
@@ -246,7 +253,7 @@ export default function DashboardPage() {
     </li>
   </Link>
 
-  {isAdminLike && (
+  {canViewReports && (
     <>
       <Link href="/documents">
         <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
@@ -268,7 +275,11 @@ export default function DashboardPage() {
           Alertes
         </li>
       </Link>
+    </>
+  )}
 
+  {isAdminLike && (
+    <>
       <Link href="/activites">
         <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
           <Activity size={20} />

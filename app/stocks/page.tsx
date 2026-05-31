@@ -73,6 +73,8 @@ export default function StocksPage() {
       if (
         user.role === "admin" ||
         user.role === "super_admin" ||
+        user.role === "responsable_entrepot" ||
+        user.role === "chef_entrepot" ||
         user.is_super_admin === true
       ) {
         setIsAdmin(true);
@@ -87,6 +89,7 @@ export default function StocksPage() {
     const type = params.get("type");
     const productReference = params.get("product");
     const movementId = params.get("movement");
+    const locationCode = params.get("location");
 
     if (movementId) {
       setHighlightMovementId(Number(movementId));
@@ -94,6 +97,15 @@ export default function StocksPage() {
 
     if (type && ["Entrée", "Sortie", "Transfert", "Inventaire"].includes(type)) {
       setSelectedType(type);
+    }
+
+    if (locationCode) {
+      setFormData((current) => ({
+        ...current,
+        type: type || current.type,
+        location_code: locationCode,
+        reason: locationCode,
+      }));
     }
 
     if (productReference) {
@@ -474,6 +486,7 @@ export default function StocksPage() {
               <th>Source</th>
               <th>Destination</th>
               <th>Observation / Emplacement</th>
+              <th>Utilisateur</th>
               <th>Statut</th>
               {isAdmin && <th>Validation</th>}
             </tr>
@@ -499,6 +512,12 @@ export default function StocksPage() {
                 <td>{movement.source_warehouse}</td>
                 <td>{movement.destination_warehouse || "-"}</td>
                 <td>{movement.reason || "-"}</td>
+                <td>
+                  {movement.created_by_name || "Utilisateur"}{" "}
+                  <span className="text-gray-400">
+                    ({movement.created_by_role || "-"})
+                  </span>
+                </td>
 
                 <td className={`font-bold ${getStatusColor(movement.status)}`}>
                   {movement.status}

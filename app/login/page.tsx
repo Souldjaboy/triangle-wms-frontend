@@ -52,9 +52,9 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-8">
-      <div className="bg-white shadow-2xl rounded-3xl overflow-hidden grid grid-cols-2 max-w-6xl w-full">
-        <div className="bg-black text-white p-12 flex flex-col justify-center">
+    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4 md:p-8">
+      <div className="bg-white shadow-2xl rounded-3xl overflow-hidden grid grid-cols-1 lg:grid-cols-2 max-w-6xl w-full">
+        <div className="bg-black text-white p-8 md:p-12 flex flex-col justify-center">
           <h1 className="text-5xl font-bold mb-5">
             Triangle WMS Pro
           </h1>
@@ -75,7 +75,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <div className="p-12 flex flex-col justify-center">
+        <div className="p-8 md:p-12 flex flex-col justify-center">
           <h2 className="text-4xl font-bold text-black mb-8">
             Connexion
           </h2>
@@ -132,6 +132,13 @@ export default function LoginPage() {
               Créer une entreprise
             </a>
           </p>
+
+          <a
+            href="/register"
+            className="mt-4 block w-full bg-black text-white text-center font-bold py-4 rounded-xl"
+          >
+            Créer une entreprise
+          </a>
         </div>
       </div>
     </div>

@@ -360,6 +360,40 @@ export default function ScannerPage() {
 
               {matchedLocation && (
                 <div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
+                    <a
+                      href={`/produits?location=${encodeURIComponent(
+                        matchedLocation.emplacement_code
+                      )}`}
+                      className="bg-black text-white text-center font-bold rounded-xl py-3"
+                    >
+                      Ajouter produit
+                    </a>
+                    {["Entrée", "Sortie", "Transfert", "Inventaire"].map(
+                      (type) => (
+                        <a
+                          key={type}
+                          href={`/stocks?type=${encodeURIComponent(
+                            type
+                          )}&location=${encodeURIComponent(
+                            matchedLocation.emplacement_code
+                          )}`}
+                          className="bg-yellow-500 text-black text-center font-bold rounded-xl py-3"
+                        >
+                          {type}
+                        </a>
+                      )
+                    )}
+                    <a
+                      href={`/stocks?location=${encodeURIComponent(
+                        matchedLocation.emplacement_code
+                      )}`}
+                      className="bg-blue-600 text-white text-center font-bold rounded-xl py-3"
+                    >
+                      Voir mouvements
+                    </a>
+                  </div>
+
                   <h3 className="text-xl font-bold text-black mb-4">
                     Inventaire des produits dans cet emplacement
                   </h3>

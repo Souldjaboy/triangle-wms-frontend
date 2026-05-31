@@ -51,6 +51,21 @@ export default function ChatPage() {
     fetchUsers();
   }, []);
 
+  useEffect(() => {
+    const conversationId = new URLSearchParams(window.location.search).get(
+      "conversation"
+    );
+    if (!conversationId || conversations.length === 0) return;
+
+    const conversation = conversations.find(
+      (item: any) => String(item.id) === String(conversationId)
+    );
+
+    if (conversation) {
+      fetchMessages(conversation);
+    }
+  }, [conversations]);
+
   const fetchMessages = async (conversation: any) => {
     setSelectedConversation(conversation);
 
@@ -153,11 +168,19 @@ export default function ChatPage() {
           "/api/chat/upload-audio",
           {
             method: "POST",
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+            },
             body: formData,
           }
         );
 
         const uploadData = await uploadResponse.json();
+
+        if (!uploadResponse.ok || !uploadData.audio_url) {
+          alert(uploadData.error || "Erreur upload vocal.");
+          return;
+        }
 
         await fetch("/api/chat/messages", {
           method: "POST",
@@ -277,15 +300,11 @@ export default function ChatPage() {
                 <div className="flex gap-3 mt-4">
                   <button
                     onClick={() => {
-                      const roomName = `Triangle-WMS-Conversation-${selectedConversation.id}`;
-                      window.open(
-                        `https://meet.jit.si/${roomName}`,
-                        "_blank"
-                      );
+                      alert("Réunion vidéo en préparation. Le chat texte et vocal reste disponible.");
                     }}
-                    className="bg-green-600 text-white px-5 py-2 rounded-xl font-bold"
+                    className="bg-gray-500 text-white px-5 py-2 rounded-xl font-bold"
                   >
-                    🎥 Vidéo
+                    Vidéo en préparation
                   </button>
 
                   <button

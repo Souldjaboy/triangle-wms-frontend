@@ -46,7 +46,12 @@ export default function EmplacementsPage() {
     const savedUser = localStorage.getItem("user");
     if (savedUser) {
       const user = JSON.parse(savedUser);
-      setIsAdmin(user.role === "admin" || user.role === "super_admin" || user.is_super_admin === true);
+      setIsAdmin(
+        user.role === "admin" ||
+          user.role === "super_admin" ||
+          user.role === "responsable_entrepot" ||
+          user.is_super_admin === true
+      );
     }
     fetchAll();
   }, []);
@@ -88,7 +93,7 @@ export default function EmplacementsPage() {
 
     if (!isAdmin) {
       setMessageType("error");
-      setMessage("Seul l’administrateur peut créer des emplacements.");
+      setMessage("Seul l’administrateur ou le responsable d’entrepôt peut créer des emplacements.");
       return;
     }
 

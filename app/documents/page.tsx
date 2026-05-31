@@ -7,14 +7,20 @@ export default function DocumentsPage() {
   const [movements, setMovements] = useState<any[]>([]);
   const [message, setMessage] = useState("");
 
+  const authHeaders = () => ({
+    Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+  });
+
   const fetchData = async () => {
     try {
-      const docsRes = await fetch("/api/documents");
+      const docsRes = await fetch("/api/documents", { headers: authHeaders() });
       const docsData = await docsRes.json();
       const docsArray = Array.isArray(docsData) ? docsData : [];
       setDocuments(docsArray);
 
-      const movementsRes = await fetch("/api/stock-movements");
+      const movementsRes = await fetch("/api/stock-movements", {
+        headers: authHeaders(),
+      });
       const movementsData = await movementsRes.json();
       const movementsArray = Array.isArray(movementsData) ? movementsData : [];
 
@@ -63,6 +69,7 @@ export default function DocumentsPage() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...authHeaders(),
       },
       body: JSON.stringify({
         document_type: finalType,
@@ -76,6 +83,10 @@ export default function DocumentsPage() {
 
   const printDocument = () => {
     window.print();
+  };
+
+  const sendByEmail = () => {
+    setMessage("Envoi email préparé. Configurez SMTP côté serveur pour l’envoi automatique.");
   };
 
   const getMovementColor = (type: string) => {
@@ -105,6 +116,13 @@ export default function DocumentsPage() {
           className="bg-black text-white font-bold px-6 py-3 rounded-xl"
         >
           Imprimer / PDF
+        </button>
+
+        <button
+          onClick={sendByEmail}
+          className="bg-yellow-500 text-black font-bold px-6 py-3 rounded-xl"
+        >
+          Envoyer par email
         </button>
       </div>
 
@@ -232,6 +250,13 @@ export default function DocumentsPage() {
                       <p className="text-sm text-gray-500 mt-2">
                         {doc.status || "Brouillon"}
                       </p>
+
+                      <button
+                        onClick={printDocument}
+                        className="bg-black text-white px-4 py-2 rounded-xl font-bold mt-3 print:hidden"
+                      >
+                        Voir / Imprimer
+                      </button>
                     </div>
                   </div>
 

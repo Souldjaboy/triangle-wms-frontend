@@ -7,7 +7,7 @@ import { apiUrl } from "../lib/api";
 const DEFAULT_PLANS = [
   {
     id: 1,
-    name: "Starter",
+    name: "Essentiel",
     price_monthly: 5000,
     max_users: 3,
     max_warehouses: 1,
@@ -74,7 +74,10 @@ export default function RegisterPage() {
 
       const availablePlans =
         Array.isArray(data) && data.length > 0
-          ? data
+          ? data.map((plan: any) => ({
+              ...plan,
+              name: plan.name === "Starter" ? "Essentiel" : plan.name,
+            }))
           : DEFAULT_PLANS;
 
       setPlans(availablePlans);
@@ -264,13 +267,13 @@ export default function RegisterPage() {
 
   return (
 
-    <div className="min-h-screen bg-gray-100 p-8">
+    <div className="min-h-screen bg-gray-100 p-4 md:p-8">
 
-      <div className="max-w-7xl mx-auto grid grid-cols-3 gap-8">
+      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
 
         {/* LEFT */}
 
-        <div className="col-span-2 bg-white rounded-3xl shadow p-10">
+        <div className="lg:col-span-2 bg-white rounded-3xl shadow p-6 md:p-10">
 
           <h1 className="text-4xl font-bold text-black mb-2">
             Créer votre entreprise
@@ -279,6 +282,14 @@ export default function RegisterPage() {
           <p className="text-gray-500 mb-10">
             Triangle WMS Pro SaaS
           </p>
+
+          <button
+            type="button"
+            onClick={() => router.push("/login")}
+            className="mb-6 bg-black text-white font-bold rounded-xl px-5 py-3"
+          >
+            Déjà un compte ? Se connecter
+          </button>
 
           {message && (
 
@@ -298,7 +309,7 @@ export default function RegisterPage() {
 
           <form
             onSubmit={handleSubmit}
-            className="grid grid-cols-2 gap-6"
+            className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6"
           >
 
             <input
@@ -371,7 +382,7 @@ export default function RegisterPage() {
             <button
               type="submit"
               disabled={loading}
-              className="bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-4 rounded-xl col-span-2"
+              className="bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-4 rounded-xl md:col-span-2"
             >
 
               {loading

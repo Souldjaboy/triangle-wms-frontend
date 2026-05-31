@@ -7,17 +7,30 @@ export default function RapportsPage() {
   const [movements, setMovements] = useState<any[]>([]);
   const [alerts, setAlerts] = useState<any>(null);
   const [activeReport, setActiveReport] = useState("produits");
+  const [filters, setFilters] = useState({
+    date: "",
+    product: "",
+    warehouse: "",
+    user: "",
+    observation: "",
+  });
+
+  const authHeaders = () => ({
+    Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+  });
 
   const fetchData = async () => {
-    const productsRes = await fetch("/api/products");
+    const productsRes = await fetch("/api/products", { headers: authHeaders() });
     const productsData = await productsRes.json();
     setProducts(Array.isArray(productsData) ? productsData : []);
 
-    const movementsRes = await fetch("/api/stock-movements");
+    const movementsRes = await fetch("/api/stock-movements", {
+      headers: authHeaders(),
+    });
     const movementsData = await movementsRes.json();
     setMovements(Array.isArray(movementsData) ? movementsData : []);
 
-    const alertsRes = await fetch("/api/alerts");
+    const alertsRes = await fetch("/api/alerts", { headers: authHeaders() });
     const alertsData = await alertsRes.json();
     setAlerts(alertsData);
   };
@@ -29,6 +42,42 @@ export default function RapportsPage() {
   const handlePrint = () => {
     window.print();
   };
+
+  const sendEmail = () => {
+    alert("Envoi email préparé. Configurez SMTP côté serveur pour activer l’envoi automatique.");
+  };
+
+  const filteredProducts = products.filter((product: any) => {
+    return (
+      (!filters.product ||
+        `${product.reference} ${product.name}`
+          .toLowerCase()
+          .includes(filters.product.toLowerCase())) &&
+      (!filters.warehouse ||
+        String(product.warehouse || "")
+          .toLowerCase()
+          .includes(filters.warehouse.toLowerCase()))
+    );
+  });
+
+  const filteredMovements = movements.filter((movement: any) => {
+    return (
+      (!filters.product ||
+        `${movement.product_reference} ${movement.product_name}`
+          .toLowerCase()
+          .includes(filters.product.toLowerCase())) &&
+      (!filters.warehouse ||
+        `${movement.source_warehouse} ${movement.destination_warehouse}`
+          .toLowerCase()
+          .includes(filters.warehouse.toLowerCase())) &&
+      (!filters.user ||
+        `${movement.created_by_name} ${movement.created_by_role}`
+          .toLowerCase()
+          .includes(filters.user.toLowerCase())) &&
+      (!filters.date ||
+        String(movement.created_at || "").startsWith(filters.date))
+    );
+  });
 
   return (
     <div className="min-h-screen bg-gray-100 p-8">
@@ -43,13 +92,36 @@ export default function RapportsPage() {
           </p>
         </div>
 
-        <button
-          onClick={handlePrint}
-          className="bg-black text-white font-bold px-6 py-3 rounded-xl"
-        >
-          Imprimer / Exporter PDF
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={sendEmail}
+            className="bg-yellow-500 text-black font-bold px-6 py-3 rounded-xl"
+          >
+            Envoyer par email
+          </button>
+
+          <button
+            onClick={handlePrint}
+            className="bg-black text-white font-bold px-6 py-3 rounded-xl"
+          >
+            Imprimer / Exporter PDF
+          </button>
+        </div>
       </div>
+
+      <div className="bg-white rounded-2xl shadow p-4 mb-6 grid grid-cols-1 md:grid-cols-5 gap-3 print:hidden">
+        <input type="date" value={filters.date} onChange={(e) => setFilters({ ...filters, date: e.target.value })} className="border p-3 rounded-xl text-black" />
+        <input placeholder="Produit" value={filters.product} onChange={(e) => setFilters({ ...filters, product: e.target.value })} className="border p-3 rounded-xl text-black" />
+        <input placeholder="Entrepôt" value={filters.warehouse} onChange={(e) => setFilters({ ...filters, warehouse: e.target.value })} className="border p-3 rounded-xl text-black" />
+        <input placeholder="Utilisateur" value={filters.user} onChange={(e) => setFilters({ ...filters, user: e.target.value })} className="border p-3 rounded-xl text-black" />
+        <input placeholder="Observation avant impression" value={filters.observation} onChange={(e) => setFilters({ ...filters, observation: e.target.value })} className="border p-3 rounded-xl text-black" />
+      </div>
+
+      {filters.observation && (
+        <div className="bg-white rounded-2xl shadow p-4 mb-6 text-black">
+          <span className="font-bold">Observation :</span> {filters.observation}
+        </div>
+      )}
 
       <div className="flex gap-3 mb-8 print:hidden">
         {[
@@ -89,7 +161,7 @@ export default function RapportsPage() {
             </thead>
 
             <tbody>
-              {products.map((product: any) => (
+              {filteredProducts.map((product: any) => (
                 <tr key={product.id} className="border-b">
                   <td className="py-4 font-bold">{product.reference}</td>
                   <td>{product.name}</td>
@@ -122,7 +194,7 @@ export default function RapportsPage() {
             </thead>
 
             <tbody>
-              {products.map((product: any) => {
+              {filteredProducts.map((product: any) => {
                 const stock = Number(product.stock || 0);
                 const minimum = Number(product.minimum_stock || 5);
 
@@ -165,7 +237,7 @@ export default function RapportsPage() {
             </thead>
 
             <tbody>
-              {movements.map((movement: any) => (
+              {filteredMovements.map((movement: any) => (
                 <tr key={movement.id} className="border-b">
                   <td className="py-4 font-bold">{movement.type}</td>
                   <td>
