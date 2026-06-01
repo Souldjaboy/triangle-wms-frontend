@@ -23,6 +23,7 @@ export default function PosPage() {
   const [message, setMessage] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("Espèces");
   const [paymentStatus, setPaymentStatus] = useState("payé");
+  const [amountReceived, setAmountReceived] = useState("");
   const [discount, setDiscount] = useState("0");
   const [taxEnabled, setTaxEnabled] = useState(true);
   const [lastReceipt, setLastReceipt] = useState<any>(null);
@@ -351,8 +352,16 @@ export default function PosPage() {
     };
   }, [cart, discount, taxEnabled, settings]);
 
+  const changeDue = Math.max(Number(amountReceived || 0) - totals.total, 0);
+  const remainingAmount = Math.max(totals.total - Number(amountReceived || 0), 0);
+
   const validateSale = async () => {
     setMessage("");
+
+    if (Number(amountReceived || 0) < totals.total && paymentStatus === "payé") {
+      setMessage("Montant reçu insuffisant.");
+      return;
+    }
 
     const response = await fetch("/api/pos/sales", {
       method: "POST",
@@ -363,6 +372,9 @@ export default function PosPage() {
         tax_enabled: taxEnabled,
         payment_method: paymentMethod,
         payment_status: paymentStatus,
+        amount_received: Number(amountReceived || 0),
+        change_due: changeDue,
+        remaining_amount: remainingAmount,
       }),
     });
 
@@ -378,6 +390,7 @@ export default function PosPage() {
     setLastItems(data.items || []);
     if (data.company_settings) setCompanySettings(data.company_settings);
     setCart([]);
+    setAmountReceived("");
     setMessage("Vente validée. Reçu généré.");
     searchProducts(query);
   };
@@ -429,6 +442,9 @@ export default function PosPage() {
             <p class="right">Remise : ${Number(lastSale.discount_amount || 0).toLocaleString()} FCFA</p>
             <p class="right">TVA : ${Number(lastSale.tax_amount || 0).toLocaleString()} FCFA</p>
             <p class="total">Total : ${Number(lastSale.total_amount || 0).toLocaleString()} FCFA</p>
+            <p class="right">Montant reçu : ${Number(lastSale.amount_received || 0).toLocaleString()} FCFA</p>
+            <p class="right">Monnaie rendue : ${Number(lastSale.change_due || 0).toLocaleString()} FCFA</p>
+            <p class="right">Reste à payer : ${Number(lastSale.remaining_amount || 0).toLocaleString()} FCFA</p>
             <p>Paiement : ${lastSale.payment_method} (${lastSale.payment_status})</p>
           </div>
           <script>window.onload = () => window.print();</script>
@@ -648,6 +664,13 @@ export default function PosPage() {
               <option value="annulé">Annulé</option>
             </select>
             <input type="number" value={discount} disabled={!canEditPrice} onChange={(e) => setDiscount(e.target.value)} placeholder="Remise ticket globale en FCFA" className="border p-3 rounded-xl w-full disabled:bg-gray-100" />
+            <input
+              type="number"
+              value={amountReceived}
+              onChange={(e) => setAmountReceived(e.target.value)}
+              placeholder="Montant reçu du client"
+              className="border p-3 rounded-xl w-full"
+            />
             <label className="flex items-center gap-2">
               <input type="checkbox" checked={taxEnabled} onChange={(e) => setTaxEnabled(e.target.checked)} />
               TVA activée ({Number(settings?.default_tax_rate || 18)}% par défaut)
@@ -659,6 +682,9 @@ export default function PosPage() {
               <p>Remise ticket : <strong>{totals.discount.toLocaleString()} FCFA</strong></p>
               <p>TVA : <strong>{totals.tax.toLocaleString()} FCFA</strong></p>
               <p className="text-2xl">Total : <strong>{totals.total.toLocaleString()} FCFA</strong></p>
+              <p>Montant reçu : <strong>{Number(amountReceived || 0).toLocaleString()} FCFA</strong></p>
+              <p className="text-green-600">Monnaie à rendre : <strong>{changeDue.toLocaleString()} FCFA</strong></p>
+              <p className="text-red-600">Reste à payer : <strong>{remainingAmount.toLocaleString()} FCFA</strong></p>
             </div>
             <button disabled={cart.length === 0} onClick={validateSale} className="w-full bg-yellow-500 text-black font-bold py-4 rounded-xl disabled:opacity-50">
               Valider vente
