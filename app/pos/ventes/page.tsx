@@ -63,6 +63,19 @@ export default function PosVentesPage() {
     setFilters((current) => ({ ...current, [field]: value }));
   };
 
+  const totalSalesAmount = sales.reduce(
+    (sum, sale) => sum + Number(sale.total_amount || 0),
+    0
+  );
+
+  const totalSalesCount = sales.length;
+
+  const averageSale =
+    totalSalesCount > 0
+      ? totalSalesAmount / totalSalesCount
+      : 0;
+
+
   const cancelSale = async (id: number) => {
     const reason = prompt("Motif d’annulation", "");
     if (reason === null) return;
@@ -115,7 +128,9 @@ export default function PosVentesPage() {
         </select>
         <button onClick={fetchSales} className="bg-yellow-500 text-black px-5 py-3 rounded-xl font-bold">Filtrer</button>
       </div>
+
       <div className="bg-white rounded-2xl shadow overflow-x-auto">
+
         <table className="w-full text-left">
           <thead className="bg-gray-100 text-gray-600">
             <tr>
@@ -152,6 +167,36 @@ export default function PosVentesPage() {
           </tbody>
         </table>
         {sales.length === 0 && <p className="p-6 text-gray-500">Aucune vente.</p>}
+
+      <div className="bg-black text-white rounded-2xl p-6 mt-6">
+        <h2 className="text-2xl font-bold mb-4">
+          Résumé des ventes
+        </h2>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <p className="text-gray-300">Nombre de ventes</p>
+            <p className="text-3xl font-bold">
+              {totalSalesCount}
+            </p>
+          </div>
+
+          <div>
+            <p className="text-gray-300">Total vendu</p>
+            <p className="text-3xl font-bold text-yellow-400">
+              {totalSalesAmount.toLocaleString()} FCFA
+            </p>
+          </div>
+
+          <div>
+            <p className="text-gray-300">Montant moyen</p>
+            <p className="text-3xl font-bold text-green-400">
+              {averageSale.toLocaleString()} FCFA
+            </p>
+          </div>
+        </div>
+      </div>
+
       </div>
     </div>
   );
