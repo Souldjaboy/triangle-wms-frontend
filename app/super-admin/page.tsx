@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import {
   Plus,
@@ -8,6 +9,8 @@ import {
 } from "lucide-react";
 
 export default function SuperAdminPage() {
+
+  const router = useRouter();
 
   const [companies, setCompanies] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
@@ -18,6 +21,33 @@ export default function SuperAdminPage() {
   });
 
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    const storedUser = localStorage.getItem("user");
+
+    if (!token || !storedUser) {
+      router.push("/login");
+      return;
+    }
+
+    try {
+      const user = JSON.parse(storedUser);
+      const role = String(user?.role || "").toLowerCase();
+      const isSuperAdmin =
+        user?.is_super_admin === true ||
+        user?.is_super_admin === "true" ||
+        user?.is_super_admin === 1 ||
+        role === "super_admin";
+
+      if (!isSuperAdmin) {
+        router.push("/dashboard");
+      }
+    } catch {
+      router.push("/login");
+    }
+  }, [router]);
+
 
   const [message, setMessage] = useState("");
 

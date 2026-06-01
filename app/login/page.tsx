@@ -42,6 +42,15 @@ export default function LoginPage() {
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
 
+      const isSuperAdmin =
+        data.user?.is_super_admin === true ||
+        data.user?.is_super_admin === "true" ||
+        data.user?.is_super_admin === 1 ||
+        String(data.user?.role || "").toLowerCase() === "super_admin";
+
+      document.cookie = `triangle_token=${data.token}; path=/; max-age=86400; SameSite=Lax`;
+      document.cookie = `triangle_super_admin=${isSuperAdmin ? "true" : "false"}; path=/; max-age=86400; SameSite=Lax`;
+
       router.push("/dashboard");
     } catch (error) {
       console.error(error);

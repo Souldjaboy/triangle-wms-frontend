@@ -86,6 +86,8 @@ export default function DashboardPage() {
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+    document.cookie = "triangle_token=; path=/; max-age=0";
+    document.cookie = "triangle_super_admin=; path=/; max-age=0";
     router.push("/login");
   };
 
