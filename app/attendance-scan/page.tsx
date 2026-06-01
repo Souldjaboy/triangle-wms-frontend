@@ -21,6 +21,12 @@ export default function PointageQRCodePage() {
   const [messageType, setMessageType] = useState<"success" | "error">("success");
   const [countdown, setCountdown] = useState(5);
   const [cameraReady, setCameraReady] = useState(false);
+  const [gpsSettings, setGpsSettings] = useState<any>({ gps_required: false });
+  const [gpsStatus, setGpsStatus] = useState({
+    label: "GPS non vérifié",
+    detail: "",
+    inside: null as boolean | null,
+  });
   const actionRef = useRef<ActionType>("checkin");
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const startingRef = useRef(false);
@@ -54,10 +60,32 @@ export default function PointageQRCodePage() {
       const data = await res.json().catch(() => ({}));
       const nextSettings = data || { gps_required: false };
       gpsSettingsRef.current = nextSettings;
+      setGpsSettings(nextSettings);
     } catch {
       gpsSettingsRef.current = { gps_required: false };
+      setGpsSettings({ gps_required: false });
     }
   }, []);
+
+  const calculateDistanceMeters = (
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number
+  ) => {
+    const toRad = (value: number) => (value * Math.PI) / 180;
+    const earthRadiusMeters = 6371000;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(toRad(lat1)) *
+        Math.cos(toRad(lat2)) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return earthRadiusMeters * c;
+  };
 
   const extractBadgeCode = (decodedText: string) => {
     const text = decodedText.trim();
@@ -114,8 +142,40 @@ export default function PointageQRCodePage() {
             longitude: position.coords.longitude,
             accuracy: position.coords.accuracy,
           };
+
+          const siteLat = Number(gpsSettingsRef.current?.site_latitude);
+          const siteLon = Number(gpsSettingsRef.current?.site_longitude);
+          const radius = Number(gpsSettingsRef.current?.allowed_radius_meters || 100);
+
+          if (Number.isFinite(siteLat) && Number.isFinite(siteLon)) {
+            const distance = calculateDistanceMeters(
+              siteLat,
+              siteLon,
+              position.coords.latitude,
+              position.coords.longitude
+            );
+            setGpsStatus({
+              label: "Position obtenue",
+              detail: `Distance site : ${Math.round(distance)} m / rayon ${radius} m. Précision GPS : ${Math.round(position.coords.accuracy)} m.`,
+              inside: distance <= radius,
+            });
+          } else {
+            setGpsStatus({
+              label: "Position obtenue",
+              detail: `Précision GPS : ${Math.round(position.coords.accuracy)} m. Coordonnées du site non configurées.`,
+              inside: null,
+            });
+          }
         } catch (gpsError: any) {
           setMessageType("error");
+          setGpsStatus({
+            label: "GPS refusé",
+            detail:
+              gpsError?.code === 1
+                ? "Pointage refusé : localisation obligatoire."
+                : "Pointage refusé : impossible d’obtenir votre position.",
+            inside: false,
+          });
           if (gpsError?.code === 1) {
             setMessage("Pointage refusé : localisation obligatoire.");
           } else {
@@ -140,6 +200,13 @@ export default function PointageQRCodePage() {
       if (!response.ok) {
         setMessageType("error");
         setMessage(data.error || `Erreur ${ACTION_LABEL[selectedAction]}`);
+        if (data.distance_meters !== undefined) {
+          setGpsStatus({
+            label: "Hors zone",
+            detail: `Distance site : ${Math.round(Number(data.distance_meters || 0))} m / rayon ${Number(data.allowed_radius_meters || 0)} m.`,
+            inside: false,
+          });
+        }
         return;
       }
 
@@ -149,6 +216,17 @@ export default function PointageQRCodePage() {
           data.action || ACTION_LABEL[selectedAction]
         } enregistré`
       );
+
+      if (data.gps) {
+        setGpsStatus({
+          label: data.gps.is_inside_zone === false ? "Hors zone autorisée" : "Dans la zone autorisée",
+          detail:
+            data.gps.distance_meters !== null && data.gps.distance_meters !== undefined
+              ? `Distance site : ${Math.round(Number(data.gps.distance_meters || 0))} m / rayon ${Number(data.gps.allowed_radius_meters || 0)} m.`
+              : "Pointage enregistré sans distance calculée.",
+          inside: data.gps.is_inside_zone,
+        });
+      }
 
       await fetchAttendance();
     } catch (error) {
@@ -311,6 +389,27 @@ export default function PointageQRCodePage() {
         <div className="mb-3 text-sm font-bold text-gray-600">
           Action sélectionnée : {ACTION_LABEL[actionType]} | Caméra :{" "}
           {cameraReady ? "active" : "chargement"}
+        </div>
+
+        <div
+          className={`mb-4 rounded-xl p-4 font-bold ${
+            gpsSettings.gps_required
+              ? "bg-yellow-100 text-yellow-900"
+              : "bg-blue-100 text-blue-800"
+          }`}
+        >
+          <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+            <span>
+              GPS : {gpsSettings.gps_required ? "actif et obligatoire" : "non obligatoire"}
+              {gpsSettings.site_name ? ` - ${gpsSettings.site_name}` : ""}
+            </span>
+            <span>
+              Zone : {gpsStatus.inside === null ? gpsStatus.label : gpsStatus.inside ? "Dans la zone" : "Hors zone"}
+            </span>
+          </div>
+          {gpsStatus.detail && (
+            <p className="mt-2 text-sm font-semibold">{gpsStatus.detail}</p>
+          )}
         </div>
 
         <div id="reader" className="w-full overflow-hidden rounded-2xl border min-h-[280px]" />

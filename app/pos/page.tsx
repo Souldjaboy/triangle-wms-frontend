@@ -29,6 +29,12 @@ export default function PosPage() {
   const [lastReceipt, setLastReceipt] = useState<any>(null);
   const [lastSale, setLastSale] = useState<any>(null);
   const [lastItems, setLastItems] = useState<any[]>([]);
+  const [paymentTransaction, setPaymentTransaction] = useState<any>(null);
+  const [paymentMessage, setPaymentMessage] = useState("");
+  const [mixedPayments, setMixedPayments] = useState([
+    { method: "Espèces", amount: "", reference: "" },
+    { method: "Orange Money", amount: "", reference: "" },
+  ]);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [scannerMode, setScannerMode] = useState(false);
   const [settings, setSettings] = useState<any>(null);
@@ -352,10 +358,73 @@ export default function PosPage() {
     };
   }, [cart, discount, taxEnabled, settings]);
 
-  const amountReceivedNumber = Number(amountReceived || 0);
+  const mixedTotal = mixedPayments.reduce(
+    (sum, row) => sum + Number(row.amount || 0),
+    0
+  );
+  const amountReceivedNumber =
+    paymentMethod === "Paiement mixte" ? mixedTotal : Number(amountReceived || 0);
   const changeDue = Math.max(amountReceivedNumber - totals.total, 0);
   const remainingAmount = Math.max(totals.total - amountReceivedNumber, 0);
   const isExternalPayment = ["Carte bancaire", "Orange Money", "Moov Money", "Wave"].includes(paymentMethod);
+
+  const updateMixedPayment = (index: number, key: string, value: string) => {
+    setMixedPayments((current) =>
+      current.map((row, rowIndex) =>
+        rowIndex === index ? { ...row, [key]: value } : row
+      )
+    );
+  };
+
+  const initiatePayment = async () => {
+    setPaymentMessage("");
+    const response = await fetch("/api/payments/initiate", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        payment_method: paymentMethod,
+        amount: totals.total,
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      setPaymentMessage(data.error || "Erreur initiation paiement.");
+      return;
+    }
+
+    setPaymentTransaction(data.transaction);
+    setPaymentStatus("en attente");
+    setPaymentMessage(
+      `Paiement initié : ${data.provider_reference} - statut ${data.status}.`
+    );
+  };
+
+  const confirmPayment = async (status: "payé" | "échoué") => {
+    if (!paymentTransaction?.id && !lastSale?.transaction_id) {
+      setPaymentMessage("Aucune transaction à confirmer.");
+      return;
+    }
+
+    const response = await fetch("/api/payments/confirm", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        transaction_id: paymentTransaction?.id || lastSale?.transaction_id,
+        status,
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      setPaymentMessage(data.error || "Erreur confirmation paiement.");
+      return;
+    }
+
+    setPaymentStatus(data.status || status);
+    if (data.sale) setLastSale(data.sale);
+    setPaymentMessage(`Paiement ${data.status} confirmé en sandbox.`);
+  };
 
   const validateSale = async () => {
     setMessage("");
@@ -374,9 +443,10 @@ export default function PosPage() {
         tax_enabled: taxEnabled,
         payment_method: paymentMethod,
         payment_status: paymentStatus,
-        amount_received: Number(amountReceived || 0),
+        amount_received: amountReceivedNumber,
         change_due: changeDue,
         remaining_amount: remainingAmount,
+        mixed_payments: mixedPayments,
       }),
     });
 
@@ -390,6 +460,7 @@ export default function PosPage() {
     setLastReceipt(data.receipt);
     setLastSale(data.sale);
     setLastItems(data.items || []);
+    setPaymentTransaction(data.payment_transaction || paymentTransaction);
     if (data.company_settings) setCompanySettings(data.company_settings);
     setCart([]);
     setAmountReceived("");
@@ -663,6 +734,7 @@ export default function PosPage() {
           )}
 
           <div className="border-t mt-5 pt-5 space-y-3">
+            <h2 className="text-2xl font-bold">Paiement</h2>
             <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="border p-3 rounded-xl w-full">
               {paymentMethods.map((method) => <option key={method}>{method}</option>)}
             </select>
@@ -673,13 +745,103 @@ export default function PosPage() {
               <option value="annulé">Annulé</option>
             </select>
             <input type="number" value={discount} disabled={!canEditPrice} onChange={(e) => setDiscount(e.target.value)} placeholder="Remise ticket globale en FCFA" className="border p-3 rounded-xl w-full disabled:bg-gray-100" />
-            <input
-              type="number"
-              value={amountReceived}
-              onChange={(e) => setAmountReceived(e.target.value)}
-              placeholder="Montant reçu du client"
-              className="border p-3 rounded-xl w-full"
-            />
+            {paymentMethod === "Paiement mixte" ? (
+              <div className="rounded-xl border p-3 space-y-3">
+                <p className="font-bold">Paiement mixte</p>
+                {mixedPayments.map((row, index) => (
+                  <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                    <select
+                      value={row.method}
+                      onChange={(e) => updateMixedPayment(index, "method", e.target.value)}
+                      className="border p-3 rounded-xl"
+                    >
+                      {paymentMethods.filter((method) => method !== "Paiement mixte").map((method) => (
+                        <option key={method}>{method}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      value={row.amount}
+                      onChange={(e) => updateMixedPayment(index, "amount", e.target.value)}
+                      placeholder="Montant"
+                      className="border p-3 rounded-xl"
+                    />
+                    <input
+                      value={row.reference}
+                      onChange={(e) => updateMixedPayment(index, "reference", e.target.value)}
+                      placeholder="Référence"
+                      className="border p-3 rounded-xl"
+                    />
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setMixedPayments((current) => [...current, { method: "Espèces", amount: "", reference: "" }])}
+                  className="bg-gray-100 text-black px-4 py-2 rounded-xl font-bold"
+                >
+                  Ajouter une ligne paiement
+                </button>
+              </div>
+            ) : (
+              <input
+                type="number"
+                value={amountReceived}
+                onChange={(e) => setAmountReceived(e.target.value)}
+                placeholder="Montant reçu du client"
+                className="border p-3 rounded-xl w-full"
+              />
+            )}
+
+            {isExternalPayment && (
+              <div className="rounded-xl bg-blue-50 p-4 space-y-3">
+                <div className="flex flex-col md:flex-row gap-2 md:items-center md:justify-between">
+                  <div>
+                    <p className="font-bold">Paiement réel / sandbox</p>
+                    <p className="text-sm text-blue-800">
+                      Carte, Orange Money, Moov Money et Wave passent par une transaction. Sans clé marchand, le mode sandbox permet de simuler.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={initiatePayment}
+                    className="bg-black text-white px-4 py-3 rounded-xl font-bold"
+                  >
+                    Initier paiement
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                  <div className="bg-white rounded-xl p-3">
+                    <p className="text-gray-500">Statut</p>
+                    <p className="font-bold">{paymentTransaction?.status || paymentStatus}</p>
+                  </div>
+                  <div className="bg-white rounded-xl p-3">
+                    <p className="text-gray-500">Référence transaction</p>
+                    <p className="font-bold break-all">{paymentTransaction?.provider_reference || lastSale?.payment_reference || "-"}</p>
+                  </div>
+                  <div className="bg-white rounded-xl p-3 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => confirmPayment("payé")}
+                      className="flex-1 bg-green-600 text-white rounded-xl px-3 py-2 font-bold"
+                    >
+                      Simuler réussi
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => confirmPayment("échoué")}
+                      className="flex-1 bg-red-600 text-white rounded-xl px-3 py-2 font-bold"
+                    >
+                      Simuler échoué
+                    </button>
+                  </div>
+                </div>
+
+                {paymentMessage && (
+                  <p className="rounded-xl bg-white p-3 font-bold">{paymentMessage}</p>
+                )}
+              </div>
+            )}
             <label className="flex items-center gap-2">
               <input type="checkbox" checked={taxEnabled} onChange={(e) => setTaxEnabled(e.target.checked)} />
               TVA activée ({Number(settings?.default_tax_rate || 18)}% par défaut)
@@ -691,7 +853,7 @@ export default function PosPage() {
               <p>Remise ticket : <strong>{totals.discount.toLocaleString()} FCFA</strong></p>
               <p>TVA : <strong>{totals.tax.toLocaleString()} FCFA</strong></p>
               <p className="text-2xl">Total : <strong>{totals.total.toLocaleString()} FCFA</strong></p>
-              <p>Montant reçu : <strong>{Number(amountReceived || 0).toLocaleString()} FCFA</strong></p>
+              <p>Total payé : <strong>{amountReceivedNumber.toLocaleString()} FCFA</strong></p>
               <p className="text-green-600">Monnaie à rendre : <strong>{changeDue.toLocaleString()} FCFA</strong></p>
               <p className="text-red-600">Reste à payer : <strong>{remainingAmount.toLocaleString()} FCFA</strong></p>
             </div>

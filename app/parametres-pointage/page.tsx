@@ -8,6 +8,7 @@ export default function ParametresPointagePage() {
   const [message, setMessage] = useState("");
   const [canSeeSalary, setCanSeeSalary] = useState(false);
   const [canManageGps, setCanManageGps] = useState(false);
+  const [gpsTestMessage, setGpsTestMessage] = useState("");
 
   const [groupForm, setGroupForm] = useState({
     name: "",
@@ -28,9 +29,13 @@ export default function ParametresPointagePage() {
 
   const [gpsForm, setGpsForm] = useState({
     gps_required: false,
+    site_name: "",
     site_latitude: "",
     site_longitude: "",
     allowed_radius_meters: "100",
+    allow_remote_attendance: false,
+    kiosk_mode: true,
+    employee_scanner_access: false,
   });
 
   const authHeaders = () => ({
@@ -57,6 +62,7 @@ export default function ParametresPointagePage() {
     const gpsData = await gpsRes.json().catch(() => ({}));
     setGpsForm({
       gps_required: gpsData.gps_required === true,
+      site_name: gpsData.site_name || "",
       site_latitude:
         gpsData.site_latitude === null || gpsData.site_latitude === undefined
           ? ""
@@ -66,6 +72,9 @@ export default function ParametresPointagePage() {
           ? ""
           : String(gpsData.site_longitude),
       allowed_radius_meters: String(gpsData.allowed_radius_meters || 100),
+      allow_remote_attendance: gpsData.allow_remote_attendance === true,
+      kiosk_mode: gpsData.kiosk_mode !== false,
+      employee_scanner_access: gpsData.employee_scanner_access === true,
     });
   };
 
@@ -152,6 +161,7 @@ export default function ParametresPointagePage() {
 
     setGpsForm({
       gps_required: data.gps_required === true,
+      site_name: data.site_name || "",
       site_latitude:
         data.site_latitude === null || data.site_latitude === undefined
           ? ""
@@ -161,8 +171,42 @@ export default function ParametresPointagePage() {
           ? ""
           : String(data.site_longitude),
       allowed_radius_meters: String(data.allowed_radius_meters || 100),
+      allow_remote_attendance: data.allow_remote_attendance === true,
+      kiosk_mode: data.kiosk_mode !== false,
+      employee_scanner_access: data.employee_scanner_access === true,
     });
     setMessage("Paramètres GPS du pointage enregistrés.");
+  };
+
+  const testCurrentPosition = () => {
+    setGpsTestMessage("");
+
+    if (!navigator.geolocation) {
+      setGpsTestMessage("GPS indisponible sur cet appareil.");
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const latitude = position.coords.latitude;
+        const longitude = position.coords.longitude;
+        setGpsTestMessage(
+          `Position obtenue : ${latitude.toFixed(6)}, ${longitude.toFixed(6)} - précision ${Math.round(position.coords.accuracy)} m.`
+        );
+      },
+      (error) => {
+        setGpsTestMessage(
+          error.code === 1
+            ? "Autorisation GPS refusée."
+            : "Impossible d’obtenir votre position."
+        );
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 12000,
+        maximumAge: 0,
+      }
+    );
   };
 
   const assignUserSettings = async (e: any) => {
@@ -425,6 +469,19 @@ export default function ParametresPointagePage() {
           Activer GPS obligatoire
         </label>
 
+        <div>
+          <label className="text-sm text-gray-500">Nom du site</label>
+          <input
+            type="text"
+            name="site_name"
+            value={gpsForm.site_name}
+            onChange={handleGpsChange}
+            disabled={!canManageGps}
+            placeholder="Ex: Entrepôt principal Bamako"
+            className="border p-3 rounded-xl text-black w-full disabled:bg-gray-100"
+          />
+        </div>
+
         <div className="grid grid-cols-3 gap-4">
           <div>
             <label className="text-sm text-gray-500">Latitude du site</label>
@@ -470,19 +527,77 @@ export default function ParametresPointagePage() {
           </div>
         </div>
 
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <label className="flex items-center gap-3 rounded-xl bg-gray-100 p-4 text-black font-bold">
+            <input
+              type="checkbox"
+              name="allow_remote_attendance"
+              checked={gpsForm.allow_remote_attendance}
+              onChange={handleGpsChange}
+              disabled={!canManageGps}
+              className="h-5 w-5"
+            />
+            Autoriser pointage hors zone
+          </label>
+
+          <label className="flex items-center gap-3 rounded-xl bg-gray-100 p-4 text-black font-bold">
+            <input
+              type="checkbox"
+              name="kiosk_mode"
+              checked={gpsForm.kiosk_mode}
+              onChange={handleGpsChange}
+              disabled={!canManageGps}
+              className="h-5 w-5"
+            />
+            Mode kiosque tablette
+          </label>
+
+          <label className="flex items-center gap-3 rounded-xl bg-gray-100 p-4 text-black font-bold">
+            <input
+              type="checkbox"
+              name="employee_scanner_access"
+              checked={gpsForm.employee_scanner_access}
+              onChange={handleGpsChange}
+              disabled={!canManageGps}
+              className="h-5 w-5"
+            />
+            Scanner accessible aux employés
+          </label>
+        </div>
+
+        <div className="bg-blue-50 text-blue-800 rounded-xl p-4 font-bold">
+          La localisation est utilisée uniquement pour vérifier le pointage professionnel.
+        </div>
+
         {!canManageGps && (
           <div className="bg-blue-100 text-blue-700 rounded-xl p-3 font-bold">
             Seuls admin et super admin peuvent modifier la sécurité GPS.
           </div>
         )}
 
-        <button
-          type="submit"
-          disabled={!canManageGps}
-          className="bg-black text-white font-bold rounded-xl py-3 disabled:bg-gray-300 disabled:text-gray-500"
-        >
-          Enregistrer sécurité GPS
-        </button>
+        {gpsTestMessage && (
+          <div className="bg-yellow-100 text-yellow-900 rounded-xl p-3 font-bold">
+            {gpsTestMessage}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <button
+            type="submit"
+            disabled={!canManageGps}
+            className="bg-black text-white font-bold rounded-xl py-3 disabled:bg-gray-300 disabled:text-gray-500"
+          >
+            Enregistrer les paramètres GPS
+          </button>
+
+          <button
+            type="button"
+            onClick={testCurrentPosition}
+            className="bg-yellow-500 text-black font-bold rounded-xl py-3"
+          >
+            Tester ma position actuelle
+          </button>
+        </div>
       </form>
 
       <div className="bg-white rounded-2xl shadow p-6">

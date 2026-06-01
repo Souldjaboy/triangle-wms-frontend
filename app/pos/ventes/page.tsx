@@ -64,7 +64,25 @@ export default function PosVentesPage() {
   };
 
   const totalSalesAmount = sales.reduce(
-    (sum, sale) => sum + Number(sale.total_amount || 0),
+    (sum, sale) =>
+      String(sale.status || "").toLowerCase() === "annulée"
+        ? sum
+        : sum + Number(sale.total_amount || 0),
+    0
+  );
+  const totalCollected = sales.reduce(
+    (sum, sale) => sum + Number(sale.amount_paid || 0),
+    0
+  );
+  const totalCredit = sales.reduce(
+    (sum, sale) => sum + Number(sale.amount_due || 0),
+    0
+  );
+  const totalCancelled = sales.reduce(
+    (sum, sale) =>
+      String(sale.status || "").toLowerCase() === "annulée"
+        ? sum + Number(sale.total_amount || 0)
+        : sum,
     0
   );
 
@@ -74,6 +92,9 @@ export default function PosVentesPage() {
     totalSalesCount > 0
       ? totalSalesAmount / totalSalesCount
       : 0;
+
+  const money = (value: number) =>
+    `${Math.round(Number(value || 0)).toLocaleString("fr-FR")} FCFA`;
 
 
   const cancelSale = async (id: number) => {
@@ -149,7 +170,7 @@ export default function PosVentesPage() {
             {sales.map((sale) => (
               <tr key={sale.id} className="border-t">
                 <td className="p-4 font-bold">{sale.sale_number}</td>
-                <td>{Number(sale.total_amount || 0).toLocaleString()} FCFA</td>
+              <td>{money(Number(sale.total_amount || 0))}</td>
                 <td>{sale.payment_method} ({sale.payment_status})</td>
                 <td>{sale.status}</td>
                 <td>{sale.created_by_name || "-"}</td>
@@ -184,14 +205,35 @@ export default function PosVentesPage() {
           <div>
             <p className="text-gray-300">Total vendu</p>
             <p className="text-3xl font-bold text-yellow-400">
-              {totalSalesAmount.toLocaleString()} FCFA
+              {money(totalSalesAmount)}
+            </p>
+          </div>
+
+          <div>
+            <p className="text-gray-300">Total encaissé</p>
+            <p className="text-3xl font-bold text-green-400">
+              {money(totalCollected)}
+            </p>
+          </div>
+
+          <div>
+            <p className="text-gray-300">Total crédit</p>
+            <p className="text-3xl font-bold text-orange-300">
+              {money(totalCredit)}
+            </p>
+          </div>
+
+          <div>
+            <p className="text-gray-300">Total annulé</p>
+            <p className="text-3xl font-bold text-red-300">
+              {money(totalCancelled)}
             </p>
           </div>
 
           <div>
             <p className="text-gray-300">Montant moyen</p>
             <p className="text-3xl font-bold text-green-400">
-              {averageSale.toLocaleString()} FCFA
+              {money(averageSale)}
             </p>
           </div>
         </div>
