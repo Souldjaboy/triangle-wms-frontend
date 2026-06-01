@@ -352,17 +352,15 @@ export default function PosPage() {
     };
   }, [cart, discount, taxEnabled, settings]);
 
-  const changeDue = Math.max(Number(amountReceived || 0) - totals.total, 0);
-  const remainingAmount = Math.max(totals.total - Number(amountReceived || 0), 0);
-
   const amountReceivedNumber = Number(amountReceived || 0);
   const changeDue = Math.max(amountReceivedNumber - totals.total, 0);
   const remainingAmount = Math.max(totals.total - amountReceivedNumber, 0);
+  const isExternalPayment = ["Carte bancaire", "Orange Money", "Moov Money", "Wave"].includes(paymentMethod);
 
   const validateSale = async () => {
     setMessage("");
 
-    if (Number(amountReceived || 0) < totals.total && paymentStatus === "payé") {
+    if (!isExternalPayment && paymentMethod !== "Crédit client" && Number(amountReceived || 0) < totals.total && paymentStatus === "payé") {
       setMessage("Montant reçu insuffisant.");
       return;
     }
@@ -395,7 +393,11 @@ export default function PosPage() {
     if (data.company_settings) setCompanySettings(data.company_settings);
     setCart([]);
     setAmountReceived("");
-    setMessage("Vente validée. Reçu généré.");
+    setMessage(
+      data.payment_required
+        ? "Demande de paiement créée. Statut en attente de confirmation fournisseur."
+        : "Vente validée. Reçu généré."
+    );
     searchProducts(query);
   };
 
@@ -446,9 +448,9 @@ export default function PosPage() {
             <p class="right">Remise : ${Number(lastSale.discount_amount || 0).toLocaleString()} FCFA</p>
             <p class="right">TVA : ${Number(lastSale.tax_amount || 0).toLocaleString()} FCFA</p>
             <p class="total">Total : ${Number(lastSale.total_amount || 0).toLocaleString()} FCFA</p>
-            <p class="right">Montant reçu : ${Number(lastSale.amount_received || 0).toLocaleString()} FCFA</p>
+            <p class="right">Montant reçu : ${Number(lastSale.amount_paid || 0).toLocaleString()} FCFA</p>
             <p class="right">Monnaie rendue : ${Number(lastSale.change_due || 0).toLocaleString()} FCFA</p>
-            <p class="right">Reste à payer : ${Number(lastSale.remaining_amount || 0).toLocaleString()} FCFA</p>
+            <p class="right">Reste à payer : ${Number(lastSale.amount_due || 0).toLocaleString()} FCFA</p>
             <p>Paiement : ${lastSale.payment_method} (${lastSale.payment_status})</p>
           </div>
           <script>window.onload = () => window.print();</script>
@@ -488,6 +490,9 @@ export default function PosPage() {
           </a>
           <a href="/pos/parametres" className="bg-white text-black px-5 py-3 rounded-xl font-bold">
             Paramètres POS
+          </a>
+          <a href="/pos/parametres-paiement" className="bg-white text-black px-5 py-3 rounded-xl font-bold">
+            Paiements
           </a>
         </div>
       </div>
