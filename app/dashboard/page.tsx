@@ -15,6 +15,7 @@ import {
   MapPin,
   ScanLine,
   FileText,
+  ShoppingCart,
   BarChart3,
   TriangleAlert,
   Activity,
@@ -144,6 +145,7 @@ export default function DashboardPage() {
   const isReadOnlyRole = role === "direction" || role === "client";
   const canManageWarehouse = isAdminLike || isWarehouseManager;
   const canViewReports = canManageWarehouse || isReadOnlyRole;
+  const canUsePos = isAdminLike || role === "caissier" || role === "vendeur" || role === "direction";
 
   return (
     <div className="min-h-screen flex bg-gray-100">
@@ -252,6 +254,15 @@ export default function DashboardPage() {
       Scanner QR
     </li>
   </Link>
+
+  {canUsePos && (
+    <Link href="/pos">
+      <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+        <ShoppingCart size={20} />
+        POS / Caisse
+      </li>
+    </Link>
+  )}
 
   {canViewReports && (
     <>
