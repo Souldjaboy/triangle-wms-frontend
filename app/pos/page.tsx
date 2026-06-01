@@ -26,7 +26,10 @@ export default function PosPage() {
   const [discount, setDiscount] = useState("0");
   const [taxEnabled, setTaxEnabled] = useState(false);
   const [lastReceipt, setLastReceipt] = useState<any>(null);
+  const [lastSale, setLastSale] = useState<any>(null);
+  const [lastItems, setLastItems] = useState<any[]>([]);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [scannerMode, setScannerMode] = useState(false);
 
   const canEditPrice = ["admin", "super_admin"].includes(
     String(currentUser?.role || "").toLowerCase()
@@ -40,7 +43,17 @@ export default function PosPage() {
   useEffect(() => {
     const savedUser = localStorage.getItem("user");
     if (savedUser) setCurrentUser(JSON.parse(savedUser));
-    searchProducts("");
+    const params = new URLSearchParams(window.location.search);
+    const scanCode = params.get("scan");
+    searchProducts(scanCode || "").then((loaded) => {
+      if (!scanCode) return;
+      const exact = loaded.find((product: any) =>
+        [product.reference, product.barcode, product.sku, product.name]
+          .filter(Boolean)
+          .some((field) => String(field).toLowerCase() === scanCode.toLowerCase())
+      );
+      if (exact) addToCart(exact);
+    });
   }, []);
 
   const searchProducts = async (value: string) => {
@@ -49,7 +62,9 @@ export default function PosPage() {
       { headers: authHeaders() }
     );
     const data = await response.json().catch(() => []);
-    setProducts(Array.isArray(data) ? data : []);
+    const rows = Array.isArray(data) ? data : [];
+    setProducts(rows);
+    return rows;
   };
 
   const addToCart = (product: any) => {
@@ -78,11 +93,36 @@ export default function PosPage() {
           quantity: 1,
           unit_price: Number(product.sale_price || 0),
           discount_amount: 0,
+          tax_rate: Number(product.tax_rate || 0),
           stock: Number(product.stock || 0),
           location: product.location_code || product.emplacement_code || "",
         },
       ];
     });
+  };
+
+  const handleScanSubmit = async (event: any) => {
+    event.preventDefault();
+    const value = query.trim().toLowerCase();
+    const rows = value ? await searchProducts(query) : products;
+    const exact = rows.find((product) => {
+      return [
+        product.reference,
+        product.barcode,
+        product.sku,
+        product.name,
+      ]
+        .filter(Boolean)
+        .some((field) => String(field).toLowerCase() === value);
+    });
+
+    if (exact) {
+      addToCart(exact);
+      setQuery("");
+      searchProducts("");
+    } else {
+      searchProducts(query);
+    }
   };
 
   const updateItem = (productId: number, key: string, value: string) => {
@@ -133,12 +173,64 @@ export default function PosPage() {
     }
 
     setLastReceipt(data.receipt);
+    setLastSale(data.sale);
+    setLastItems(data.items || []);
     setCart([]);
     setMessage("Vente validée. Reçu généré.");
     searchProducts(query);
   };
 
-  const printReceipt = () => window.print();
+  const printReceipt = () => {
+    if (!lastReceipt || !lastSale) return;
+
+    const receiptWindow = window.open("", "_blank", "width=420,height=720");
+    if (!receiptWindow) return;
+
+    receiptWindow.document.write(`
+      <html>
+        <head>
+          <title>${lastReceipt.receipt_number}</title>
+          <style>
+            body { font-family: Arial, sans-serif; color: #111; margin: 0; padding: 12px; }
+            .receipt { max-width: 300px; margin: 0 auto; }
+            h1 { font-size: 18px; text-align: center; margin: 0 0 8px; }
+            p { margin: 4px 0; font-size: 12px; }
+            table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; }
+            th, td { border-bottom: 1px dashed #999; padding: 5px 0; text-align: left; }
+            .right { text-align: right; }
+            .total { font-size: 16px; font-weight: 700; text-align: right; margin-top: 10px; }
+            @page { size: 80mm auto; margin: 4mm; }
+          </style>
+        </head>
+        <body>
+          <div class="receipt">
+            <h1>TRIANGLE WMS PRO</h1>
+            <p>Reçu : ${lastReceipt.receipt_number}</p>
+            <p>Vente : ${lastSale.sale_number}</p>
+            <p>Date : ${new Date(lastSale.created_at).toLocaleString("fr-FR")}</p>
+            <p>Caissier : ${lastSale.created_by_name || "-"}</p>
+            <p>Client : ${lastSale.customer_name || "-"}</p>
+            <table>
+              <thead><tr><th>Produit</th><th>Qté</th><th class="right">Total</th></tr></thead>
+              <tbody>
+                ${lastItems
+                  .map(
+                    (item) => `<tr><td>${item.product_name}</td><td>${item.quantity}</td><td class="right">${Number(item.total_price || 0).toLocaleString()} FCFA</td></tr>`
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+            <p class="right">Remise : ${Number(lastSale.discount_amount || 0).toLocaleString()} FCFA</p>
+            <p class="right">TVA : ${Number(lastSale.tax_amount || 0).toLocaleString()} FCFA</p>
+            <p class="total">Total : ${Number(lastSale.total_amount || 0).toLocaleString()} FCFA</p>
+            <p>Paiement : ${lastSale.payment_method} (${lastSale.payment_status})</p>
+          </div>
+          <script>window.onload = () => window.print();</script>
+        </body>
+      </html>
+    `);
+    receiptWindow.document.close();
+  };
 
   return (
     <div className="min-h-screen bg-gray-100 p-4 md:p-8 text-black">
@@ -162,6 +254,15 @@ export default function PosPage() {
           <a href="/pos/ventes" className="bg-black text-white px-5 py-3 rounded-xl font-bold">
             Historique
           </a>
+          <a href="/pos/produits" className="bg-white text-black px-5 py-3 rounded-xl font-bold">
+            Étiquettes
+          </a>
+          <a href="/pos/alertes" className="bg-white text-black px-5 py-3 rounded-xl font-bold">
+            Alertes
+          </a>
+          <a href="/pos/parametres" className="bg-white text-black px-5 py-3 rounded-xl font-bold">
+            Paramètres POS
+          </a>
         </div>
       </div>
 
@@ -169,7 +270,19 @@ export default function PosPage() {
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2 space-y-6 print:hidden">
-          <div className="bg-white rounded-2xl shadow p-5">
+          <form onSubmit={handleScanSubmit} className="bg-white rounded-2xl shadow p-5">
+            <div className="flex flex-col md:flex-row gap-3 mb-3">
+              <button
+                type="button"
+                onClick={() => setScannerMode(!scannerMode)}
+                className={`px-5 py-3 rounded-xl font-bold ${scannerMode ? "bg-yellow-500" : "bg-black text-white"}`}
+              >
+                Scanner produit
+              </button>
+              <span className="text-sm text-gray-500 self-center">
+                Scanner USB/téléphone : validez avec Entrée pour ajouter automatiquement.
+              </span>
+            </div>
             <input
               value={query}
               onChange={(event) => {
@@ -180,7 +293,7 @@ export default function PosPage() {
               className="w-full border p-4 rounded-xl text-lg"
               autoFocus
             />
-          </div>
+          </form>
 
           {selectedProduct && mode === "info" && (
             <div className="bg-white rounded-2xl shadow p-5">
@@ -194,7 +307,7 @@ export default function PosPage() {
                 <p><strong>Expiration :</strong> {selectedProduct.expiration_date || "-"}</p>
               </div>
               <div className="mt-4">
-                <QRCodeCanvas value={selectedProduct.reference || String(selectedProduct.id)} size={120} />
+                <QRCodeCanvas value={selectedProduct.qr_url || selectedProduct.reference || String(selectedProduct.id)} size={120} />
               </div>
             </div>
           )}
@@ -227,10 +340,24 @@ export default function PosPage() {
                 <div key={item.product_id} className="border rounded-xl p-3">
                   <p className="font-bold">{item.reference} - {item.name}</p>
                   <p className="text-xs text-gray-500">Stock : {item.stock} | {item.location || "Aucun emplacement"}</p>
+                  <div className="grid grid-cols-5 gap-2 mt-3 text-xs font-bold text-gray-500">
+                    <span>Quantité</span>
+                    <span>Prix unitaire</span>
+                    <span>Remise</span>
+                    <span>TVA</span>
+                    <span>Total ligne</span>
+                  </div>
                   <div className="grid grid-cols-3 gap-2 mt-3">
                     <input type="number" min="1" value={item.quantity} onChange={(e) => updateItem(item.product_id, "quantity", e.target.value)} className="border p-2 rounded-lg" />
                     <input type="number" value={item.unit_price} disabled={!canEditPrice} onChange={(e) => updateItem(item.product_id, "unit_price", e.target.value)} className="border p-2 rounded-lg disabled:bg-gray-100" />
                     <input type="number" value={item.discount_amount} disabled={!canEditPrice} onChange={(e) => updateItem(item.product_id, "discount_amount", e.target.value)} className="border p-2 rounded-lg disabled:bg-gray-100" />
+                  </div>
+                  <div className="grid grid-cols-5 gap-2 mt-2 text-sm">
+                    <span>{item.quantity}</span>
+                    <span>{Number(item.unit_price || 0).toLocaleString()}</span>
+                    <span>{Number(item.discount_amount || 0).toLocaleString()}</span>
+                    <span>{taxEnabled ? `${item.tax_rate || 0}%` : "0%"}</span>
+                    <span className="font-bold">{(Number(item.quantity || 0) * Number(item.unit_price || 0) - Number(item.discount_amount || 0)).toLocaleString()} FCFA</span>
                   </div>
                 </div>
               ))}

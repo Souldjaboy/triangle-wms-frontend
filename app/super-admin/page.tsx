@@ -12,6 +12,10 @@ export default function SuperAdminPage() {
   const [companies, setCompanies] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
+  const [modulesData, setModulesData] = useState<any>({
+    module_keys: [],
+    companies: [],
+  });
 
   const [loading, setLoading] = useState(true);
 
@@ -64,6 +68,12 @@ export default function SuperAdminPage() {
           { headers }
         );
 
+      const modulesResponse =
+        await fetch(
+          "/api/super-admin/modules",
+          { headers }
+        );
+
       const companiesData =
         await companiesResponse.json();
 
@@ -72,6 +82,12 @@ export default function SuperAdminPage() {
 
       const plansData =
         await plansResponse.json();
+
+      const modulesPayload =
+        await modulesResponse.json().catch(() => ({
+          module_keys: [],
+          companies: [],
+        }));
 
       setCompanies(
         Array.isArray(companiesData)
@@ -89,6 +105,15 @@ export default function SuperAdminPage() {
         Array.isArray(plansData)
           ? plansData
           : []
+      );
+
+      setModulesData(
+        modulesPayload?.module_keys
+          ? modulesPayload
+          : {
+              module_keys: [],
+              companies: [],
+            }
       );
 
     } catch (error) {
@@ -423,6 +448,48 @@ export default function SuperAdminPage() {
 
   };
 
+  const updateCompanyModule = async (
+    companyId: number,
+    moduleKey: string,
+    enabled: boolean
+  ) => {
+
+    const currentCompany = modulesData.companies.find(
+      (company: any) => company.id === companyId
+    );
+
+    const modules = {
+      ...(currentCompany?.modules || {}),
+      [moduleKey]: enabled,
+    };
+
+    setModulesData((current: any) => ({
+      ...current,
+      companies: current.companies.map((company: any) =>
+        company.id === companyId
+          ? {
+              ...company,
+              modules,
+            }
+          : company
+      ),
+    }));
+
+    await fetch(
+      `/api/super-admin/modules/company/${companyId}`,
+      {
+        method: "PUT",
+        headers: getHeaders(),
+        body: JSON.stringify({
+          modules,
+        }),
+      }
+    );
+
+    setMessage("Modules mis à jour.");
+
+  };
+
   if (loading) {
 
     return (
@@ -651,6 +718,74 @@ export default function SuperAdminPage() {
                   </button>
 
                 </td>
+
+              </tr>
+
+            ))}
+
+          </tbody>
+
+        </table>
+
+      </div>
+
+      {/* MODULES */}
+
+      <div className="bg-white rounded-2xl shadow p-6 mb-10 overflow-x-auto">
+
+        <h2 className="text-2xl font-bold text-black mb-2">
+          Gestion des modules
+        </h2>
+
+        <p className="text-gray-500 mb-6">
+          Activation par entreprise : POS, ventes, IA, documents, rapports et autres modules.
+        </p>
+
+        <table className="w-full">
+
+          <thead className="bg-gray-100">
+
+            <tr>
+
+              <th className="p-4 text-left text-black">
+                Entreprise
+              </th>
+
+              {modulesData.module_keys.map((moduleKey: string) => (
+                <th key={moduleKey} className="p-4 text-left text-black capitalize">
+                  {moduleKey}
+                </th>
+              ))}
+
+            </tr>
+
+          </thead>
+
+          <tbody>
+
+            {modulesData.companies.map((company: any) => (
+
+              <tr key={company.id} className="border-t">
+
+                <td className="p-4 text-black font-semibold">
+                  {company.name}
+                </td>
+
+                {modulesData.module_keys.map((moduleKey: string) => (
+                  <td key={moduleKey} className="p-4">
+                    <input
+                      type="checkbox"
+                      checked={company.modules?.[moduleKey] !== false}
+                      onChange={(e) =>
+                        updateCompanyModule(
+                          company.id,
+                          moduleKey,
+                          e.target.checked
+                        )
+                      }
+                    />
+                  </td>
+                ))}
 
               </tr>
 
