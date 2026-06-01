@@ -355,6 +355,10 @@ export default function PosPage() {
   const changeDue = Math.max(Number(amountReceived || 0) - totals.total, 0);
   const remainingAmount = Math.max(totals.total - Number(amountReceived || 0), 0);
 
+  const amountReceivedNumber = Number(amountReceived || 0);
+  const changeDue = Math.max(amountReceivedNumber - totals.total, 0);
+  const remainingAmount = Math.max(totals.total - amountReceivedNumber, 0);
+
   const validateSale = async () => {
     setMessage("");
 
