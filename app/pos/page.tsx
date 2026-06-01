@@ -32,6 +32,7 @@ export default function PosPage() {
   const [lastItems, setLastItems] = useState<any[]>([]);
   const [paymentTransaction, setPaymentTransaction] = useState<any>(null);
   const [paymentMessage, setPaymentMessage] = useState("");
+  const [paymentPhone, setPaymentPhone] = useState("");
   const [mixedPayments, setMixedPayments] = useState([
     { method: "Espèces", amount: "", reference: "" },
     { method: "Orange Money", amount: "", reference: "" },
@@ -396,6 +397,7 @@ export default function PosPage() {
       body: JSON.stringify({
         payment_method: paymentMethod,
         amount: totals.total,
+        customer_phone: paymentPhone,
       }),
     });
     const data = await response.json().catch(() => ({}));
@@ -458,6 +460,7 @@ export default function PosPage() {
         amount_received: amountReceivedNumber,
         change_due: changeDue,
         remaining_amount: remainingAmount,
+        customer_phone: paymentPhone,
         mixed_payments: mixedPayments,
       }),
     });
@@ -824,6 +827,8 @@ export default function PosPage() {
                 {["Orange Money", "Moov Money"].includes(paymentMethod) && (
                   <input
                     type="tel"
+                    value={paymentPhone}
+                    onChange={(event) => setPaymentPhone(event.target.value)}
                     placeholder="Numéro téléphone client"
                     className="w-full rounded-xl border p-3"
                   />

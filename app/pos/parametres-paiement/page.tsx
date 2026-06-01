@@ -9,6 +9,39 @@ const providers = [
   { key: "wave", name: "Wave" },
 ];
 
+const providerFields: Record<string, Array<{ name: string; label: string; type?: string; options?: string[] }>> = {
+  card: [
+    { name: "provider", label: "Nom fournisseur", options: ["Stripe", "CinetPay", "PayDunya"] },
+    { name: "public_key", label: "Clé publique" },
+    { name: "secret_key", label: "Clé secrète", type: "password" },
+    { name: "webhook_secret", label: "Webhook secret", type: "password" },
+    { name: "currency", label: "Devise" },
+  ],
+  orange_money: [
+    { name: "merchant_id", label: "Merchant ID" },
+    { name: "client_id", label: "Client ID" },
+    { name: "client_secret", label: "Client Secret", type: "password" },
+    { name: "merchant_account", label: "Numéro marchand Orange Money" },
+    { name: "webhook_url", label: "URL webhook" },
+    { name: "currency", label: "Devise" },
+  ],
+  moov_money: [
+    { name: "merchant_id", label: "Merchant ID" },
+    { name: "public_key", label: "API Key" },
+    { name: "secret_key", label: "Secret Key", type: "password" },
+    { name: "merchant_account", label: "Compte marchand Moov Money" },
+    { name: "webhook_url", label: "URL webhook" },
+    { name: "currency", label: "Devise" },
+  ],
+  wave: [
+    { name: "public_key", label: "API Key" },
+    { name: "secret_key", label: "Secret Key", type: "password" },
+    { name: "merchant_account", label: "Compte marchand Wave" },
+    { name: "webhook_url", label: "URL webhook" },
+    { name: "currency", label: "Devise" },
+  ],
+};
+
 export default function PosPaymentSettingsPage() {
   const [user, setUser] = useState<any>(null);
   const [settings, setSettings] = useState<any[]>([]);
@@ -58,6 +91,17 @@ export default function PosPaymentSettingsPage() {
     if (response.ok) load();
   };
 
+  const testConnection = async () => {
+    const response = await fetch("/api/pos/payment-settings/test", {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ provider_key: selectedProvider }),
+    });
+    const data = await response.json().catch(() => ({}));
+    setMessage(response.ok ? data.message || "Connexion test OK." : data.error || "Erreur test connexion.");
+    if (response.ok) load();
+  };
+
   const update = (field: string, value: any) => {
     setForm((current: any) => ({ ...current, [field]: value }));
   };
@@ -102,14 +146,57 @@ export default function PosPaymentSettingsPage() {
         </div>
 
         <div className="rounded-2xl bg-white p-5 shadow lg:col-span-2">
+          <h2 className="mb-4 text-2xl font-bold">
+            {providers.find((provider) => provider.key === selectedProvider)?.name}
+          </h2>
+
+          <div className="mb-4 grid grid-cols-1 gap-3 rounded-xl bg-gray-100 p-4 md:grid-cols-3">
+            <div>
+              <p className="text-sm text-gray-500">Statut connexion</p>
+              <p className="font-bold">{form.connection_status || "Non testé"}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Dernière vérification</p>
+              <p className="font-bold">
+                {form.last_checked_at
+                  ? new Date(form.last_checked_at).toLocaleString("fr-FR")
+                  : "-"}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Secret</p>
+              <p className="font-bold">
+                {form.secret_key || form.client_secret || form.webhook_secret
+                  ? "Clé secrète déjà enregistrée"
+                  : "Aucune clé secrète enregistrée"}
+              </p>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <input value={form.public_key || ""} onChange={(e) => update("public_key", e.target.value)} placeholder="Clé API publique" className="rounded-xl border p-3" />
-            <input value={form.secret_key || ""} onChange={(e) => update("secret_key", e.target.value)} placeholder="Clé API privée / secret" className="rounded-xl border p-3" />
-            <input value={form.merchant_number || ""} onChange={(e) => update("merchant_number", e.target.value)} placeholder="Numéro marchand" className="rounded-xl border p-3" />
-            <input value={form.orange_money_account || ""} onChange={(e) => update("orange_money_account", e.target.value)} placeholder="Compte Orange Money" className="rounded-xl border p-3" />
-            <input value={form.moov_money_account || ""} onChange={(e) => update("moov_money_account", e.target.value)} placeholder="Compte Moov Money" className="rounded-xl border p-3" />
-            <input value={form.wave_account || ""} onChange={(e) => update("wave_account", e.target.value)} placeholder="Compte Wave" className="rounded-xl border p-3" />
-            <input value={form.currency || "FCFA"} onChange={(e) => update("currency", e.target.value)} placeholder="Devise" className="rounded-xl border p-3" />
+            {(providerFields[selectedProvider] || []).map((field) =>
+              field.options ? (
+                <select
+                  key={field.name}
+                  value={form[field.name] || field.options[0]}
+                  onChange={(e) => update(field.name, e.target.value)}
+                  className="rounded-xl border p-3"
+                >
+                  {field.options.map((option) => (
+                    <option key={option}>{option}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  key={field.name}
+                  type={field.type || "text"}
+                  value={form[field.name] || ""}
+                  onChange={(e) => update(field.name, e.target.value)}
+                  placeholder={field.label}
+                  className="rounded-xl border p-3"
+                />
+              )
+            )}
             <select value={form.mode || "test"} onChange={(e) => update("mode", e.target.value)} className="rounded-xl border p-3">
               <option value="test">Mode test</option>
               <option value="production">Mode production</option>
@@ -120,9 +207,14 @@ export default function PosPaymentSettingsPage() {
               Paiement actif
             </label>
           </div>
-          <button onClick={save} className="mt-5 rounded-xl bg-yellow-500 px-5 py-3 font-bold text-black">
-            Enregistrer paramètres paiement
-          </button>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <button onClick={save} className="rounded-xl bg-yellow-500 px-5 py-3 font-bold text-black">
+              Enregistrer
+            </button>
+            <button onClick={testConnection} className="rounded-xl bg-black px-5 py-3 font-bold text-white">
+              Tester connexion
+            </button>
+          </div>
         </div>
       </div>
     </div>

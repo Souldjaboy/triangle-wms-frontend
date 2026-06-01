@@ -29,13 +29,24 @@ export default function PosPaiementsPage() {
     loadPayments();
   }, []);
 
-  const confirmPayment = async (payment: any, status: "payé" | "échoué") => {
-    const response = await fetch("/api/payments/confirm", {
+  const statusLabel = (status: string) => {
+    if (status === "paid" || status === "payé") return "payé";
+    if (status === "failed" || status === "échoué") return "échoué";
+    if (status === "cancelled" || status === "annulé") return "annulé";
+    if (status === "pending" || status === "en attente") return "pending";
+    return status || "pending";
+  };
+
+  const confirmPayment = async (payment: any, status: "paid" | "failed") => {
+    const response = await fetch(
+      status === "paid"
+        ? "/api/payments/sandbox/success"
+        : "/api/payments/sandbox/fail",
+      {
       method: "POST",
       headers: headers(),
       body: JSON.stringify({
         transaction_id: payment.id,
-        status,
       }),
     });
     const data = await response.json().catch(() => ({}));
@@ -72,10 +83,12 @@ export default function PosPaiementsPage() {
           <thead className="bg-gray-100 text-gray-600">
             <tr>
               <th className="p-4">Vente</th>
+              <th>Fournisseur</th>
               <th>Méthode</th>
               <th>Montant</th>
               <th>Statut</th>
               <th>Référence</th>
+              <th>Téléphone</th>
               <th>Date</th>
               <th>Actions</th>
             </tr>
@@ -84,37 +97,47 @@ export default function PosPaiementsPage() {
             {payments.map((payment) => (
               <tr key={payment.id} className="border-t">
                 <td className="p-4 font-bold">{payment.sale_number || payment.sale_id || "-"}</td>
+                <td>{payment.provider_key || "-"}</td>
                 <td>{payment.payment_method || payment.provider_key || "-"}</td>
                 <td>{formatFCFA(payment.amount)}</td>
                 <td>
                   <span className="rounded-full bg-gray-100 px-3 py-1 font-bold">
-                    {payment.status || "en attente"}
+                    {statusLabel(payment.status)}
                   </span>
                 </td>
                 <td className="font-mono text-sm">
                   {payment.provider_reference || payment.external_reference || "-"}
                 </td>
+                <td>{payment.phone_number || "-"}</td>
                 <td>
                   {payment.created_at
                     ? new Date(payment.created_at).toLocaleString("fr-FR")
                     : "-"}
                 </td>
                 <td className="space-x-2">
-                  {isAdmin && payment.status !== "payé" && (
+                  {isAdmin && !["paid", "payé"].includes(payment.status) && (
                     <button
-                      onClick={() => confirmPayment(payment, "payé")}
+                      onClick={() => confirmPayment(payment, "paid")}
                       className="rounded-xl bg-green-600 px-4 py-2 font-bold text-white"
                     >
                       Confirmer
                     </button>
                   )}
-                  {isAdmin && payment.status !== "échoué" && (
+                  {isAdmin && !["failed", "échoué"].includes(payment.status) && (
                     <button
-                      onClick={() => confirmPayment(payment, "échoué")}
+                      onClick={() => confirmPayment(payment, "failed")}
                       className="rounded-xl bg-red-600 px-4 py-2 font-bold text-white"
                     >
                       Annuler
                     </button>
+                  )}
+                  {payment.sale_id && (
+                    <a
+                      href={`/pos/recus?sale=${payment.sale_id}`}
+                      className="inline-block rounded-xl bg-yellow-500 px-4 py-2 font-bold text-black"
+                    >
+                      Reçu
+                    </a>
                   )}
                 </td>
               </tr>
