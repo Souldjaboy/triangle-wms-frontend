@@ -1,6 +1,5 @@
 "use client";
 
-import { Html5Qrcode } from "html5-qrcode";
 import { QRCodeCanvas } from "qrcode.react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -33,7 +32,10 @@ export default function PosPage() {
   const [scannerMode, setScannerMode] = useState(false);
   const [settings, setSettings] = useState<any>(null);
   const [companySettings, setCompanySettings] = useState<any>(null);
-  const scannerRef = useRef<any>(null);
+  const [cameraMessage, setCameraMessage] = useState("");
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const scanFrameRef = useRef<number | null>(null);
 
   const canEditPrice = ["admin", "super_admin"].includes(
     String(currentUser?.role || "").toLowerCase()
@@ -63,51 +65,117 @@ export default function PosPage() {
   }, []);
 
   useEffect(() => {
-    if (!scannerMode) {
-      if (scannerRef.current) {
-        scannerRef.current.stop?.().catch(() => {});
-        scannerRef.current = null;
-      }
-      return;
-    }
-
-    if (scannerRef.current) return;
-
-    const scanner = new Html5Qrcode("pos-reader");
-    scannerRef.current = scanner;
-    scanner
-      .start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 250, height: 250 } },
-        (decodedText) => {
-          setScannerMode(false);
-          scanner.stop().catch(() => {});
-          scannerRef.current = null;
-          handleScannedCode(decodedText);
-        },
-        () => {}
-      )
-      .catch(() => {
-        setMessage("Caméra introuvable ou permission refusée.");
-        setScannerMode(false);
-      });
-
-    return () => {
-      scanner.stop().catch(() => {});
-      scannerRef.current = null;
-    };
+    if (scannerMode) startCameraScanner();
+    return () => stopCameraScanner();
   }, [scannerMode, mode, products]);
 
   const scanImageFile = async (file: File | null) => {
     if (!file) return;
 
     try {
+      const { Html5Qrcode } = await import("html5-qrcode");
       const scanner = new Html5Qrcode("pos-image-reader");
       const decodedText = await scanner.scanFile(file, true);
       scanner.clear();
       handleScannedCode(decodedText);
     } catch {
       setMessage("QR code non reconnu dans cette image.");
+    }
+  };
+
+  const stopCameraScanner = () => {
+    if (scanFrameRef.current) {
+      cancelAnimationFrame(scanFrameRef.current);
+      scanFrameRef.current = null;
+    }
+
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  };
+
+  const startCameraScanner = async () => {
+    stopCameraScanner();
+    setCameraMessage("Autoriser la caméra pour commencer le scan.");
+
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setCameraMessage("Aucune caméra détectée.");
+        return;
+      }
+
+      const BarcodeDetectorCtor = (window as any).BarcodeDetector;
+
+      if (!BarcodeDetectorCtor) {
+        setCameraMessage(
+          "Scanner caméra non supporté par ce navigateur. Utilisez le champ code-barres USB ou Scanner une image."
+        );
+        return;
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: "environment" },
+        },
+        audio: false,
+      });
+
+      streamRef.current = stream;
+
+      if (!videoRef.current) return;
+
+      videoRef.current.srcObject = stream;
+      videoRef.current.setAttribute("playsinline", "true");
+      await videoRef.current.play();
+
+      setCameraMessage("Scanner avec la caméra.");
+
+      const detector = new BarcodeDetectorCtor({
+        formats: [
+          "qr_code",
+          "ean_13",
+          "ean_8",
+          "code_128",
+          "code_39",
+          "upc_a",
+          "upc_e",
+        ],
+      });
+
+      const scan = async () => {
+        if (!scannerMode || !videoRef.current) return;
+
+        try {
+          const codes = await detector.detect(videoRef.current);
+
+          if (codes.length > 0) {
+            const rawValue = codes[0]?.rawValue || "";
+            stopCameraScanner();
+            setScannerMode(false);
+            await handleScannedCode(rawValue);
+            return;
+          }
+        } catch {
+          // Keep scanning; detection can fail while the video is warming up.
+        }
+
+        scanFrameRef.current = requestAnimationFrame(scan);
+      };
+
+      scanFrameRef.current = requestAnimationFrame(scan);
+    } catch (error: any) {
+      stopCameraScanner();
+
+      if (error?.name === "NotAllowedError" || error?.name === "SecurityError") {
+        setCameraMessage("Autorisation caméra refusée.");
+      } else if (error?.name === "NotFoundError" || error?.name === "OverconstrainedError") {
+        setCameraMessage("Aucune caméra détectée.");
+      } else {
+        setCameraMessage("Impossible d’ouvrir la caméra.");
+      }
     }
   };
 
@@ -412,10 +480,13 @@ export default function PosPage() {
             <div className="flex flex-col md:flex-row gap-3 mb-3">
               <button
                 type="button"
-                onClick={() => setScannerMode(!scannerMode)}
+                onClick={() => {
+                  setCameraMessage("Autoriser la caméra pour commencer le scan.");
+                  setScannerMode(true);
+                }}
                 className={`px-5 py-3 rounded-xl font-bold ${scannerMode ? "bg-yellow-500" : "bg-black text-white"}`}
               >
-                {scannerMode ? "Arrêter caméra" : "Scanner avec la caméra"}
+                Scanner avec la caméra
               </button>
               <label className="cursor-pointer rounded-xl bg-white px-5 py-3 font-bold text-black border">
                 Scanner une image
@@ -430,12 +501,6 @@ export default function PosPage() {
                 Lecteur USB : scannez dans le champ puis Entrée.
               </span>
             </div>
-            {scannerMode && (
-              <div className="mb-4 rounded-xl border p-3">
-                <p className="mb-2 text-sm font-bold text-gray-600">Autoriser la caméra puis présenter le QR code ou code-barres.</p>
-                <div id="pos-reader" />
-              </div>
-            )}
             <div id="pos-image-reader" className="hidden" />
             <input
               value={query}
@@ -448,6 +513,45 @@ export default function PosPage() {
               autoFocus
             />
           </form>
+
+          {scannerMode && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+              <div className="w-full max-w-lg rounded-2xl bg-white p-4 shadow-2xl">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-xl font-bold">Scanner produit</h2>
+                    <p className="text-sm text-gray-500">
+                      Mode {mode === "vente" ? "Vente" : "Information produit"}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setScannerMode(false)}
+                    className="rounded-xl bg-black px-4 py-2 font-bold text-white"
+                  >
+                    Fermer
+                  </button>
+                </div>
+
+                <div className="overflow-hidden rounded-xl bg-black">
+                  <video
+                    ref={videoRef}
+                    className="h-[55vh] max-h-[460px] w-full object-cover"
+                    muted
+                    playsInline
+                  />
+                </div>
+
+                <p className="mt-3 rounded-xl bg-yellow-100 p-3 text-sm font-bold text-yellow-900">
+                  {cameraMessage}
+                </p>
+
+                <p className="mt-2 text-sm text-gray-500">
+                  Présentez un QR code produit ou un code-barres devant la caméra. Aucun changement de page ne sera effectué.
+                </p>
+              </div>
+            </div>
+          )}
 
           {selectedProduct && mode === "info" && (
             <div className="bg-white rounded-2xl shadow p-5">
