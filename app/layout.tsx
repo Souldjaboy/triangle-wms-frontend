@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import DashboardBackButton from "../components/DashboardBackButton";
 
 export const metadata: Metadata = {
   title: "Triangle WMS Pro",
@@ -13,7 +14,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fr" className="h-full antialiased">
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <DashboardBackButton />
+        {children}
+      </body>
     </html>
   );
 }

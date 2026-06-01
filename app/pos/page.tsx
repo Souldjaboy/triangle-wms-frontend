@@ -368,6 +368,17 @@ export default function PosPage() {
   const changeDue = Math.max(amountReceivedNumber - totals.total, 0);
   const remainingAmount = Math.max(totals.total - amountReceivedNumber, 0);
   const isExternalPayment = ["Carte bancaire", "Orange Money", "Moov Money", "Wave"].includes(paymentMethod);
+  const isPendingPaymentMethod = isExternalPayment || paymentMethod === "Virement";
+  const paymentActionLabel =
+    paymentMethod === "Orange Money"
+      ? "Initier paiement Orange Money"
+      : paymentMethod === "Moov Money"
+        ? "Initier paiement Moov Money"
+        : paymentMethod === "Wave"
+          ? "Initier paiement Wave"
+          : paymentMethod === "Carte bancaire"
+            ? "Paiement carte"
+            : "Initier paiement";
 
   const updateMixedPayment = (index: number, key: string, value: string) => {
     setMixedPayments((current) =>
@@ -430,7 +441,7 @@ export default function PosPage() {
   const validateSale = async () => {
     setMessage("");
 
-    if (!isExternalPayment && paymentMethod !== "Crédit client" && Number(amountReceived || 0) < totals.total && paymentStatus === "payé") {
+    if (!isPendingPaymentMethod && paymentMethod !== "Crédit client" && Number(amountReceived || 0) < totals.total && paymentStatus === "payé") {
       setMessage("Montant reçu insuffisant.");
       return;
     }
@@ -554,6 +565,9 @@ export default function PosPage() {
           <a href="/pos/ventes" className="bg-black text-white px-5 py-3 rounded-xl font-bold">
             Historique
           </a>
+          <a href="/pos/paiements" className="bg-white text-black px-5 py-3 rounded-xl font-bold">
+            Paiements
+          </a>
           <a href="/pos/produits" className="bg-white text-black px-5 py-3 rounded-xl font-bold">
             Étiquettes
           </a>
@@ -564,7 +578,7 @@ export default function PosPage() {
             Paramètres POS
           </a>
           <a href="/pos/parametres-paiement" className="bg-white text-black px-5 py-3 rounded-xl font-bold">
-            Paiements
+            Paramètres paiement
           </a>
         </div>
       </div>
@@ -736,7 +750,19 @@ export default function PosPage() {
 
           <div className="border-t mt-5 pt-5 space-y-3">
             <h2 className="text-2xl font-bold">Paiement</h2>
-            <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="border p-3 rounded-xl w-full">
+            <select
+              value={paymentMethod}
+              onChange={(e) => {
+                const method = e.target.value;
+                setPaymentMethod(method);
+                if (["Carte bancaire", "Orange Money", "Moov Money", "Wave", "Virement"].includes(method)) {
+                  setPaymentStatus("en attente");
+                } else if (method === "Espèces") {
+                  setPaymentStatus("payé");
+                }
+              }}
+              className="border p-3 rounded-xl w-full"
+            >
               {paymentMethods.map((method) => <option key={method}>{method}</option>)}
             </select>
             <select value={paymentStatus} onChange={(e) => setPaymentStatus(e.target.value)} className="border p-3 rounded-xl w-full">
@@ -795,6 +821,13 @@ export default function PosPage() {
 
             {isExternalPayment && (
               <div className="rounded-xl bg-blue-50 p-4 space-y-3">
+                {["Orange Money", "Moov Money"].includes(paymentMethod) && (
+                  <input
+                    type="tel"
+                    placeholder="Numéro téléphone client"
+                    className="w-full rounded-xl border p-3"
+                  />
+                )}
                 <div className="flex flex-col md:flex-row gap-2 md:items-center md:justify-between">
                   <div>
                     <p className="font-bold">Paiement réel / sandbox</p>
@@ -807,7 +840,7 @@ export default function PosPage() {
                     onClick={initiatePayment}
                     className="bg-black text-white px-4 py-3 rounded-xl font-bold"
                   >
-                    Initier paiement
+                    {paymentActionLabel}
                   </button>
                 </div>
 
@@ -841,6 +874,11 @@ export default function PosPage() {
                 {paymentMessage && (
                   <p className="rounded-xl bg-white p-3 font-bold">{paymentMessage}</p>
                 )}
+              </div>
+            )}
+            {paymentMethod === "Virement" && (
+              <div className="rounded-xl bg-blue-50 p-4 font-bold text-blue-900">
+                Virement : la vente reste en attente jusqu’à confirmation manuelle admin/super admin dans Paiements POS.
               </div>
             )}
             <label className="flex items-center gap-2">

@@ -27,6 +27,16 @@ const protectedRoutes = [
   "/parametres",
 ];
 
+function readJwtPayload(token: string) {
+  try {
+    const payload = token.split(".")[1];
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    return JSON.parse(atob(normalized));
+  } catch {
+    return null;
+  }
+}
+
 export function middleware(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
 
@@ -44,8 +54,15 @@ export function middleware(req: NextRequest) {
 
   if (pathname.startsWith("/super-admin")) {
     const isSuperAdmin = req.cookies.get("triangle_super_admin")?.value;
+    const payload = readJwtPayload(token);
+    const role = String(payload?.role || "").toLowerCase();
+    const tokenSaysSuperAdmin =
+      payload?.is_super_admin === true ||
+      payload?.is_super_admin === "true" ||
+      payload?.is_super_admin === 1 ||
+      role === "super_admin";
 
-    if (isSuperAdmin !== "true") {
+    if (isSuperAdmin !== "true" && !tokenSaysSuperAdmin) {
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
   }
