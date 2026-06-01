@@ -132,11 +132,18 @@ export default function PosPage() {
         url.searchParams.get("ref") ||
           url.searchParams.get("product") ||
           (productMatch ? productMatch[1] : raw)
-      ).replace(/^Ref\s+/i, "").trim();
+      ).replace(/^Ref\s*[-_]*\s*/i, "").trim();
     } catch {
-      return raw.replace(/^Ref\s+/i, "").trim();
+      return raw.replace(/^Ref\s*[-_]*\s*/i, "").trim();
     }
   };
+
+  const normalizeProductCode = (value: any) =>
+    String(value || "")
+      .trim()
+      .replace(/^Ref\s*[-_]*\s*/i, "")
+      .replace(/[^a-zA-Z0-9]/g, "")
+      .toLowerCase();
 
   const getProductPrice = (product: any) =>
     [
@@ -200,6 +207,7 @@ export default function PosPage() {
   const handleScannedCode = async (rawCode: string) => {
     const cleanCode = normalizeScanValue(rawCode);
     const value = cleanCode.toLowerCase();
+    const normalizedValue = normalizeProductCode(cleanCode);
     const rows = value ? await searchProducts(cleanCode) : products;
     const exact = rows.find((product) => {
       return [
@@ -210,7 +218,11 @@ export default function PosPage() {
         product.name,
       ]
         .filter(Boolean)
-        .some((field) => String(field).toLowerCase() === value);
+        .some(
+          (field) =>
+            String(field).toLowerCase() === value ||
+            normalizeProductCode(field) === normalizedValue
+        );
     });
 
     if (exact) {

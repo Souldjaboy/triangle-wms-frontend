@@ -92,6 +92,15 @@ export default function PosParametresPage() {
     updateSetting("allowed_payment_methods", next.join(","));
   };
 
+  const getProductPrice = (product: any) =>
+    [
+      product.effective_sale_price,
+      product.sale_price,
+      product.pharmacy_price,
+      product.wholesale_price,
+      product.price,
+    ].map((value) => Number(value || 0)).find((value) => value > 0) || 0;
+
   if (!isAdmin) {
     return (
       <div className="min-h-screen bg-gray-100 p-8 text-black">
@@ -173,7 +182,7 @@ export default function PosParametresPage() {
                 >
                   <strong>{product.reference}</strong> - {product.name}
                   <span className="block text-sm text-gray-500">
-                    {Number(product.effective_sale_price || product.sale_price || product.pharmacy_price || 0).toLocaleString()} FCFA | Stock {product.stock}
+                    {getProductPrice(product).toLocaleString()} FCFA | Stock {product.stock}
                   </span>
                 </button>
               ))}
