@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { Home } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
 
 const privatePrefixes = [
   "/pos",
@@ -19,6 +19,7 @@ const privatePrefixes = [
 
 export default function DashboardBackButton() {
   const pathname = usePathname();
+  const router = useRouter();
   const shouldShow =
     pathname !== "/dashboard" &&
     privatePrefixes.some(
@@ -28,11 +29,14 @@ export default function DashboardBackButton() {
   if (!shouldShow) return null;
 
   return (
-    <Link
-      href="/dashboard"
-      className="fixed left-4 top-4 z-[60] rounded-xl bg-yellow-500 px-4 py-2 font-bold text-black shadow-lg print:hidden"
+    <button
+      type="button"
+      title="Tableau de bord"
+      aria-label="Tableau de bord"
+      onClick={() => router.push("/dashboard")}
+      className="fixed bottom-5 left-5 z-[100] flex h-[50px] w-[50px] items-center justify-center rounded-full bg-yellow-500 text-black shadow-lg transition hover:scale-110 hover:shadow-2xl print:hidden"
     >
-      Tableau de bord
-    </Link>
+      <Home size={24} aria-hidden="true" />
+    </button>
   );
 }

@@ -30,10 +30,11 @@ export default function AssistantPage() {
     setLoading(true);
 
     try {
-      const response = await fetch("/api/ai/chat", {
+      const response = await fetch("/api/assistant/query", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
         },
         body: JSON.stringify({
           message: input,
@@ -47,7 +48,10 @@ export default function AssistantPage() {
         ...prev,
         {
           role: "assistant",
-          content: data.answer || data.error || "Erreur IA.",
+          content:
+            data.answer ||
+            data.error ||
+            "Erreur IA.",
         },
       ]);
     } catch (error) {
