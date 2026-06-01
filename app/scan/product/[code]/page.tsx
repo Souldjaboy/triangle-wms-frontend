@@ -60,6 +60,14 @@ export default function ProductScanPage() {
   const batches = Array.isArray(details?.batches) ? details.batches : [];
   const movements = Array.isArray(details?.movements) ? details.movements : [];
   const alerts = Array.isArray(details?.alerts) ? details.alerts : [];
+  const productPrice =
+    [
+      product.effective_sale_price,
+      product.sale_price,
+      product.pharmacy_price,
+      product.wholesale_price,
+      product.price,
+    ].map((value) => Number(value || 0)).find((value) => value > 0) || 0;
 
   return (
     <div className="min-h-screen bg-gray-100 p-4 md:p-8 text-black">
@@ -84,7 +92,11 @@ export default function ProductScanPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <div className="bg-white rounded-2xl shadow p-5 lg:col-span-2">
           <h2 className="text-2xl font-bold mb-4">Informations produit</h2>
+          {product.image_url && (
+            <img src={product.image_url} alt={product.name} className="mb-4 h-40 w-full max-w-sm rounded-xl object-cover border" />
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <p><strong>Prix caisse :</strong> {productPrice.toLocaleString()} FCFA</p>
             <p><strong>Prix vente :</strong> {Number(product.sale_price || 0).toLocaleString()} FCFA</p>
             <p><strong>Prix pharmacie :</strong> {Number(product.pharmacy_price || 0).toLocaleString()} FCFA</p>
             <p><strong>Stock :</strong> {Number(product.stock || 0).toLocaleString()}</p>

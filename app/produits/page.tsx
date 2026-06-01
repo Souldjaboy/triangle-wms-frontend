@@ -8,6 +8,9 @@ export default function ProduitsPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [userRole, setUserRole] = useState("");
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [imagePreview, setImagePreview] = useState("");
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
 
   const isReadOnly = userRole === "direction" || userRole === "client";
   const isAdmin = userRole === "admin" || userRole === "super_admin" || isSuperAdmin;
@@ -89,6 +92,56 @@ useEffect(() => {
     });
   };
 
+  const uploadProductImage = async (file: File | null) => {
+    if (!file) return;
+
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      alert("Format image non autorisé. Utilisez jpg, png ou webp.");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Image trop lourde. Taille maximum : 5 Mo.");
+      return;
+    }
+
+    setImagePreview(URL.createObjectURL(file));
+    setUploadingImage(true);
+
+    const body = new FormData();
+    body.append("image", file);
+
+    const response = await fetch("/api/upload-product-image", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
+      body,
+    });
+
+    const data = await response.json().catch(() => ({}));
+    setUploadingImage(false);
+
+    if (!response.ok) {
+      alert(data.error || "Erreur upload image produit.");
+      return;
+    }
+
+    setFormData((current) => ({
+      ...current,
+      image_url: data.image_url || "",
+    }));
+    setImagePreview(data.image_url || "");
+  };
+
+  const clearProductImage = () => {
+    setImagePreview("");
+    setFormData({
+      ...formData,
+      image_url: "",
+    });
+  };
+
   const handleLocationSelect = (locationId: string) => {
     const selectedLocation: any = locations.find(
       (location: any) => String(location.id) === String(locationId)
@@ -123,6 +176,7 @@ useEffect(() => {
       location_id: "",
       location_code: "",
     });
+    setImagePreview("");
   };
 
 const handleSubmit = async (e: any) => {
@@ -205,6 +259,7 @@ const handleSubmit = async (e: any) => {
       location_id: produit.location_id ? String(produit.location_id) : "",
       location_code: produit.location_code || produit.emplacement_code || "",
     });
+    setImagePreview(produit.image_url || "");
   };
 
   const handleDelete = async (id: number) => {
@@ -329,14 +384,77 @@ const handleSubmit = async (e: any) => {
             className="border p-3 rounded-xl text-black"
           />
 
-          <input
-            type="text"
-            name="image_url"
-            placeholder="URL image produit"
-            value={formData.image_url}
-            onChange={handleChange}
-            className="border p-3 rounded-xl text-black"
-          />
+          <div
+            onDragOver={(event) => {
+              event.preventDefault();
+              setDragActive(true);
+            }}
+            onDragLeave={() => setDragActive(false)}
+            onDrop={(event) => {
+              event.preventDefault();
+              setDragActive(false);
+              uploadProductImage(event.dataTransfer.files?.[0] || null);
+            }}
+            className={`col-span-3 rounded-xl border-2 border-dashed p-4 text-black ${
+              dragActive ? "border-yellow-500 bg-yellow-50" : "border-gray-300 bg-gray-50"
+            }`}
+          >
+            <div className="flex flex-col md:flex-row gap-4 md:items-center">
+              <div className="h-28 w-28 rounded-xl border bg-white overflow-hidden flex items-center justify-center text-xs text-gray-500">
+                {imagePreview || formData.image_url ? (
+                  <img
+                    src={imagePreview || formData.image_url}
+                    alt="Aperçu produit"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  "Aperçu"
+                )}
+              </div>
+
+              <div className="flex-1 space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  <label className="cursor-pointer rounded-xl bg-black px-5 py-3 font-bold text-white">
+                    Choisir une image
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={(event) => uploadProductImage(event.target.files?.[0] || null)}
+                    />
+                  </label>
+
+                  {(imagePreview || formData.image_url) && (
+                    <button
+                      type="button"
+                      onClick={clearProductImage}
+                      className="rounded-xl bg-red-600 px-5 py-3 font-bold text-white"
+                    >
+                      Supprimer image
+                    </button>
+                  )}
+                </div>
+
+                <p className="text-sm text-gray-500">
+                  Glissez-déposez une image ici ou choisissez depuis l’ordinateur. JPG, PNG, WEBP, maximum 5 Mo.
+                </p>
+
+                {uploadingImage && <p className="font-bold text-yellow-700">Upload image en cours...</p>}
+
+                <input
+                  type="text"
+                  name="image_url"
+                  placeholder="URL image produit optionnelle"
+                  value={formData.image_url}
+                  onChange={(event) => {
+                    handleChange(event);
+                    setImagePreview(event.target.value);
+                  }}
+                  className="w-full border p-3 rounded-xl text-black"
+                />
+              </div>
+            </div>
+          </div>
 
           <select
             name="location_id"

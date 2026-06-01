@@ -1,6 +1,6 @@
 "use client";
 
-import { Html5QrcodeScanner } from "html5-qrcode";
+import { Html5Qrcode } from "html5-qrcode";
 import { QRCodeCanvas } from "qrcode.react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -65,7 +65,7 @@ export default function PosPage() {
   useEffect(() => {
     if (!scannerMode) {
       if (scannerRef.current) {
-        scannerRef.current.clear().catch(() => {});
+        scannerRef.current.stop?.().catch(() => {});
         scannerRef.current = null;
       }
       return;
@@ -73,24 +73,43 @@ export default function PosPage() {
 
     if (scannerRef.current) return;
 
-    const scanner = new Html5QrcodeScanner(
-      "pos-reader",
-      { fps: 10, qrbox: 250 },
-      false
-    );
+    const scanner = new Html5Qrcode("pos-reader");
     scannerRef.current = scanner;
-    scanner.render(
-      (decodedText) => {
-        handleScannedCode(decodedText);
-      },
-      () => {}
-    );
+    scanner
+      .start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        (decodedText) => {
+          setScannerMode(false);
+          scanner.stop().catch(() => {});
+          scannerRef.current = null;
+          handleScannedCode(decodedText);
+        },
+        () => {}
+      )
+      .catch(() => {
+        setMessage("Caméra introuvable ou permission refusée.");
+        setScannerMode(false);
+      });
 
     return () => {
-      scanner.clear().catch(() => {});
+      scanner.stop().catch(() => {});
       scannerRef.current = null;
     };
   }, [scannerMode, mode, products]);
+
+  const scanImageFile = async (file: File | null) => {
+    if (!file) return;
+
+    try {
+      const scanner = new Html5Qrcode("pos-image-reader");
+      const decodedText = await scanner.scanFile(file, true);
+      scanner.clear();
+      handleScannedCode(decodedText);
+    } catch {
+      setMessage("QR code non reconnu dans cette image.");
+    }
+  };
 
   const loadSettings = async () => {
     const response = await fetch("/api/pos/settings", { headers: authHeaders() });
@@ -113,14 +132,20 @@ export default function PosPage() {
         url.searchParams.get("ref") ||
           url.searchParams.get("product") ||
           (productMatch ? productMatch[1] : raw)
-      );
+      ).replace(/^Ref\s+/i, "").trim();
     } catch {
-      return raw;
+      return raw.replace(/^Ref\s+/i, "").trim();
     }
   };
 
   const getProductPrice = (product: any) =>
-    Number(product.effective_sale_price || product.sale_price || product.pharmacy_price || product.wholesale_price || 0);
+    [
+      product.effective_sale_price,
+      product.sale_price,
+      product.pharmacy_price,
+      product.wholesale_price,
+      product.price,
+    ].map((value) => Number(value || 0)).find((value) => value > 0) || 0;
 
   const searchProducts = async (value: string) => {
     const response = await fetch(
@@ -378,17 +403,28 @@ export default function PosPage() {
                 onClick={() => setScannerMode(!scannerMode)}
                 className={`px-5 py-3 rounded-xl font-bold ${scannerMode ? "bg-yellow-500" : "bg-black text-white"}`}
               >
-                Scanner produit
+                {scannerMode ? "Arrêter caméra" : "Scanner avec la caméra"}
               </button>
+              <label className="cursor-pointer rounded-xl bg-white px-5 py-3 font-bold text-black border">
+                Scanner une image
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={(event) => scanImageFile(event.target.files?.[0] || null)}
+                />
+              </label>
               <span className="text-sm text-gray-500 self-center">
-                Scanner USB/téléphone : validez avec Entrée pour ajouter automatiquement.
+                Lecteur USB : scannez dans le champ puis Entrée.
               </span>
             </div>
             {scannerMode && (
               <div className="mb-4 rounded-xl border p-3">
+                <p className="mb-2 text-sm font-bold text-gray-600">Autoriser la caméra puis présenter le QR code ou code-barres.</p>
                 <div id="pos-reader" />
               </div>
             )}
+            <div id="pos-image-reader" className="hidden" />
             <input
               value={query}
               onChange={(event) => {
@@ -403,14 +439,21 @@ export default function PosPage() {
 
           {selectedProduct && mode === "info" && (
             <div className="bg-white rounded-2xl shadow p-5">
-              <h2 className="text-2xl font-bold mb-3">{selectedProduct.name}</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
-                <p><strong>Référence :</strong> {selectedProduct.reference}</p>
-                <p><strong>Prix :</strong> {getProductPrice(selectedProduct).toLocaleString()} FCFA</p>
-                <p><strong>Stock :</strong> {selectedProduct.stock}</p>
-                <p><strong>Emplacement :</strong> {selectedProduct.location_code || selectedProduct.emplacement_code || "-"}</p>
-                <p><strong>Lot :</strong> {selectedProduct.lot_number || "-"}</p>
-                <p><strong>Expiration :</strong> {selectedProduct.expiration_date || "-"}</p>
+              <div className="flex flex-col md:flex-row gap-4">
+                {selectedProduct.image_url && (
+                  <img src={selectedProduct.image_url} alt={selectedProduct.name} className="h-32 w-32 rounded-xl object-cover border" />
+                )}
+                <div className="flex-1">
+                  <h2 className="text-2xl font-bold mb-3">{selectedProduct.name}</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                    <p><strong>Référence :</strong> {selectedProduct.reference}</p>
+                    <p><strong>Prix :</strong> {getProductPrice(selectedProduct).toLocaleString()} FCFA</p>
+                    <p><strong>Stock :</strong> {selectedProduct.stock}</p>
+                    <p><strong>Emplacement :</strong> {selectedProduct.location_code || selectedProduct.emplacement_code || "-"}</p>
+                    <p><strong>Lot :</strong> {selectedProduct.lot_number || "-"}</p>
+                    <p><strong>Expiration :</strong> {selectedProduct.expiration_date || "-"}</p>
+                  </div>
+                </div>
               </div>
               <div className="mt-4">
                 <QRCodeCanvas value={selectedProduct.qr_url || selectedProduct.reference || String(selectedProduct.id)} size={120} />
@@ -425,6 +468,9 @@ export default function PosPage() {
                 onClick={() => addToCart(product)}
                 className="bg-white rounded-2xl shadow p-4 text-left"
               >
+                {product.image_url && (
+                  <img src={product.image_url} alt={product.name} className="mb-3 h-28 w-full rounded-xl object-cover border" />
+                )}
                 <p className="font-bold text-lg">{product.name}</p>
                 <p className="text-sm text-gray-500">{product.reference}</p>
                 <p className="text-yellow-600 font-bold mt-2">
