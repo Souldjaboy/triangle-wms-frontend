@@ -7,6 +7,7 @@ export default function ParametresPointagePage() {
   const [users, setUsers] = useState<any[]>([]);
   const [message, setMessage] = useState("");
   const [canSeeSalary, setCanSeeSalary] = useState(false);
+  const [canManageGps, setCanManageGps] = useState(false);
 
   const [groupForm, setGroupForm] = useState({
     name: "",
@@ -23,6 +24,13 @@ export default function ParametresPointagePage() {
     hourly_rate: "",
     daily_rate: "",
     monthly_salary: "",
+  });
+
+  const [gpsForm, setGpsForm] = useState({
+    gps_required: false,
+    site_latitude: "",
+    site_longitude: "",
+    allowed_radius_meters: "100",
   });
 
   const authHeaders = () => ({
@@ -42,6 +50,23 @@ export default function ParametresPointagePage() {
     });
     const usersData = await usersRes.json();
     setUsers(Array.isArray(usersData) ? usersData : []);
+
+    const gpsRes = await fetch("/api/attendance/settings/gps", {
+      headers: authHeaders(),
+    });
+    const gpsData = await gpsRes.json().catch(() => ({}));
+    setGpsForm({
+      gps_required: gpsData.gps_required === true,
+      site_latitude:
+        gpsData.site_latitude === null || gpsData.site_latitude === undefined
+          ? ""
+          : String(gpsData.site_latitude),
+      site_longitude:
+        gpsData.site_longitude === null || gpsData.site_longitude === undefined
+          ? ""
+          : String(gpsData.site_longitude),
+      allowed_radius_meters: String(gpsData.allowed_radius_meters || 100),
+    });
   };
 
   useEffect(() => {
@@ -49,6 +74,7 @@ export default function ParametresPointagePage() {
     if (savedUser) {
       const user = JSON.parse(savedUser);
       setCanSeeSalary(user.is_super_admin === true || user.role === "super_admin" || user.role === "direction");
+      setCanManageGps(user.is_super_admin === true || user.role === "super_admin" || user.role === "admin");
     }
     fetchData();
   }, []);
@@ -64,6 +90,14 @@ export default function ParametresPointagePage() {
     setUserForm({
       ...userForm,
       [e.target.name]: e.target.value,
+    });
+  };
+
+  const handleGpsChange = (e: any) => {
+    const { name, value, type, checked } = e.target;
+    setGpsForm({
+      ...gpsForm,
+      [name]: type === "checkbox" ? checked : value,
     });
   };
 
@@ -90,6 +124,45 @@ export default function ParametresPointagePage() {
     });
 
     fetchData();
+  };
+
+  const saveGpsSettings = async (e: any) => {
+    e.preventDefault();
+
+    if (!canManageGps) {
+      setMessage("Vous n’avez pas le droit de modifier les paramètres GPS.");
+      return;
+    }
+
+    const response = await fetch("/api/attendance/settings/gps", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeaders(),
+      },
+      body: JSON.stringify(gpsForm),
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      setMessage(data.error || "Erreur sauvegarde sécurité GPS.");
+      return;
+    }
+
+    setGpsForm({
+      gps_required: data.gps_required === true,
+      site_latitude:
+        data.site_latitude === null || data.site_latitude === undefined
+          ? ""
+          : String(data.site_latitude),
+      site_longitude:
+        data.site_longitude === null || data.site_longitude === undefined
+          ? ""
+          : String(data.site_longitude),
+      allowed_radius_meters: String(data.allowed_radius_meters || 100),
+    });
+    setMessage("Paramètres GPS du pointage enregistrés.");
   };
 
   const assignUserSettings = async (e: any) => {
@@ -326,6 +399,91 @@ export default function ParametresPointagePage() {
           </button>
         </form>
       </div>
+
+      <form
+        onSubmit={saveGpsSettings}
+        className="bg-white rounded-2xl shadow p-6 mb-8 grid grid-cols-1 gap-4"
+      >
+        <div>
+          <h2 className="text-2xl font-bold text-black mb-2">
+            Sécurité GPS du pointage
+          </h2>
+          <p className="text-gray-500">
+            Définis la zone autorisée pour empêcher le pointage hors site.
+          </p>
+        </div>
+
+        <label className="flex items-center gap-3 rounded-xl bg-gray-100 p-4 text-black font-bold">
+          <input
+            type="checkbox"
+            name="gps_required"
+            checked={gpsForm.gps_required}
+            onChange={handleGpsChange}
+            disabled={!canManageGps}
+            className="h-5 w-5"
+          />
+          Activer GPS obligatoire
+        </label>
+
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <label className="text-sm text-gray-500">Latitude du site</label>
+            <input
+              type="number"
+              step="any"
+              name="site_latitude"
+              value={gpsForm.site_latitude}
+              onChange={handleGpsChange}
+              disabled={!canManageGps}
+              placeholder="Ex: 12.6392"
+              className="border p-3 rounded-xl text-black w-full disabled:bg-gray-100"
+            />
+          </div>
+
+          <div>
+            <label className="text-sm text-gray-500">Longitude du site</label>
+            <input
+              type="number"
+              step="any"
+              name="site_longitude"
+              value={gpsForm.site_longitude}
+              onChange={handleGpsChange}
+              disabled={!canManageGps}
+              placeholder="Ex: -8.0029"
+              className="border p-3 rounded-xl text-black w-full disabled:bg-gray-100"
+            />
+          </div>
+
+          <div>
+            <label className="text-sm text-gray-500">
+              Rayon autorisé en mètres
+            </label>
+            <input
+              type="number"
+              min="1"
+              name="allowed_radius_meters"
+              value={gpsForm.allowed_radius_meters}
+              onChange={handleGpsChange}
+              disabled={!canManageGps}
+              className="border p-3 rounded-xl text-black w-full disabled:bg-gray-100"
+            />
+          </div>
+        </div>
+
+        {!canManageGps && (
+          <div className="bg-blue-100 text-blue-700 rounded-xl p-3 font-bold">
+            Seuls admin et super admin peuvent modifier la sécurité GPS.
+          </div>
+        )}
+
+        <button
+          type="submit"
+          disabled={!canManageGps}
+          className="bg-black text-white font-bold rounded-xl py-3 disabled:bg-gray-300 disabled:text-gray-500"
+        >
+          Enregistrer sécurité GPS
+        </button>
+      </form>
 
       <div className="bg-white rounded-2xl shadow p-6">
         <h2 className="text-2xl font-bold text-black mb-5">

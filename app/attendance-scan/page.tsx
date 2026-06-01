@@ -21,11 +21,11 @@ export default function PointageQRCodePage() {
   const [messageType, setMessageType] = useState<"success" | "error">("success");
   const [countdown, setCountdown] = useState(5);
   const [cameraReady, setCameraReady] = useState(false);
-
   const actionRef = useRef<ActionType>("checkin");
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const startingRef = useRef(false);
   const lastScanRef = useRef<{ key: string; time: number }>({ key: "", time: 0 });
+  const gpsSettingsRef = useRef<any>({ gps_required: false });
 
   const getHeaders = () => ({
     "Content-Type": "application/json",
@@ -43,6 +43,19 @@ export default function PointageQRCodePage() {
     } catch (error) {
       console.error("Erreur fetch attendance :", error);
       setRecords([]);
+    }
+  }, []);
+
+  const fetchGpsSettings = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_URL}/attendance/settings/gps`, {
+        headers: getHeaders(),
+      });
+      const data = await res.json().catch(() => ({}));
+      const nextSettings = data || { gps_required: false };
+      gpsSettingsRef.current = nextSettings;
+    } catch {
+      gpsSettingsRef.current = { gps_required: false };
     }
   }, []);
 
@@ -79,12 +92,46 @@ export default function PointageQRCodePage() {
     lastScanRef.current = { key: scanKey, time: now };
 
     try {
+      let positionPayload: any = {};
+
+      if (gpsSettingsRef.current?.gps_required === true) {
+        try {
+          const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+            if (!navigator.geolocation) {
+              reject(new Error("GPS_UNAVAILABLE"));
+              return;
+            }
+
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: true,
+              timeout: 12000,
+              maximumAge: 0,
+            });
+          });
+
+          positionPayload = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+          };
+        } catch (gpsError: any) {
+          setMessageType("error");
+          if (gpsError?.code === 1) {
+            setMessage("Pointage refusé : localisation obligatoire.");
+          } else {
+            setMessage("Pointage refusé : impossible d’obtenir votre position.");
+          }
+          return;
+        }
+      }
+
       const response = await fetch(`${API_URL}/attendance/scan`, {
         method: "POST",
         headers: getHeaders(),
         body: JSON.stringify({
           badge_code: badgeCode,
           action_type: selectedAction,
+          ...positionPayload,
         }),
       });
 
@@ -170,6 +217,7 @@ export default function PointageQRCodePage() {
 
   useEffect(() => {
     fetchAttendance();
+    fetchGpsSettings();
 
     const refresh = setInterval(fetchAttendance, 5000);
     const counter = setInterval(
@@ -181,7 +229,7 @@ export default function PointageQRCodePage() {
       clearInterval(refresh);
       clearInterval(counter);
     };
-  }, [fetchAttendance]);
+  }, [fetchAttendance, fetchGpsSettings]);
 
   useEffect(() => {
     startScanner();
