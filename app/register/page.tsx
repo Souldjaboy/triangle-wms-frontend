@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiUrl } from "../lib/api";
+import { formatFCFA } from "../lib/format";
 
 const DEFAULT_PLANS = [
   {
@@ -424,9 +425,7 @@ export default function RegisterPage() {
               </h2>
 
               <p className="text-4xl font-bold text-yellow-600 mb-4">
-                {Number(
-                  plan.price_monthly || 0
-                ).toLocaleString()} FCFA
+                {formatFCFA(plan.price_monthly)}
               </p>
 
               <div className="space-y-2 text-gray-600">

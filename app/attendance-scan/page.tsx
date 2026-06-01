@@ -2,6 +2,7 @@
 
 import { Html5Qrcode } from "html5-qrcode";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { formatFCFA } from "../lib/format";
 
 const API_URL = "/api";
 
@@ -357,7 +358,7 @@ export default function PointageQRCodePage() {
         <Card title="Retards" value={late} className="text-orange-600" />
         <Card
           title="Salaire jour"
-          value={`${salaryTotal.toLocaleString()} FCFA`}
+          value={formatFCFA(salaryTotal)}
           className="text-black text-2xl"
         />
       </div>
@@ -482,7 +483,7 @@ export default function PointageQRCodePage() {
                   {Number(r.worked_hours || 0) > 0 ? `${r.worked_hours} h` : "-"}
                 </td>
                 <td className="p-4 font-bold">
-                  {Number(r.calculated_salary || 0).toLocaleString()} FCFA
+                  {formatFCFA(r.calculated_salary)}
                 </td>
               </tr>
             ))}

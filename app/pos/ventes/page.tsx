@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { formatFCFA } from "../../lib/format";
 
 export default function PosVentesPage() {
   const [sales, setSales] = useState<any[]>([]);
@@ -86,15 +87,14 @@ export default function PosVentesPage() {
     0
   );
 
-  const totalSalesCount = sales.length;
+  const totalSalesCount = sales.filter(
+    (sale) => String(sale.status || "").toLowerCase() !== "annulée"
+  ).length;
 
   const averageSale =
     totalSalesCount > 0
       ? totalSalesAmount / totalSalesCount
       : 0;
-
-  const money = (value: number) =>
-    `${Math.round(Number(value || 0)).toLocaleString("fr-FR")} FCFA`;
 
 
   const cancelSale = async (id: number) => {
@@ -170,7 +170,7 @@ export default function PosVentesPage() {
             {sales.map((sale) => (
               <tr key={sale.id} className="border-t">
                 <td className="p-4 font-bold">{sale.sale_number}</td>
-              <td>{money(Number(sale.total_amount || 0))}</td>
+              <td>{formatFCFA(sale.total_amount)}</td>
                 <td>{sale.payment_method} ({sale.payment_status})</td>
                 <td>{sale.status}</td>
                 <td>{sale.created_by_name || "-"}</td>
@@ -205,35 +205,35 @@ export default function PosVentesPage() {
           <div>
             <p className="text-gray-300">Total vendu</p>
             <p className="text-3xl font-bold text-yellow-400">
-              {money(totalSalesAmount)}
+              {formatFCFA(totalSalesAmount)}
             </p>
           </div>
 
           <div>
             <p className="text-gray-300">Total encaissé</p>
             <p className="text-3xl font-bold text-green-400">
-              {money(totalCollected)}
+              {formatFCFA(totalCollected)}
             </p>
           </div>
 
           <div>
             <p className="text-gray-300">Total crédit</p>
             <p className="text-3xl font-bold text-orange-300">
-              {money(totalCredit)}
+              {formatFCFA(totalCredit)}
             </p>
           </div>
 
           <div>
             <p className="text-gray-300">Total annulé</p>
             <p className="text-3xl font-bold text-red-300">
-              {money(totalCancelled)}
+              {formatFCFA(totalCancelled)}
             </p>
           </div>
 
           <div>
             <p className="text-gray-300">Montant moyen</p>
             <p className="text-3xl font-bold text-green-400">
-              {money(averageSale)}
+              {formatFCFA(averageSale)}
             </p>
           </div>
         </div>

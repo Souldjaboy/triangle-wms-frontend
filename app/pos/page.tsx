@@ -2,6 +2,7 @@
 
 import { QRCodeCanvas } from "qrcode.react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { formatFCFA } from "../lib/format";
 
 const paymentMethods = [
   "Espèces",
@@ -511,17 +512,17 @@ export default function PosPage() {
               <tbody>
                 ${lastItems
                   .map(
-                    (item) => `<tr><td>${item.product_name}</td><td>${item.quantity}</td><td class="right">${Number(item.total_price || 0).toLocaleString()} FCFA</td></tr>`
+                    (item) => `<tr><td>${item.product_name}</td><td>${item.quantity}</td><td class="right">${formatFCFA(item.total_price)}</td></tr>`
                   )
                   .join("")}
               </tbody>
             </table>
-            <p class="right">Remise : ${Number(lastSale.discount_amount || 0).toLocaleString()} FCFA</p>
-            <p class="right">TVA : ${Number(lastSale.tax_amount || 0).toLocaleString()} FCFA</p>
-            <p class="total">Total : ${Number(lastSale.total_amount || 0).toLocaleString()} FCFA</p>
-            <p class="right">Montant reçu : ${Number(lastSale.amount_paid || 0).toLocaleString()} FCFA</p>
-            <p class="right">Monnaie rendue : ${Number(lastSale.change_due || 0).toLocaleString()} FCFA</p>
-            <p class="right">Reste à payer : ${Number(lastSale.amount_due || 0).toLocaleString()} FCFA</p>
+            <p class="right">Remise : ${formatFCFA(lastSale.discount_amount)}</p>
+            <p class="right">TVA : ${formatFCFA(lastSale.tax_amount)}</p>
+            <p class="total">Total : ${formatFCFA(lastSale.total_amount)}</p>
+            <p class="right">Montant reçu : ${formatFCFA(lastSale.amount_paid)}</p>
+            <p class="right">Monnaie rendue : ${formatFCFA(lastSale.change_due)}</p>
+            <p class="right">Reste à payer : ${formatFCFA(lastSale.amount_due)}</p>
             <p>Paiement : ${lastSale.payment_method} (${lastSale.payment_status})</p>
           </div>
           <script>window.onload = () => window.print();</script>
@@ -659,7 +660,7 @@ export default function PosPage() {
                   <h2 className="text-2xl font-bold mb-3">{selectedProduct.name}</h2>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
                     <p><strong>Référence :</strong> {selectedProduct.reference}</p>
-                    <p><strong>Prix :</strong> {getProductPrice(selectedProduct).toLocaleString()} FCFA</p>
+                    <p><strong>Prix :</strong> {formatFCFA(getProductPrice(selectedProduct))}</p>
                     <p><strong>Stock :</strong> {selectedProduct.stock}</p>
                     <p><strong>Emplacement :</strong> {selectedProduct.location_code || selectedProduct.emplacement_code || "-"}</p>
                     <p><strong>Lot :</strong> {selectedProduct.lot_number || "-"}</p>
@@ -686,7 +687,7 @@ export default function PosPage() {
                 <p className="font-bold text-lg">{product.name}</p>
                 <p className="text-sm text-gray-500">{product.reference}</p>
                 <p className="text-yellow-600 font-bold mt-2">
-                  {getProductPrice(product).toLocaleString()} FCFA
+                  {formatFCFA(getProductPrice(product))}
                 </p>
                 <p className="text-sm">Stock : {product.stock}</p>
               </button>
@@ -724,7 +725,7 @@ export default function PosPage() {
                     <div className="text-xs font-bold text-gray-600">
                       Total ligne
                       <p className="mt-1 rounded-lg bg-yellow-100 p-2 text-black">
-                        {(Number(item.quantity || 0) * Number(item.unit_price || 0) - Number(item.discount_amount || 0)).toLocaleString()} FCFA
+                        {formatFCFA(Number(item.quantity || 0) * Number(item.unit_price || 0) - Number(item.discount_amount || 0))}
                       </p>
                     </div>
                   </div>
@@ -847,15 +848,15 @@ export default function PosPage() {
               TVA activée ({Number(settings?.default_tax_rate || 18)}% par défaut)
             </label>
             <div className="text-lg space-y-1">
-              <p>Sous-total brut : <strong>{totals.subtotalBeforeDiscount.toLocaleString()} FCFA</strong></p>
-              <p>Remises articles : <strong>{totals.itemDiscount.toLocaleString()} FCFA</strong></p>
-              <p>Sous-total net : <strong>{totals.subtotal.toLocaleString()} FCFA</strong></p>
-              <p>Remise ticket : <strong>{totals.discount.toLocaleString()} FCFA</strong></p>
-              <p>TVA : <strong>{totals.tax.toLocaleString()} FCFA</strong></p>
-              <p className="text-2xl">Total : <strong>{totals.total.toLocaleString()} FCFA</strong></p>
-              <p>Total payé : <strong>{amountReceivedNumber.toLocaleString()} FCFA</strong></p>
-              <p className="text-green-600">Monnaie à rendre : <strong>{changeDue.toLocaleString()} FCFA</strong></p>
-              <p className="text-red-600">Reste à payer : <strong>{remainingAmount.toLocaleString()} FCFA</strong></p>
+              <p>Sous-total brut : <strong>{formatFCFA(totals.subtotalBeforeDiscount)}</strong></p>
+              <p>Remises articles : <strong>{formatFCFA(totals.itemDiscount)}</strong></p>
+              <p>Sous-total net : <strong>{formatFCFA(totals.subtotal)}</strong></p>
+              <p>Remise ticket : <strong>{formatFCFA(totals.discount)}</strong></p>
+              <p>TVA : <strong>{formatFCFA(totals.tax)}</strong></p>
+              <p className="text-2xl">Total : <strong>{formatFCFA(totals.total)}</strong></p>
+              <p>Total payé : <strong>{formatFCFA(amountReceivedNumber)}</strong></p>
+              <p className="text-green-600">Monnaie à rendre : <strong>{formatFCFA(changeDue)}</strong></p>
+              <p className="text-red-600">Reste à payer : <strong>{formatFCFA(remainingAmount)}</strong></p>
             </div>
             <button disabled={cart.length === 0} onClick={validateSale} className="w-full bg-yellow-500 text-black font-bold py-4 rounded-xl disabled:opacity-50">
               Valider vente

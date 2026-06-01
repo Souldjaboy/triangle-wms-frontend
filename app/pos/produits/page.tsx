@@ -2,6 +2,7 @@
 
 import { QRCodeCanvas } from "qrcode.react";
 import { useEffect, useState } from "react";
+import { formatFCFA } from "../../lib/format";
 
 export default function PosProduitsPage() {
   const [products, setProducts] = useState<any[]>([]);
@@ -43,7 +44,7 @@ export default function PosProduitsPage() {
             <QRCodeCanvas value={product.qr_url || product.reference || String(product.id)} size={128} />
             <h2 className="font-bold mt-3">{product.name}</h2>
             <p className="text-sm">{product.reference}</p>
-            <p className="text-xl font-bold text-yellow-600">{Number(product.sale_price || 0).toLocaleString()} FCFA</p>
+            <p className="text-xl font-bold text-yellow-600">{formatFCFA(product.sale_price)}</p>
             <p className="text-xs text-gray-500">Lot : {product.lot_number || "-"} | Exp : {product.expiration_date || "-"}</p>
             <a href={`/scan/product/${encodeURIComponent(product.reference || product.barcode || product.id)}`} className="inline-block mt-3 bg-yellow-500 text-black px-4 py-2 rounded-xl font-bold print:hidden">
               Ouvrir fiche

@@ -2,6 +2,7 @@
 
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import { formatFCFA } from "../../../lib/format";
 
 export default function ProductScanPage() {
   const [details, setDetails] = useState<any>(null);
@@ -96,9 +97,9 @@ export default function ProductScanPage() {
             <img src={product.image_url} alt={product.name} className="mb-4 h-40 w-full max-w-sm rounded-xl object-cover border" />
           )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <p><strong>Prix caisse :</strong> {productPrice.toLocaleString()} FCFA</p>
-            <p><strong>Prix vente :</strong> {Number(product.sale_price || 0).toLocaleString()} FCFA</p>
-            <p><strong>Prix pharmacie :</strong> {Number(product.pharmacy_price || 0).toLocaleString()} FCFA</p>
+            <p><strong>Prix caisse :</strong> {formatFCFA(productPrice)}</p>
+            <p><strong>Prix vente :</strong> {formatFCFA(product.sale_price)}</p>
+            <p><strong>Prix pharmacie :</strong> {formatFCFA(product.pharmacy_price)}</p>
             <p><strong>Stock :</strong> {Number(product.stock || 0).toLocaleString()}</p>
             <p><strong>Stock minimum :</strong> {Number(product.minimum_stock || 0).toLocaleString()}</p>
             <p><strong>Emplacement :</strong> {product.emplacement_code || product.location_code || "-"}</p>

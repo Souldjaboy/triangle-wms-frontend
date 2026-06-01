@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { formatFCFA } from "../../lib/format";
 
 export default function PosRecusPage() {
   const [sales, setSales] = useState<any[]>([]);
@@ -64,12 +65,12 @@ export default function PosRecusPage() {
             <table>
               <thead><tr><th>Produit</th><th>Qté</th><th class="right">Total</th></tr></thead>
               <tbody>
-                ${items.map((item: any) => `<tr><td>${item.product_name}</td><td>${item.quantity}</td><td class="right">${Number(item.total_price || 0).toLocaleString()} FCFA</td></tr>`).join("")}
+                ${items.map((item: any) => `<tr><td>${item.product_name}</td><td>${item.quantity}</td><td class="right">${formatFCFA(item.total_price)}</td></tr>`).join("")}
               </tbody>
             </table>
-            <p class="right">Remise : ${Number(sale.discount_amount || 0).toLocaleString()} FCFA</p>
-            <p class="right">TVA : ${Number(sale.tax_amount || 0).toLocaleString()} FCFA</p>
-            <p class="total">Total : ${Number(sale.total_amount || 0).toLocaleString()} FCFA</p>
+            <p class="right">Remise : ${formatFCFA(sale.discount_amount)}</p>
+            <p class="right">TVA : ${formatFCFA(sale.tax_amount)}</p>
+            <p class="total">Total : ${formatFCFA(sale.total_amount)}</p>
             <p>Paiement : ${sale.payment_method || "-"} (${sale.payment_status || "-"})</p>
           </div>
           <script>window.onload = () => window.print();</script>
@@ -96,7 +97,7 @@ export default function PosRecusPage() {
             <p>Date : {sale.created_at ? new Date(sale.created_at).toLocaleString("fr-FR") : "-"}</p>
             <p>Caissier : {sale.created_by_name || "-"}</p>
             <p>Paiement : {sale.payment_method} ({sale.payment_status})</p>
-            <p className="text-2xl font-bold mt-3">{Number(sale.total_amount || 0).toLocaleString()} FCFA</p>
+            <p className="text-2xl font-bold mt-3">{formatFCFA(sale.total_amount)}</p>
             <button onClick={() => printSaleReceipt(sale.id)} className="mt-4 bg-yellow-500 text-black px-4 py-2 rounded-xl font-bold print:hidden">Imprimer ce reçu</button>
           </div>
         ))}

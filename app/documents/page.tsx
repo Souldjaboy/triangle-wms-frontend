@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { formatFCFA } from "../lib/format";
 
 export default function DocumentsPage() {
   const [documents, setDocuments] = useState<any[]>([]);
@@ -244,7 +245,7 @@ export default function DocumentsPage() {
 
                     <div className="text-right">
                       <p className="text-xl font-bold text-green-600">
-                        {doc.total_amount || 0} FCFA
+                        {formatFCFA(doc.total_amount)}
                       </p>
 
                       <p className="text-sm text-gray-500 mt-2">

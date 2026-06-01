@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { formatFCFA } from "../../lib/format";
 
 const paymentOptions = [
   "Espèces",
@@ -182,7 +183,7 @@ export default function PosParametresPage() {
                 >
                   <strong>{product.reference}</strong> - {product.name}
                   <span className="block text-sm text-gray-500">
-                    {getProductPrice(product).toLocaleString()} FCFA | Stock {product.stock}
+                    {formatFCFA(getProductPrice(product))} | Stock {product.stock}
                   </span>
                 </button>
               ))}

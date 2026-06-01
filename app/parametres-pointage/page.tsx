@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { formatFCFA } from "../lib/format";
 
 export default function ParametresPointagePage() {
   const [groups, setGroups] = useState<any[]>([]);
@@ -676,9 +677,9 @@ export default function ParametresPointagePage() {
                     <td>{user.role}</td>
                     <td>{group ? group.name : "-"}</td>
                     {canSeeSalary && <td>{user.salary_type || "-"}</td>}
-                    {canSeeSalary && <td>{user.hourly_rate || 0} FCFA</td>}
-                    {canSeeSalary && <td>{user.daily_rate || 0} FCFA</td>}
-                    {canSeeSalary && <td>{user.monthly_salary || 0} FCFA</td>}
+                    {canSeeSalary && <td>{formatFCFA(user.hourly_rate)}</td>}
+                    {canSeeSalary && <td>{formatFCFA(user.daily_rate)}</td>}
+                    {canSeeSalary && <td>{formatFCFA(user.monthly_salary)}</td>}
                   </tr>
                 );
               })}
