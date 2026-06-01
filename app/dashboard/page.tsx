@@ -117,6 +117,7 @@ export default function DashboardPage() {
 
   const overviewData = [
     { name: "Produits", value: stats.total_produits || 0 },
+    { name: "Stock total", value: stats.total_stock || 0 },
     { name: "Entrepôts", value: stats.total_entrepots || 0 },
     { name: "Emplacements", value: stats.total_emplacements || 0 },
     { name: "Utilisateurs", value: stats.total_utilisateurs || 0 },
@@ -406,12 +407,13 @@ export default function DashboardPage() {
 
         <div className="grid grid-cols-4 gap-6 mb-8">
           <StatCard title="Produits" value={stats.total_produits} color="text-blue-500" />
+          <StatCard title="Stock total" value={stats.total_stock || 0} color="text-yellow-600" />
           <StatCard title="Entrepôts" value={stats.total_entrepots} color="text-green-500" />
           <StatCard title="Emplacements" value={stats.total_emplacements} color="text-purple-500" />
-          <StatCard title="Alertes" value={stats.alertes} color="text-red-500" />
         </div>
 
         <div className="grid grid-cols-4 gap-6 mb-8">
+          <StatCard title="Alertes" value={stats.alertes} color="text-red-500" />
           <StatCard title="Utilisateurs" value={stats.total_utilisateurs || 0} color="text-black" />
           <StatCard title="Inventaires" value={stats.total_inventaires || 0} color="text-purple-600" />
           <StatCard title="Stock faible" value={stats.stock_faible} color="text-orange-500" />
