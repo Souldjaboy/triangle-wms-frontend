@@ -1,7 +1,8 @@
 "use client";
 
+import { Html5QrcodeScanner } from "html5-qrcode";
 import { QRCodeCanvas } from "qrcode.react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const paymentMethods = [
   "Espèces",
@@ -24,12 +25,15 @@ export default function PosPage() {
   const [paymentMethod, setPaymentMethod] = useState("Espèces");
   const [paymentStatus, setPaymentStatus] = useState("payé");
   const [discount, setDiscount] = useState("0");
-  const [taxEnabled, setTaxEnabled] = useState(false);
+  const [taxEnabled, setTaxEnabled] = useState(true);
   const [lastReceipt, setLastReceipt] = useState<any>(null);
   const [lastSale, setLastSale] = useState<any>(null);
   const [lastItems, setLastItems] = useState<any[]>([]);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [scannerMode, setScannerMode] = useState(false);
+  const [settings, setSettings] = useState<any>(null);
+  const [companySettings, setCompanySettings] = useState<any>(null);
+  const scannerRef = useRef<any>(null);
 
   const canEditPrice = ["admin", "super_admin"].includes(
     String(currentUser?.role || "").toLowerCase()
@@ -43,6 +47,8 @@ export default function PosPage() {
   useEffect(() => {
     const savedUser = localStorage.getItem("user");
     if (savedUser) setCurrentUser(JSON.parse(savedUser));
+    loadSettings();
+    loadCompanySettings();
     const params = new URLSearchParams(window.location.search);
     const scanCode = params.get("scan");
     searchProducts(scanCode || "").then((loaded) => {
@@ -55,6 +61,66 @@ export default function PosPage() {
       if (exact) addToCart(exact);
     });
   }, []);
+
+  useEffect(() => {
+    if (!scannerMode) {
+      if (scannerRef.current) {
+        scannerRef.current.clear().catch(() => {});
+        scannerRef.current = null;
+      }
+      return;
+    }
+
+    if (scannerRef.current) return;
+
+    const scanner = new Html5QrcodeScanner(
+      "pos-reader",
+      { fps: 10, qrbox: 250 },
+      false
+    );
+    scannerRef.current = scanner;
+    scanner.render(
+      (decodedText) => {
+        handleScannedCode(decodedText);
+      },
+      () => {}
+    );
+
+    return () => {
+      scanner.clear().catch(() => {});
+      scannerRef.current = null;
+    };
+  }, [scannerMode, mode, products]);
+
+  const loadSettings = async () => {
+    const response = await fetch("/api/pos/settings", { headers: authHeaders() });
+    const data = await response.json().catch(() => null);
+    setSettings(data);
+  };
+
+  const loadCompanySettings = async () => {
+    const response = await fetch("/api/company-settings");
+    const data = await response.json().catch(() => null);
+    setCompanySettings(data);
+  };
+
+  const normalizeScanValue = (value: string) => {
+    const raw = String(value || "").trim();
+    try {
+      const url = new URL(raw);
+      const productMatch = url.pathname.match(/\/scan\/product\/([^/]+)/);
+      return decodeURIComponent(
+        url.searchParams.get("ref") ||
+          url.searchParams.get("product") ||
+          (productMatch ? productMatch[1] : raw)
+      );
+    } catch {
+      return raw;
+    }
+  };
+
+  const getProductPrice = (product: any) =>
+    Number(product.effective_sale_price || product.sale_price || product.pharmacy_price || product.wholesale_price || 0);
 
   const searchProducts = async (value: string) => {
     const response = await fetch(
@@ -91,7 +157,7 @@ export default function PosPage() {
           name: product.name,
           barcode: product.barcode,
           quantity: 1,
-          unit_price: Number(product.sale_price || 0),
+          unit_price: getProductPrice(product),
           discount_amount: 0,
           tax_rate: Number(product.tax_rate || 0),
           stock: Number(product.stock || 0),
@@ -103,13 +169,19 @@ export default function PosPage() {
 
   const handleScanSubmit = async (event: any) => {
     event.preventDefault();
-    const value = query.trim().toLowerCase();
-    const rows = value ? await searchProducts(query) : products;
+    await handleScannedCode(query);
+  };
+
+  const handleScannedCode = async (rawCode: string) => {
+    const cleanCode = normalizeScanValue(rawCode);
+    const value = cleanCode.toLowerCase();
+    const rows = value ? await searchProducts(cleanCode) : products;
     const exact = rows.find((product) => {
       return [
         product.reference,
         product.barcode,
         product.sku,
+        product.qr_code,
         product.name,
       ]
         .filter(Boolean)
@@ -120,8 +192,15 @@ export default function PosPage() {
       addToCart(exact);
       setQuery("");
       searchProducts("");
+      setMessage(
+        mode === "info"
+          ? `Produit trouvé : ${exact.reference}`
+          : `Produit ajouté au panier : ${exact.reference}`
+      );
     } else {
-      searchProducts(query);
+      setQuery(cleanCode);
+      setMessage("Produit introuvable pour ce scan.");
+      searchProducts(cleanCode);
     }
   };
 
@@ -136,19 +215,36 @@ export default function PosPage() {
   };
 
   const totals = useMemo(() => {
-    const subtotal = cart.reduce(
-      (sum, item) =>
-        sum + Number(item.quantity || 0) * Number(item.unit_price || 0) - Number(item.discount_amount || 0),
+    const subtotalBeforeDiscount = cart.reduce(
+      (sum, item) => sum + Number(item.quantity || 0) * Number(item.unit_price || 0),
       0
     );
+    const itemDiscount = cart.reduce(
+      (sum, item) => sum + Number(item.discount_amount || 0),
+      0
+    );
+    const subtotal = Math.max(subtotalBeforeDiscount - itemDiscount, 0);
     const discountValue = Number(discount || 0);
+    const tax = taxEnabled
+      ? cart.reduce((sum, item) => {
+          const lineBase = Math.max(
+            Number(item.quantity || 0) * Number(item.unit_price || 0) -
+              Number(item.discount_amount || 0),
+            0
+          );
+          const rate = Number(item.tax_rate || settings?.default_tax_rate || 18);
+          return sum + (lineBase * rate) / 100;
+        }, 0)
+      : 0;
     return {
+      subtotalBeforeDiscount,
+      itemDiscount,
       subtotal,
       discount: discountValue,
-      tax: taxEnabled ? subtotal * 0.18 : 0,
-      total: Math.max(subtotal - discountValue + (taxEnabled ? subtotal * 0.18 : 0), 0),
+      tax,
+      total: Math.max(subtotal - discountValue + tax, 0),
     };
-  }, [cart, discount, taxEnabled]);
+  }, [cart, discount, taxEnabled, settings]);
 
   const validateSale = async () => {
     setMessage("");
@@ -175,6 +271,7 @@ export default function PosPage() {
     setLastReceipt(data.receipt);
     setLastSale(data.sale);
     setLastItems(data.items || []);
+    if (data.company_settings) setCompanySettings(data.company_settings);
     setCart([]);
     setMessage("Vente validée. Reçu généré.");
     searchProducts(query);
@@ -204,7 +301,11 @@ export default function PosPage() {
         </head>
         <body>
           <div class="receipt">
-            <h1>TRIANGLE WMS PRO</h1>
+            ${companySettings?.logo_url ? `<p style="text-align:center"><img src="${companySettings.logo_url}" style="max-width:80px;max-height:60px;object-fit:contain" /></p>` : ""}
+            <h1>${companySettings?.company_name || "TRIANGLE WMS PRO"}</h1>
+            ${companySettings?.address ? `<p>${companySettings.address}</p>` : ""}
+            ${companySettings?.phone ? `<p>Tél : ${companySettings.phone}</p>` : ""}
+            ${companySettings?.email ? `<p>Email : ${companySettings.email}</p>` : ""}
             <p>Reçu : ${lastReceipt.receipt_number}</p>
             <p>Vente : ${lastSale.sale_number}</p>
             <p>Date : ${new Date(lastSale.created_at).toLocaleString("fr-FR")}</p>
@@ -283,6 +384,11 @@ export default function PosPage() {
                 Scanner USB/téléphone : validez avec Entrée pour ajouter automatiquement.
               </span>
             </div>
+            {scannerMode && (
+              <div className="mb-4 rounded-xl border p-3">
+                <div id="pos-reader" />
+              </div>
+            )}
             <input
               value={query}
               onChange={(event) => {
@@ -300,7 +406,7 @@ export default function PosPage() {
               <h2 className="text-2xl font-bold mb-3">{selectedProduct.name}</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
                 <p><strong>Référence :</strong> {selectedProduct.reference}</p>
-                <p><strong>Prix :</strong> {Number(selectedProduct.sale_price || 0).toLocaleString()} FCFA</p>
+                <p><strong>Prix :</strong> {getProductPrice(selectedProduct).toLocaleString()} FCFA</p>
                 <p><strong>Stock :</strong> {selectedProduct.stock}</p>
                 <p><strong>Emplacement :</strong> {selectedProduct.location_code || selectedProduct.emplacement_code || "-"}</p>
                 <p><strong>Lot :</strong> {selectedProduct.lot_number || "-"}</p>
@@ -322,7 +428,7 @@ export default function PosPage() {
                 <p className="font-bold text-lg">{product.name}</p>
                 <p className="text-sm text-gray-500">{product.reference}</p>
                 <p className="text-yellow-600 font-bold mt-2">
-                  {Number(product.sale_price || 0).toLocaleString()} FCFA
+                  {getProductPrice(product).toLocaleString()} FCFA
                 </p>
                 <p className="text-sm">Stock : {product.stock}</p>
               </button>
@@ -340,24 +446,29 @@ export default function PosPage() {
                 <div key={item.product_id} className="border rounded-xl p-3">
                   <p className="font-bold">{item.reference} - {item.name}</p>
                   <p className="text-xs text-gray-500">Stock : {item.stock} | {item.location || "Aucun emplacement"}</p>
-                  <div className="grid grid-cols-5 gap-2 mt-3 text-xs font-bold text-gray-500">
-                    <span>Quantité</span>
-                    <span>Prix unitaire</span>
-                    <span>Remise</span>
-                    <span>TVA</span>
-                    <span>Total ligne</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 mt-3">
-                    <input type="number" min="1" value={item.quantity} onChange={(e) => updateItem(item.product_id, "quantity", e.target.value)} className="border p-2 rounded-lg" />
-                    <input type="number" value={item.unit_price} disabled={!canEditPrice} onChange={(e) => updateItem(item.product_id, "unit_price", e.target.value)} className="border p-2 rounded-lg disabled:bg-gray-100" />
-                    <input type="number" value={item.discount_amount} disabled={!canEditPrice} onChange={(e) => updateItem(item.product_id, "discount_amount", e.target.value)} className="border p-2 rounded-lg disabled:bg-gray-100" />
-                  </div>
-                  <div className="grid grid-cols-5 gap-2 mt-2 text-sm">
-                    <span>{item.quantity}</span>
-                    <span>{Number(item.unit_price || 0).toLocaleString()}</span>
-                    <span>{Number(item.discount_amount || 0).toLocaleString()}</span>
-                    <span>{taxEnabled ? `${item.tax_rate || 0}%` : "0%"}</span>
-                    <span className="font-bold">{(Number(item.quantity || 0) * Number(item.unit_price || 0) - Number(item.discount_amount || 0)).toLocaleString()} FCFA</span>
+                  <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-5">
+                    <label className="text-xs font-bold text-gray-600">
+                      Quantité
+                      <input type="number" min="1" value={item.quantity} onChange={(e) => updateItem(item.product_id, "quantity", e.target.value)} className="mt-1 w-full border p-2 rounded-lg text-black" />
+                    </label>
+                    <label className="text-xs font-bold text-gray-600">
+                      Prix unitaire
+                      <input type="number" value={item.unit_price} disabled={!canEditPrice} onChange={(e) => updateItem(item.product_id, "unit_price", e.target.value)} className="mt-1 w-full border p-2 rounded-lg text-black disabled:bg-gray-100" />
+                    </label>
+                    <label className="text-xs font-bold text-gray-600">
+                      Remise article
+                      <input type="number" value={item.discount_amount} disabled={!canEditPrice} onChange={(e) => updateItem(item.product_id, "discount_amount", e.target.value)} className="mt-1 w-full border p-2 rounded-lg text-black disabled:bg-gray-100" />
+                    </label>
+                    <div className="text-xs font-bold text-gray-600">
+                      TVA
+                      <p className="mt-1 rounded-lg bg-gray-100 p-2 text-black">{taxEnabled ? `${Number(item.tax_rate || settings?.default_tax_rate || 18)}%` : "0%"}</p>
+                    </div>
+                    <div className="text-xs font-bold text-gray-600">
+                      Total ligne
+                      <p className="mt-1 rounded-lg bg-yellow-100 p-2 text-black">
+                        {(Number(item.quantity || 0) * Number(item.unit_price || 0) - Number(item.discount_amount || 0)).toLocaleString()} FCFA
+                      </p>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -374,14 +485,16 @@ export default function PosPage() {
               <option value="échoué">Échoué</option>
               <option value="annulé">Annulé</option>
             </select>
-            <input type="number" value={discount} disabled={!canEditPrice} onChange={(e) => setDiscount(e.target.value)} placeholder="Remise globale" className="border p-3 rounded-xl w-full disabled:bg-gray-100" />
+            <input type="number" value={discount} disabled={!canEditPrice} onChange={(e) => setDiscount(e.target.value)} placeholder="Remise ticket globale en FCFA" className="border p-3 rounded-xl w-full disabled:bg-gray-100" />
             <label className="flex items-center gap-2">
               <input type="checkbox" checked={taxEnabled} onChange={(e) => setTaxEnabled(e.target.checked)} />
-              TVA activée
+              TVA activée ({Number(settings?.default_tax_rate || 18)}% par défaut)
             </label>
             <div className="text-lg space-y-1">
-              <p>Sous-total : <strong>{totals.subtotal.toLocaleString()} FCFA</strong></p>
-              <p>Remise : <strong>{totals.discount.toLocaleString()} FCFA</strong></p>
+              <p>Sous-total brut : <strong>{totals.subtotalBeforeDiscount.toLocaleString()} FCFA</strong></p>
+              <p>Remises articles : <strong>{totals.itemDiscount.toLocaleString()} FCFA</strong></p>
+              <p>Sous-total net : <strong>{totals.subtotal.toLocaleString()} FCFA</strong></p>
+              <p>Remise ticket : <strong>{totals.discount.toLocaleString()} FCFA</strong></p>
               <p>TVA : <strong>{totals.tax.toLocaleString()} FCFA</strong></p>
               <p className="text-2xl">Total : <strong>{totals.total.toLocaleString()} FCFA</strong></p>
             </div>

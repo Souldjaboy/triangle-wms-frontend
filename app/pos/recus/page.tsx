@@ -29,6 +29,7 @@ export default function PosRecusPage() {
     const receipt = data.receipt || {};
     const sale = data.sale || {};
     const items = Array.isArray(data.items) ? data.items : [];
+    const companySettings = data.company_settings || {};
     const receiptWindow = window.open("", "_blank", "width=420,height=720");
     if (!receiptWindow) return;
 
@@ -50,7 +51,11 @@ export default function PosRecusPage() {
         </head>
         <body>
           <div class="receipt">
-            <h1>TRIANGLE WMS PRO</h1>
+            ${companySettings.logo_url ? `<p style="text-align:center"><img src="${companySettings.logo_url}" style="max-width:80px;max-height:60px;object-fit:contain" /></p>` : ""}
+            <h1>${companySettings.company_name || "TRIANGLE WMS PRO"}</h1>
+            ${companySettings.address ? `<p>${companySettings.address}</p>` : ""}
+            ${companySettings.phone ? `<p>Tél : ${companySettings.phone}</p>` : ""}
+            ${companySettings.email ? `<p>Email : ${companySettings.email}</p>` : ""}
             <p>Reçu : ${receipt.receipt_number || "-"}</p>
             <p>Vente : ${sale.sale_number || "-"}</p>
             <p>Date : ${sale.created_at ? new Date(sale.created_at).toLocaleString("fr-FR") : "-"}</p>

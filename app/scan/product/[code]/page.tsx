@@ -1,13 +1,15 @@
 "use client";
 
+import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
-export default function ProductScanPage({ params }: any) {
+export default function ProductScanPage() {
   const [details, setDetails] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
-  const code = decodeURIComponent(params?.code || "");
+  const params = useParams<{ code?: string }>();
+  const code = decodeURIComponent(String(params?.code || ""));
 
   const headers = () => ({
     Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
@@ -33,7 +35,12 @@ export default function ProductScanPage({ params }: any) {
       setLoading(false);
     };
 
-    if (code) load();
+    if (code) {
+      load();
+    } else {
+      setLoading(false);
+      setMessage("Produit introuvable : code QR vide.");
+    }
   }, [code]);
 
   if (loading) {

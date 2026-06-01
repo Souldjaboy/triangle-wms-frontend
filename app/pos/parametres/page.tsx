@@ -172,7 +172,9 @@ export default function PosParametresPage() {
                   className={`block w-full text-left p-3 border-b ${selectedProduct?.id === product.id ? "bg-yellow-100" : "bg-white"}`}
                 >
                   <strong>{product.reference}</strong> - {product.name}
-                  <span className="block text-sm text-gray-500">{Number(product.sale_price || 0).toLocaleString()} FCFA | Stock {product.stock}</span>
+                  <span className="block text-sm text-gray-500">
+                    {Number(product.effective_sale_price || product.sale_price || product.pharmacy_price || 0).toLocaleString()} FCFA | Stock {product.stock}
+                  </span>
                 </button>
               ))}
               {products.length === 0 && <p className="p-4 text-gray-500">Aucun produit.</p>}

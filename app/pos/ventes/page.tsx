@@ -11,6 +11,9 @@ export default function PosVentesPage() {
     date_to: "",
     payment_method: "",
     status: "",
+    product: "",
+    cashier: "",
+    cash_register_id: "",
   });
 
   const headers = () => ({
@@ -34,7 +37,7 @@ export default function PosVentesPage() {
 
   const exportCsv = () => {
     const rows = [
-      ["Numéro", "Total", "Paiement", "Statut", "Caissier", "Client", "Date"],
+      ["Numéro", "Total", "Paiement", "Statut", "Caissier", "Client", "Caisse", "Date"],
       ...sales.map((sale) => [
         sale.sale_number,
         sale.total_amount,
@@ -42,6 +45,7 @@ export default function PosVentesPage() {
         sale.status,
         sale.created_by_name || "",
         sale.customer_name || "",
+        sale.cash_register_id || "",
         sale.created_at || "",
       ]),
     ];
@@ -87,8 +91,11 @@ export default function PosVentesPage() {
         </div>
       </div>
       {message && <div className="bg-yellow-100 p-4 rounded-xl mb-4 font-bold">{message}</div>}
-      <div className="bg-white rounded-2xl shadow p-4 mb-5 grid grid-cols-1 md:grid-cols-7 gap-3 print:hidden">
-        <input value={filters.q} onChange={(e) => updateFilter("q", e.target.value)} placeholder="Vente, client, caissier..." className="border p-3 rounded-xl md:col-span-2" />
+      <div className="bg-white rounded-2xl shadow p-4 mb-5 grid grid-cols-1 md:grid-cols-4 xl:grid-cols-9 gap-3 print:hidden">
+        <input value={filters.q} onChange={(e) => updateFilter("q", e.target.value)} placeholder="Vente ou client..." className="border p-3 rounded-xl" />
+        <input value={filters.product} onChange={(e) => updateFilter("product", e.target.value)} placeholder="Produit..." className="border p-3 rounded-xl" />
+        <input value={filters.cashier} onChange={(e) => updateFilter("cashier", e.target.value)} placeholder="Utilisateur / caissier..." className="border p-3 rounded-xl" />
+        <input value={filters.cash_register_id} onChange={(e) => updateFilter("cash_register_id", e.target.value)} placeholder="Caisse ID..." className="border p-3 rounded-xl" />
         <input type="date" value={filters.date_from} onChange={(e) => updateFilter("date_from", e.target.value)} className="border p-3 rounded-xl" />
         <input type="date" value={filters.date_to} onChange={(e) => updateFilter("date_to", e.target.value)} className="border p-3 rounded-xl" />
         <select value={filters.payment_method} onChange={(e) => updateFilter("payment_method", e.target.value)} className="border p-3 rounded-xl">
@@ -118,6 +125,7 @@ export default function PosVentesPage() {
               <th>Statut</th>
               <th>Caissier</th>
               <th>Client</th>
+              <th>Caisse</th>
               <th>Date</th>
               <th>Actions</th>
             </tr>
@@ -131,6 +139,7 @@ export default function PosVentesPage() {
                 <td>{sale.status}</td>
                 <td>{sale.created_by_name || "-"}</td>
                 <td>{sale.customer_name || "-"}</td>
+                <td>{sale.cash_register_id || "-"}</td>
                 <td>{sale.created_at ? new Date(sale.created_at).toLocaleString("fr-FR") : "-"}</td>
                 <td className="space-x-2">
                   <a href={`/pos/recus?sale=${sale.id}`} className="bg-yellow-500 text-black px-4 py-2 rounded-xl font-bold inline-block">Reçu</a>
