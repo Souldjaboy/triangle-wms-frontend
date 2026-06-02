@@ -28,7 +28,7 @@ import {
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { apiUrl } from "../lib/api";
+import { authFetch } from "../lib/api";
 import InstallPWAButton from "../../components/InstallPWAButton";
 import {
   BarChart,
@@ -70,7 +70,7 @@ export default function DashboardPage() {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch(apiUrl("/dashboard-stats"), {
+      const response = await authFetch("/dashboard-stats", {
         cache: "no-store",
       });
       const data = await response.json().catch(() => ({}));
