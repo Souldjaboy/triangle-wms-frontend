@@ -7,6 +7,7 @@ export default function PosPaiementsPage() {
   const [payments, setPayments] = useState<any[]>([]);
   const [message, setMessage] = useState("");
   const [user, setUser] = useState<any>(null);
+  const [processingPaymentId, setProcessingPaymentId] = useState<number | null>(null);
 
   const isAdmin =
     user?.is_super_admin === true ||
@@ -30,32 +31,49 @@ export default function PosPaiementsPage() {
   }, []);
 
   const statusLabel = (status: string) => {
-    if (status === "paid" || status === "payé") return "payé";
-    if (status === "failed" || status === "échoué") return "échoué";
-    if (status === "cancelled" || status === "annulé") return "annulé";
-    if (status === "pending" || status === "en attente") return "en attente";
+    const normalized = String(status || "").toLowerCase();
+    if (normalized === "paid" || normalized === "payé") return "payé";
+    if (normalized === "failed" || normalized === "échoué") return "échoué";
+    if (normalized === "cancelled" || normalized === "annulé") return "annulé";
+    if (normalized === "pending" || normalized === "en attente") return "en attente";
     return status || "en attente";
   };
 
+  const canSimulatePayment = (status: string) =>
+    ["pending", "en attente"].includes(String(status || "").toLowerCase());
+
   const confirmPayment = async (payment: any, status: "paid" | "failed") => {
-    const response = await fetch(
-      status === "paid"
-        ? "/api/payments/sandbox/success"
-        : "/api/payments/sandbox/fail",
-      {
-      method: "POST",
-      headers: headers(),
-      body: JSON.stringify({
-        transaction_id: payment.id,
-      }),
-    });
-    const data = await response.json().catch(() => ({}));
-    setMessage(
-      response.ok
-        ? `Paiement ${status} : ${payment.provider_reference || payment.id}`
-        : data.error || "Erreur confirmation paiement."
-    );
-    loadPayments();
+    if (processingPaymentId || !canSimulatePayment(payment.status)) return;
+
+    setProcessingPaymentId(payment.id);
+    setMessage("");
+
+    try {
+      const response = await fetch(
+        status === "paid"
+          ? "/api/payments/sandbox/success"
+          : "/api/payments/sandbox/fail",
+        {
+          method: "POST",
+          headers: headers(),
+          body: JSON.stringify({
+            transaction_id: payment.id,
+            provider_reference: payment.provider_reference || payment.external_reference || "",
+          }),
+        }
+      );
+      const data = await response.json().catch(() => ({}));
+      setMessage(
+        response.ok
+          ? status === "paid"
+            ? `Paiement réussi : ${data.provider_reference || payment.provider_reference || payment.id}`
+            : `Paiement échoué : ${data.provider_reference || payment.provider_reference || payment.id}`
+          : data.error || "Erreur confirmation paiement."
+      );
+      await loadPayments();
+    } finally {
+      setProcessingPaymentId(null);
+    }
   };
 
   return (
@@ -115,21 +133,28 @@ export default function PosPaiementsPage() {
                     : "-"}
                 </td>
                 <td className="space-x-2">
-                  {isAdmin && !["paid", "payé"].includes(payment.status) && (
+                  {isAdmin && canSimulatePayment(payment.status) && (
                     <button
                       onClick={() => confirmPayment(payment, "paid")}
-                      className="rounded-xl bg-green-600 px-4 py-2 font-bold text-white"
+                      disabled={processingPaymentId === payment.id}
+                      className="rounded-xl bg-green-600 px-4 py-2 font-bold text-white disabled:opacity-50"
                     >
-                      Simuler réussi
+                      {processingPaymentId === payment.id ? "Traitement..." : "Simuler réussi"}
                     </button>
                   )}
-                  {isAdmin && !["failed", "échoué"].includes(payment.status) && (
+                  {isAdmin && canSimulatePayment(payment.status) && (
                     <button
                       onClick={() => confirmPayment(payment, "failed")}
-                      className="rounded-xl bg-red-600 px-4 py-2 font-bold text-white"
+                      disabled={processingPaymentId === payment.id}
+                      className="rounded-xl bg-red-600 px-4 py-2 font-bold text-white disabled:opacity-50"
                     >
-                      Simuler échoué
+                      {processingPaymentId === payment.id ? "Traitement..." : "Simuler échoué"}
                     </button>
+                  )}
+                  {isAdmin && !canSimulatePayment(payment.status) && (
+                    <span className="inline-block rounded-xl bg-gray-100 px-4 py-2 font-bold text-gray-500">
+                      Traité
+                    </span>
                   )}
                   {payment.sale_id && (
                     <a

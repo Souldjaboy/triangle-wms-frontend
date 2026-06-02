@@ -32,6 +32,7 @@ export default function PosPage() {
   const [lastItems, setLastItems] = useState<any[]>([]);
   const [paymentTransaction, setPaymentTransaction] = useState<any>(null);
   const [paymentMessage, setPaymentMessage] = useState("");
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [paymentPhone, setPaymentPhone] = useState("");
   const [mixedPayments, setMixedPayments] = useState([
     { method: "Espèces", amount: "", reference: "" },
@@ -436,32 +437,44 @@ export default function PosPage() {
   };
 
   const confirmPayment = async (status: "payé" | "échoué") => {
+    if (paymentProcessing) return;
+
     if (!paymentTransaction?.id && !lastSale?.transaction_id) {
       setPaymentMessage("Aucune transaction à confirmer.");
       return;
     }
 
-    const response = await fetch("/api/payments/confirm", {
-      method: "POST",
-      headers: authHeaders(),
-      body: JSON.stringify({
-        transaction_id: paymentTransaction?.id || lastSale?.transaction_id,
-        status,
-      }),
-    });
-    const data = await response.json().catch(() => ({}));
+    setPaymentProcessing(true);
 
-    if (!response.ok) {
-      setPaymentMessage(data.error || "Erreur confirmation paiement.");
-      return;
+    try {
+      const response = await fetch("/api/payments/confirm", {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({
+          transaction_id: paymentTransaction?.id || lastSale?.transaction_id,
+          provider_reference: paymentTransaction?.provider_reference || lastSale?.payment_reference || "",
+          status,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setPaymentMessage(data.error || "Erreur confirmation paiement.");
+        return;
+      }
+
+      setPaymentStatus(data.status || status);
+      if (paymentTransaction) {
+        setPaymentTransaction({ ...paymentTransaction, status: data.status || status });
+      }
+      if (data.sale) setLastSale(data.sale);
+      if (data.receipt) setLastReceipt(data.receipt);
+      if (data.items) setLastItems(data.items);
+      if (data.company_settings) setCompanySettings(data.company_settings);
+      setPaymentMessage(`Paiement ${data.status} confirmé en sandbox.`);
+    } finally {
+      setPaymentProcessing(false);
     }
-
-    setPaymentStatus(data.status || status);
-    if (data.sale) setLastSale(data.sale);
-    if (data.receipt) setLastReceipt(data.receipt);
-    if (data.items) setLastItems(data.items);
-    if (data.company_settings) setCompanySettings(data.company_settings);
-    setPaymentMessage(`Paiement ${data.status} confirmé en sandbox.`);
   };
 
   const validateSale = async () => {
@@ -886,16 +899,18 @@ export default function PosPage() {
                     <button
                       type="button"
                       onClick={() => confirmPayment("payé")}
-                      className="flex-1 bg-green-600 text-white rounded-xl px-3 py-2 font-bold"
+                      disabled={paymentProcessing || !["pending", "en attente"].includes(String(paymentTransaction?.status || paymentStatus || "").toLowerCase())}
+                      className="flex-1 bg-green-600 text-white rounded-xl px-3 py-2 font-bold disabled:opacity-50"
                     >
-                      Simuler réussi
+                      {paymentProcessing ? "Traitement..." : "Simuler réussi"}
                     </button>
                     <button
                       type="button"
                       onClick={() => confirmPayment("échoué")}
-                      className="flex-1 bg-red-600 text-white rounded-xl px-3 py-2 font-bold"
+                      disabled={paymentProcessing || !["pending", "en attente"].includes(String(paymentTransaction?.status || paymentStatus || "").toLowerCase())}
+                      className="flex-1 bg-red-600 text-white rounded-xl px-3 py-2 font-bold disabled:opacity-50"
                     >
-                      Simuler échoué
+                      {paymentProcessing ? "Traitement..." : "Simuler échoué"}
                     </button>
                   </div>
                 </div>
