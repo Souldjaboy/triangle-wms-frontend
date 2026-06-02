@@ -66,8 +66,8 @@ export default function PosPaiementsPage() {
       setMessage(
         response.ok
           ? status === "paid"
-            ? `Paiement réussi : ${data.provider_reference || payment.provider_reference || payment.id}`
-            : `Paiement échoué : ${data.provider_reference || payment.provider_reference || payment.id}`
+            ? `Paiement simulé avec succès : ${data.provider_reference || payment.provider_reference || payment.id}`
+            : `Paiement simulé comme échoué : ${data.provider_reference || payment.provider_reference || payment.id}`
           : data.error || "Erreur confirmation paiement."
       );
       await loadPayments();

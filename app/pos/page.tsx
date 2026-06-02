@@ -471,7 +471,11 @@ export default function PosPage() {
       if (data.receipt) setLastReceipt(data.receipt);
       if (data.items) setLastItems(data.items);
       if (data.company_settings) setCompanySettings(data.company_settings);
-      setPaymentMessage(`Paiement ${data.status} confirmé en sandbox.`);
+      setPaymentMessage(
+        data.status === "paid"
+          ? "Paiement simulé avec succès."
+          : "Paiement simulé comme échoué."
+      );
     } finally {
       setPaymentProcessing(false);
     }
