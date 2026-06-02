@@ -23,6 +23,7 @@ export default function PointageQRCodePage() {
   const [countdown, setCountdown] = useState(5);
   const [cameraReady, setCameraReady] = useState(false);
   const [gpsSettings, setGpsSettings] = useState<any>({ gps_required: false });
+  const [attendanceSites, setAttendanceSites] = useState<any[]>([]);
   const [gpsStatus, setGpsStatus] = useState({
     label: "GPS non vérifié",
     detail: "",
@@ -55,16 +56,20 @@ export default function PointageQRCodePage() {
 
   const fetchGpsSettings = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/attendance/settings/gps`, {
-        headers: getHeaders(),
-      });
-      const data = await res.json().catch(() => ({}));
+      const [settingsRes, sitesRes] = await Promise.all([
+        fetch(`${API_URL}/attendance/settings/gps`, { headers: getHeaders() }),
+        fetch(`${API_URL}/attendance-sites`, { headers: getHeaders() }),
+      ]);
+      const data = await settingsRes.json().catch(() => ({}));
+      const sitesData = await sitesRes.json().catch(() => []);
       const nextSettings = data || { gps_required: false };
       gpsSettingsRef.current = nextSettings;
       setGpsSettings(nextSettings);
+      setAttendanceSites(Array.isArray(sitesData) ? sitesData : []);
     } catch {
       gpsSettingsRef.current = { gps_required: false };
       setGpsSettings({ gps_required: false });
+      setAttendanceSites([]);
     }
   }, []);
 
@@ -144,26 +149,35 @@ export default function PointageQRCodePage() {
             accuracy: position.coords.accuracy,
           };
 
-          const siteLat = Number(gpsSettingsRef.current?.site_latitude);
-          const siteLon = Number(gpsSettingsRef.current?.site_longitude);
-          const radius = Number(gpsSettingsRef.current?.allowed_radius_meters || 100);
+          const nearestSite = attendanceSites
+            .map((site) => {
+              const siteLat = Number(site.latitude);
+              const siteLon = Number(site.longitude);
+              if (!Number.isFinite(siteLat) || !Number.isFinite(siteLon)) return null;
+              return {
+                site,
+                distance: calculateDistanceMeters(
+                  siteLat,
+                  siteLon,
+                  position.coords.latitude,
+                  position.coords.longitude
+                ),
+              };
+            })
+            .filter(Boolean)
+            .sort((a: any, b: any) => a.distance - b.distance)[0] as any;
 
-          if (Number.isFinite(siteLat) && Number.isFinite(siteLon)) {
-            const distance = calculateDistanceMeters(
-              siteLat,
-              siteLon,
-              position.coords.latitude,
-              position.coords.longitude
-            );
+          if (nearestSite) {
+            const radius = Number(nearestSite.site.rayon_autorise_metre || 100);
             setGpsStatus({
               label: "Position obtenue",
-              detail: `Distance site : ${Math.round(distance)} m / rayon ${radius} m. Précision GPS : ${Math.round(position.coords.accuracy)} m.`,
-              inside: distance <= radius,
+              detail: `${nearestSite.site.nom_du_site} : ${Math.round(nearestSite.distance)} m / rayon ${radius} m. Précision GPS : ${Math.round(position.coords.accuracy)} m.`,
+              inside: nearestSite.distance <= radius,
             });
           } else {
             setGpsStatus({
               label: "Position obtenue",
-              detail: `Précision GPS : ${Math.round(position.coords.accuracy)} m. Coordonnées du site non configurées.`,
+              detail: `Précision GPS : ${Math.round(position.coords.accuracy)} m. Le backend vérifiera les sites autorisés.`,
               inside: null,
             });
           }
@@ -219,12 +233,20 @@ export default function PointageQRCodePage() {
       );
 
       if (data.gps) {
+        const gpsStatusLabel =
+          data.gps.gps_status === "mobile"
+            ? "Pointage mobile"
+            : data.gps.gps_status === "hors_zone_autorisé"
+              ? "Hors zone autorisé"
+              : data.gps.is_inside_zone === false
+                ? "Hors zone autorisée"
+                : "Dans la zone autorisée";
         setGpsStatus({
-          label: data.gps.is_inside_zone === false ? "Hors zone autorisée" : "Dans la zone autorisée",
+          label: gpsStatusLabel,
           detail:
             data.gps.distance_meters !== null && data.gps.distance_meters !== undefined
-              ? `Distance site : ${Math.round(Number(data.gps.distance_meters || 0))} m / rayon ${Number(data.gps.allowed_radius_meters || 0)} m.`
-              : "Pointage enregistré sans distance calculée.",
+              ? `${data.gps.site_name || "Site détecté"} : ${Math.round(Number(data.gps.distance_meters || 0))} m / rayon ${Number(data.gps.allowed_radius_meters || 0)} m.`
+              : data.gps.site_name || "Pointage enregistré sans distance calculée.",
           inside: data.gps.is_inside_zone,
         });
       }
@@ -235,7 +257,7 @@ export default function PointageQRCodePage() {
       setMessageType("error");
       setMessage("Erreur QR Code ou serveur inaccessible.");
     }
-  }, [fetchAttendance]);
+  }, [attendanceSites, fetchAttendance]);
 
   const stopScanner = useCallback(async () => {
     const scanner = scannerRef.current;
@@ -410,6 +432,11 @@ export default function PointageQRCodePage() {
           </div>
           {gpsStatus.detail && (
             <p className="mt-2 text-sm font-semibold">{gpsStatus.detail}</p>
+          )}
+          {attendanceSites.length > 0 && (
+            <p className="mt-2 text-sm font-semibold">
+              Sites autorisés : {attendanceSites.map((site) => site.nom_du_site).join(", ")}
+            </p>
           )}
         </div>
 
