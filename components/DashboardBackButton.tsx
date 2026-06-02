@@ -3,30 +3,19 @@
 import { Home } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 
-const privatePrefixes = [
-  "/pos",
-  "/attendance-scan",
-  "/pointage",
-  "/parametres-pointage",
-  "/super-admin",
-  "/utilisateurs",
-  "/produits",
-  "/stocks",
-  "/documents",
-  "/rapports",
-  "/parametres",
+const hiddenPathnames = [
+  "/",
+  "/dashboard",
+  "/login",
+  "/register",
+  "/abonnement-expire",
 ];
 
 export default function DashboardBackButton() {
   const pathname = usePathname();
   const router = useRouter();
-  const shouldShow =
-    pathname !== "/dashboard" &&
-    privatePrefixes.some(
-      (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
-    );
 
-  if (!shouldShow) return null;
+  if (!pathname || hiddenPathnames.includes(pathname)) return null;
 
   return (
     <button
