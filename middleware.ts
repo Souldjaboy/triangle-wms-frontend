@@ -71,7 +71,8 @@ export function middleware(req: NextRequest) {
 
   if (
     pathname.startsWith("/parametres") ||
-    pathname.startsWith("/parametres-pointage")
+    pathname.startsWith("/parametres-pointage") ||
+    pathname.startsWith("/pos/parametres-paiement")
   ) {
     if (!isAdmin) {
       return NextResponse.redirect(

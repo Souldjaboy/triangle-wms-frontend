@@ -52,6 +52,7 @@ export default function PosPage() {
   const canEditPrice = ["admin", "super_admin"].includes(
     String(currentUser?.role || "").toLowerCase()
   ) || currentUser?.is_super_admin === true;
+  const canManagePaymentSettings = canEditPrice;
 
   const authHeaders = () => ({
     "Content-Type": "application/json",
@@ -643,9 +644,11 @@ export default function PosPage() {
           <a href="/pos/parametres" className="bg-white text-black px-5 py-3 rounded-xl font-bold">
             Paramètres POS
           </a>
-          <a href="/pos/parametres-paiement" className="bg-white text-black px-5 py-3 rounded-xl font-bold">
-            Paramètres paiement
-          </a>
+          {canManagePaymentSettings && (
+            <a href="/pos/parametres-paiement" className="bg-white text-black px-5 py-3 rounded-xl font-bold">
+              Paramètres paiement
+            </a>
+          )}
         </div>
       </div>
 
