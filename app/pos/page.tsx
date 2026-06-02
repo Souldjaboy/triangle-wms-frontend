@@ -575,6 +575,7 @@ export default function PosPage() {
             <p>Reçu : ${lastReceipt.receipt_number}</p>
             <p>Vente : ${lastSale.sale_number}</p>
             <p>Date : ${new Date(lastSale.created_at).toLocaleString("fr-FR")}</p>
+            <p>Caisse : ${lastSale.nom_caisse || "-"}</p>
             <p>Caissier : ${lastSale.created_by_name || "-"}</p>
             <p>Client : ${lastSale.customer_name || "-"}</p>
             <table>
@@ -592,7 +593,7 @@ export default function PosPage() {
             <p class="total">Total : ${formatFCFA(lastSale.total_amount)}</p>
             <p class="right">Montant reçu : ${formatFCFA(lastSale.amount_paid)}</p>
             <p class="right">Monnaie rendue : ${formatFCFA(lastSale.change_due)}</p>
-            <p class="right">Reste à payer : ${formatFCFA(lastSale.amount_due)}</p>
+            <p class="right">Reste à payer : ${formatFCFA(lastSale.remaining_amount ?? lastSale.amount_due)}</p>
             <p>Paiement : ${lastSale.payment_method} (${lastSale.payment_status})</p>
           </div>
           <script>window.onload = () => window.print();</script>
@@ -984,16 +985,31 @@ export default function PosPage() {
               <input type="checkbox" checked={taxEnabled} onChange={(e) => setTaxEnabled(e.target.checked)} />
               TVA activée ({Number(settings?.default_tax_rate || 18)}% par défaut)
             </label>
-            <div className="text-lg space-y-1">
-              <p>Sous-total brut : <strong>{formatFCFA(totals.subtotalBeforeDiscount)}</strong></p>
-              <p>Remises articles : <strong>{formatFCFA(totals.itemDiscount)}</strong></p>
-              <p>Sous-total net : <strong>{formatFCFA(totals.subtotal)}</strong></p>
-              <p>Remise ticket : <strong>{formatFCFA(totals.discount)}</strong></p>
-              <p>TVA : <strong>{formatFCFA(totals.tax)}</strong></p>
-              <p className="text-2xl">Total : <strong>{formatFCFA(totals.total)}</strong></p>
-              <p>Total payé : <strong>{formatFCFA(amountReceivedNumber)}</strong></p>
-              <p className="text-green-600">Monnaie à rendre : <strong>{formatFCFA(changeDue)}</strong></p>
-              <p className="text-red-600">Reste à payer : <strong>{formatFCFA(remainingAmount)}</strong></p>
+            <div className="space-y-3 rounded-2xl bg-gray-50 p-4 text-lg">
+              <p className="flex justify-between text-2xl font-bold">
+                <span>Total à payer</span>
+                <strong>{formatFCFA(totals.total)}</strong>
+              </p>
+              <p className="flex justify-between">
+                <span>Montant reçu</span>
+                <strong>{formatFCFA(amountReceivedNumber)}</strong>
+              </p>
+              <p className="flex justify-between text-green-600">
+                <span>Monnaie à rendre</span>
+                <strong>{formatFCFA(changeDue)}</strong>
+              </p>
+              <p className="flex justify-between text-red-600">
+                <span>Reste à payer</span>
+                <strong>{formatFCFA(remainingAmount)}</strong>
+              </p>
+              <p className="flex justify-between">
+                <span>Mode paiement</span>
+                <strong>{paymentMethod}</strong>
+              </p>
+              <p className="flex justify-between">
+                <span>Statut paiement</span>
+                <strong>{paymentStatus}</strong>
+              </p>
             </div>
             <button disabled={cart.length === 0} onClick={validateSale} className="w-full bg-yellow-500 text-black font-bold py-4 rounded-xl disabled:opacity-50">
               Valider vente

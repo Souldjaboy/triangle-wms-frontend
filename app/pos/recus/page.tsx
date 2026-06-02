@@ -60,6 +60,7 @@ export default function PosRecusPage() {
             <p>Reçu : ${receipt.receipt_number || "-"}</p>
             <p>Vente : ${sale.sale_number || "-"}</p>
             <p>Date : ${sale.created_at ? new Date(sale.created_at).toLocaleString("fr-FR") : "-"}</p>
+            <p>Caisse : ${sale.nom_caisse || "-"}</p>
             <p>Caissier : ${sale.created_by_name || "-"}</p>
             <p>Client : ${sale.customer_name || "-"}</p>
             <table>
@@ -71,6 +72,9 @@ export default function PosRecusPage() {
             <p class="right">Remise : ${formatFCFA(sale.discount_amount)}</p>
             <p class="right">TVA : ${formatFCFA(sale.tax_amount)}</p>
             <p class="total">Total : ${formatFCFA(sale.total_amount)}</p>
+            <p class="right">Montant reçu : ${formatFCFA(sale.amount_paid)}</p>
+            <p class="right">Monnaie rendue : ${formatFCFA(sale.change_due)}</p>
+            <p class="right">Reste à payer : ${formatFCFA(sale.remaining_amount ?? sale.amount_due)}</p>
             <p>Paiement : ${sale.payment_method || "-"} (${sale.payment_status || "-"})</p>
           </div>
           <script>window.onload = () => window.print();</script>
@@ -95,6 +99,7 @@ export default function PosRecusPage() {
           <div key={sale.id} className="bg-white rounded-2xl shadow p-5">
             <h2 className="text-2xl font-bold">{sale.sale_number}</h2>
             <p>Date : {sale.created_at ? new Date(sale.created_at).toLocaleString("fr-FR") : "-"}</p>
+            <p>Caisse : {sale.nom_caisse || "-"}</p>
             <p>Caissier : {sale.created_by_name || "-"}</p>
             <p>Paiement : {sale.payment_method} ({sale.payment_status})</p>
             <p className="text-2xl font-bold mt-3">{formatFCFA(sale.total_amount)}</p>

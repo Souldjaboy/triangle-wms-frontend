@@ -156,6 +156,7 @@ export default function PosVentesPage() {
               <th>Caissier</th>
               <th>Client</th>
               <th>Caisse</th>
+              <th>Bénéfice</th>
               <th>Date</th>
               <th>Actions</th>
             </tr>
@@ -170,6 +171,7 @@ export default function PosVentesPage() {
                 <td>{sale.created_by_name || "-"}</td>
                 <td>{sale.customer_name || "-"}</td>
                 <td>{sale.nom_caisse || sale.cash_register_id || "-"}</td>
+                <td>{formatFCFA(sale.total_profit || 0)}</td>
                 <td>{sale.created_at ? new Date(sale.created_at).toLocaleString("fr-FR") : "-"}</td>
                 <td className="space-x-2">
                   <a href={`/pos/recus?sale=${sale.id}`} className="bg-yellow-500 text-black px-4 py-2 rounded-xl font-bold inline-block">Reçu</a>
@@ -228,6 +230,13 @@ export default function PosVentesPage() {
             <p className="text-gray-300">Montant moyen</p>
             <p className="text-3xl font-bold text-green-400">
               {formatFCFA(averageSale)}
+            </p>
+          </div>
+
+          <div>
+            <p className="text-gray-300">Bénéfice total</p>
+            <p className="text-3xl font-bold text-yellow-300">
+              {formatFCFA(totals.total_profit || 0)}
             </p>
           </div>
         </div>
