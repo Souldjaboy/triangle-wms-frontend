@@ -49,8 +49,17 @@ export default function DashboardPage() {
   const [userData, setUserData] = useState<any>(null);
   const [stats, setStats] = useState<any>(null);
   const [statsError, setStatsError] = useState("");
+  const [accessMessage, setAccessMessage] = useState("");
 
   useEffect(() => {
+    const access = new URLSearchParams(window.location.search).get("access");
+    if (access === "admin") {
+      setAccessMessage("Accès refusé : réservé à l’administrateur");
+    }
+    if (access === "direction") {
+      setAccessMessage("Accès refusé : module réservé à la direction");
+    }
+
     const storedUser = localStorage.getItem("user");
 
     if (storedUser) {
@@ -146,8 +155,9 @@ export default function DashboardPage() {
     role === "chef_entrepot" ||
     role === "responsable d'entrepôt";
   const isReadOnlyRole = role === "direction" || role === "client";
+  const isDirectionRole = role === "direction" || role === "directeur";
   const canManageWarehouse = isAdminLike || isWarehouseManager;
-  const canViewReports = canManageWarehouse || isReadOnlyRole;
+  const canViewDirectionModules = isAdminLike || isDirectionRole;
   const canUsePos = isAdminLike || role === "caissier" || role === "vendeur" || role === "direction";
 
   return (
@@ -267,7 +277,7 @@ export default function DashboardPage() {
     </Link>
   )}
 
-  {canViewReports && (
+  {canViewDirectionModules && (
     <>
       <Link href="/documents">
         <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
@@ -283,13 +293,16 @@ export default function DashboardPage() {
         </li>
       </Link>
 
-      <Link href="/alertes">
-        <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
-          <TriangleAlert size={20} />
-          Alertes
-        </li>
-      </Link>
     </>
+  )}
+
+  {(canManageWarehouse || isReadOnlyRole) && (
+    <Link href="/alertes">
+      <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+        <TriangleAlert size={20} />
+        Alertes
+      </li>
+    </Link>
   )}
 
   {isAdminLike && (
@@ -364,6 +377,12 @@ export default function DashboardPage() {
   <h1 className="text-4xl font-bold text-black">
     Tableau de bord
   </h1>
+
+  {accessMessage && (
+    <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 font-semibold text-red-700">
+      {accessMessage}
+    </div>
+  )}
 
   {userData && (
     <div className="bg-white rounded-2xl shadow p-4 mt-4 mb-6">

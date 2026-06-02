@@ -63,6 +63,9 @@ export default function ParametresPage() {
 
     const response = await fetch("/api/upload-logo", {
       method: "POST",
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+      },
       body: uploadData,
     });
 

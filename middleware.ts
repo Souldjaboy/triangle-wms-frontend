@@ -52,18 +52,39 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL("/login", req.url));
   }
 
-  if (pathname.startsWith("/super-admin")) {
-    const isSuperAdmin = req.cookies.get("triangle_super_admin")?.value;
-    const payload = readJwtPayload(token);
-    const role = String(payload?.role || "").toLowerCase();
-    const tokenSaysSuperAdmin =
-      payload?.is_super_admin === true ||
-      payload?.is_super_admin === "true" ||
-      payload?.is_super_admin === 1 ||
-      role === "super_admin";
+  const payload = readJwtPayload(token);
+  const role = String(payload?.role || "").toLowerCase();
+  const isSuperAdminCookie = req.cookies.get("triangle_super_admin")?.value;
+  const tokenSaysSuperAdmin =
+    payload?.is_super_admin === true ||
+    payload?.is_super_admin === "true" ||
+    payload?.is_super_admin === 1 ||
+    role === "super_admin";
+  const isAdmin = tokenSaysSuperAdmin || role === "admin";
+  const isDirection = role === "directeur" || role === "direction";
 
-    if (isSuperAdmin !== "true" && !tokenSaysSuperAdmin) {
+  if (pathname.startsWith("/super-admin")) {
+    if (isSuperAdminCookie !== "true" && !tokenSaysSuperAdmin) {
       return NextResponse.redirect(new URL("/dashboard", req.url));
+    }
+  }
+
+  if (
+    pathname.startsWith("/parametres") ||
+    pathname.startsWith("/parametres-pointage")
+  ) {
+    if (!isAdmin) {
+      return NextResponse.redirect(
+        new URL("/dashboard?access=admin", req.url)
+      );
+    }
+  }
+
+  if (pathname.startsWith("/documents") || pathname.startsWith("/rapports")) {
+    if (!isAdmin && !isDirection) {
+      return NextResponse.redirect(
+        new URL("/dashboard?access=direction", req.url)
+      );
     }
   }
 
