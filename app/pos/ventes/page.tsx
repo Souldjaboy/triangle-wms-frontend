@@ -5,6 +5,8 @@ import { formatFCFA } from "../../lib/format";
 
 export default function PosVentesPage() {
   const [sales, setSales] = useState<any[]>([]);
+  const [summary, setSummary] = useState<any>(null);
+  const [caisses, setCaisses] = useState<any[]>([]);
   const [message, setMessage] = useState("");
   const [filters, setFilters] = useState({
     q: "",
@@ -27,13 +29,25 @@ export default function PosVentesPage() {
     Object.entries(filters).forEach(([key, value]) => {
       if (value) params.set(key, value);
     });
-    const response = await fetch(`/api/pos/sales?${params.toString()}`, { headers: headers() });
-    const data = await response.json().catch(() => []);
+    const [salesResponse, summaryResponse] = await Promise.all([
+      fetch(`/api/pos/sales?${params.toString()}`, { headers: headers() }),
+      fetch(`/api/pos/sales-summary?${params.toString()}`, { headers: headers() }),
+    ]);
+    const data = await salesResponse.json().catch(() => []);
+    const summaryData = await summaryResponse.json().catch(() => null);
     setSales(Array.isArray(data) ? data : []);
+    setSummary(summaryData || null);
+  };
+
+  const fetchCaisses = async () => {
+    const response = await fetch("/api/pos/caisses", { headers: headers() });
+    const data = await response.json().catch(() => []);
+    setCaisses(Array.isArray(data) ? data : []);
   };
 
   useEffect(() => {
     fetchSales();
+    fetchCaisses();
   }, []);
 
   const exportCsv = () => {
@@ -46,7 +60,7 @@ export default function PosVentesPage() {
         sale.status,
         sale.created_by_name || "",
         sale.customer_name || "",
-        sale.cash_register_id || "",
+        sale.nom_caisse || sale.cash_register_id || "",
         sale.created_at || "",
       ]),
     ];
@@ -64,38 +78,13 @@ export default function PosVentesPage() {
     setFilters((current) => ({ ...current, [field]: value }));
   };
 
-  const totalSalesAmount = sales.reduce(
-    (sum, sale) =>
-      String(sale.status || "").toLowerCase() === "annulée"
-        ? sum
-        : sum + Number(sale.total_amount || 0),
-    0
-  );
-  const totalCollected = sales.reduce(
-    (sum, sale) => sum + Number(sale.amount_paid || 0),
-    0
-  );
-  const totalCredit = sales.reduce(
-    (sum, sale) => sum + Number(sale.amount_due || 0),
-    0
-  );
-  const totalCancelled = sales.reduce(
-    (sum, sale) =>
-      String(sale.status || "").toLowerCase() === "annulée"
-        ? sum + Number(sale.total_amount || 0)
-        : sum,
-    0
-  );
-
-  const totalSalesCount = sales.filter(
-    (sale) => String(sale.status || "").toLowerCase() !== "annulée"
-  ).length;
-
-  const averageSale =
-    totalSalesCount > 0
-      ? totalSalesAmount / totalSalesCount
-      : 0;
-
+  const totals = summary?.totals || {};
+  const totalSalesCount = Number(totals.nombre_ventes || 0);
+  const totalSalesAmount = Number(totals.total_vendu || 0);
+  const totalCollected = Number(totals.total_encaisse || 0);
+  const totalCredit = Number(totals.total_credit || 0);
+  const totalCancelled = Number(totals.total_annule || 0);
+  const averageSale = Number(totals.montant_moyen || 0);
 
   const cancelSale = async (id: number) => {
     const reason = prompt("Motif d’annulation", "");
@@ -129,7 +118,12 @@ export default function PosVentesPage() {
         <input value={filters.q} onChange={(e) => updateFilter("q", e.target.value)} placeholder="Vente ou client..." className="border p-3 rounded-xl" />
         <input value={filters.product} onChange={(e) => updateFilter("product", e.target.value)} placeholder="Produit..." className="border p-3 rounded-xl" />
         <input value={filters.cashier} onChange={(e) => updateFilter("cashier", e.target.value)} placeholder="Utilisateur / caissier..." className="border p-3 rounded-xl" />
-        <input value={filters.cash_register_id} onChange={(e) => updateFilter("cash_register_id", e.target.value)} placeholder="Caisse ID..." className="border p-3 rounded-xl" />
+        <select value={filters.cash_register_id} onChange={(e) => updateFilter("cash_register_id", e.target.value)} className="border p-3 rounded-xl">
+          <option value="">Toutes caisses</option>
+          {caisses.map((caisse) => (
+            <option key={caisse.id} value={caisse.id}>{caisse.nom_caisse}</option>
+          ))}
+        </select>
         <input type="date" value={filters.date_from} onChange={(e) => updateFilter("date_from", e.target.value)} className="border p-3 rounded-xl" />
         <input type="date" value={filters.date_to} onChange={(e) => updateFilter("date_to", e.target.value)} className="border p-3 rounded-xl" />
         <select value={filters.payment_method} onChange={(e) => updateFilter("payment_method", e.target.value)} className="border p-3 rounded-xl">
@@ -175,7 +169,7 @@ export default function PosVentesPage() {
                 <td>{sale.status}</td>
                 <td>{sale.created_by_name || "-"}</td>
                 <td>{sale.customer_name || "-"}</td>
-                <td>{sale.cash_register_id || "-"}</td>
+                <td>{sale.nom_caisse || sale.cash_register_id || "-"}</td>
                 <td>{sale.created_at ? new Date(sale.created_at).toLocaleString("fr-FR") : "-"}</td>
                 <td className="space-x-2">
                   <a href={`/pos/recus?sale=${sale.id}`} className="bg-yellow-500 text-black px-4 py-2 rounded-xl font-bold inline-block">Reçu</a>
@@ -235,6 +229,22 @@ export default function PosVentesPage() {
             <p className="text-3xl font-bold text-green-400">
               {formatFCFA(averageSale)}
             </p>
+          </div>
+        </div>
+
+        <div className="mt-6 border-t border-gray-700 pt-5">
+          <h3 className="mb-3 text-xl font-bold">Total par caisse</h3>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {(summary?.by_caisse || []).map((row: any) => (
+              <div key={`${row.caisse_id}-${row.nom_caisse}`} className="rounded-xl bg-white/10 p-4">
+                <p className="text-gray-300">{row.nom_caisse || "Sans caisse"}</p>
+                <p className="text-2xl font-bold text-yellow-400">{formatFCFA(row.total_vendu)}</p>
+                <p className="text-sm text-gray-300">{row.nombre_ventes || 0} vente(s)</p>
+              </div>
+            ))}
+            {(summary?.by_caisse || []).length === 0 && (
+              <p className="text-gray-300">Aucune vente par caisse sur cette période.</p>
+            )}
           </div>
         </div>
       </div>

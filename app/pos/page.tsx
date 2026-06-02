@@ -42,6 +42,8 @@ export default function PosPage() {
   const [scannerMode, setScannerMode] = useState(false);
   const [settings, setSettings] = useState<any>(null);
   const [companySettings, setCompanySettings] = useState<any>(null);
+  const [caisses, setCaisses] = useState<any[]>([]);
+  const [selectedCaisseId, setSelectedCaisseId] = useState("");
   const [cameraMessage, setCameraMessage] = useState("");
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -61,6 +63,7 @@ export default function PosPage() {
     if (savedUser) setCurrentUser(JSON.parse(savedUser));
     loadSettings();
     loadCompanySettings();
+    loadCaisses();
     const params = new URLSearchParams(window.location.search);
     const scanCode = params.get("scan");
     searchProducts(scanCode || "").then((loaded) => {
@@ -90,6 +93,16 @@ export default function PosPage() {
       handleScannedCode(decodedText);
     } catch {
       setMessage("QR code non reconnu dans cette image.");
+    }
+  };
+
+  const loadCaisses = async () => {
+    const response = await fetch("/api/pos/caisses", { headers: authHeaders() });
+    const data = await response.json().catch(() => []);
+    if (Array.isArray(data)) {
+      setCaisses(data);
+      const openCaisse = data.find((caisse) => caisse.statut === "ouverte") || data[0];
+      if (openCaisse) setSelectedCaisseId(String(openCaisse.id));
     }
   };
 
@@ -407,6 +420,7 @@ export default function PosPage() {
         tax_enabled: taxEnabled,
         payment_method: paymentMethod,
         payment_status: "en attente",
+        caisse_id: selectedCaisseId || null,
         amount_received: amountReceivedNumber,
         change_due: changeDue,
         remaining_amount: remainingAmount,
@@ -498,6 +512,7 @@ export default function PosPage() {
         tax_enabled: taxEnabled,
         payment_method: paymentMethod,
         payment_status: paymentStatus,
+        caisse_id: selectedCaisseId || null,
         amount_received: amountReceivedNumber,
         change_due: changeDue,
         remaining_amount: remainingAmount,
@@ -612,6 +627,12 @@ export default function PosPage() {
           <a href="/pos/paiements" className="bg-white text-black px-5 py-3 rounded-xl font-bold">
             Paiements
           </a>
+          <a href="/pos/caisses" className="bg-white text-black px-5 py-3 rounded-xl font-bold">
+            Caisses
+          </a>
+          <a href="/pos/rapport-caisses" className="bg-white text-black px-5 py-3 rounded-xl font-bold">
+            Rapport caisses
+          </a>
           <a href="/pos/produits" className="bg-white text-black px-5 py-3 rounded-xl font-bold">
             Étiquettes
           </a>
@@ -628,6 +649,36 @@ export default function PosPage() {
       </div>
 
       {message && <div className="bg-yellow-100 p-4 rounded-xl mb-5 font-bold print:hidden">{message}</div>}
+
+      <div className="mb-5 grid grid-cols-1 gap-3 rounded-2xl bg-white p-4 shadow print:hidden md:grid-cols-3">
+        <div>
+          <label className="mb-2 block font-bold">Caisse utilisée</label>
+          <select
+            value={selectedCaisseId}
+            onChange={(event) => setSelectedCaisseId(event.target.value)}
+            className="w-full rounded-xl border p-3"
+          >
+            <option value="">Aucune caisse sélectionnée</option>
+            {caisses.map((caisse) => (
+              <option key={caisse.id} value={caisse.id}>
+                {caisse.nom_caisse} - {caisse.statut}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <p className="mb-2 font-bold">Statut caisse</p>
+          <p className="rounded-xl bg-gray-100 p-3">
+            {caisses.find((caisse) => String(caisse.id) === selectedCaisseId)?.statut || "Non sélectionnée"}
+          </p>
+        </div>
+        <div>
+          <p className="mb-2 font-bold">Solde actuel</p>
+          <p className="rounded-xl bg-gray-100 p-3 font-bold">
+            {formatFCFA(caisses.find((caisse) => String(caisse.id) === selectedCaisseId)?.solde_actuel || 0)}
+          </p>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2 space-y-6 print:hidden">
