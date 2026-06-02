@@ -391,13 +391,26 @@ export default function PosPage() {
 
   const initiatePayment = async () => {
     setPaymentMessage("");
-    const response = await fetch("/api/payments/initiate", {
+
+    if (cart.length === 0) {
+      setPaymentMessage("Panier vide.");
+      return;
+    }
+
+    const response = await fetch("/api/pos/sales", {
       method: "POST",
       headers: authHeaders(),
       body: JSON.stringify({
+        items: cart,
+        discount_amount: Number(discount || 0),
+        tax_enabled: taxEnabled,
         payment_method: paymentMethod,
-        amount: totals.total,
+        payment_status: "en attente",
+        amount_received: amountReceivedNumber,
+        change_due: changeDue,
+        remaining_amount: remainingAmount,
         customer_phone: paymentPhone,
+        mixed_payments: mixedPayments,
       }),
     });
     const data = await response.json().catch(() => ({}));
@@ -407,11 +420,19 @@ export default function PosPage() {
       return;
     }
 
-    setPaymentTransaction(data.transaction);
+    setLastSale(data.sale);
+    setLastItems(data.items || []);
+    setLastReceipt(data.receipt || null);
+    setPaymentTransaction(data.payment_transaction || data.transaction);
+    if (data.company_settings) setCompanySettings(data.company_settings);
+    setCart([]);
     setPaymentStatus("en attente");
     setPaymentMessage(
-      `Paiement initié : ${data.provider_reference} - statut ${data.status}.`
+      `Paiement initié : ${
+        data.payment_transaction?.provider_reference || data.provider_reference || data.sale?.payment_reference || "-"
+      } - statut en attente.`
     );
+    searchProducts(query);
   };
 
   const confirmPayment = async (status: "payé" | "échoué") => {
@@ -437,6 +458,9 @@ export default function PosPage() {
 
     setPaymentStatus(data.status || status);
     if (data.sale) setLastSale(data.sale);
+    if (data.receipt) setLastReceipt(data.receipt);
+    if (data.items) setLastItems(data.items);
+    if (data.company_settings) setCompanySettings(data.company_settings);
     setPaymentMessage(`Paiement ${data.status} confirmé en sandbox.`);
   };
 

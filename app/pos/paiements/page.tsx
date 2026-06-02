@@ -33,8 +33,8 @@ export default function PosPaiementsPage() {
     if (status === "paid" || status === "payé") return "payé";
     if (status === "failed" || status === "échoué") return "échoué";
     if (status === "cancelled" || status === "annulé") return "annulé";
-    if (status === "pending" || status === "en attente") return "pending";
-    return status || "pending";
+    if (status === "pending" || status === "en attente") return "en attente";
+    return status || "en attente";
   };
 
   const confirmPayment = async (payment: any, status: "paid" | "failed") => {
@@ -120,7 +120,7 @@ export default function PosPaiementsPage() {
                       onClick={() => confirmPayment(payment, "paid")}
                       className="rounded-xl bg-green-600 px-4 py-2 font-bold text-white"
                     >
-                      Confirmer
+                      Simuler réussi
                     </button>
                   )}
                   {isAdmin && !["failed", "échoué"].includes(payment.status) && (
@@ -128,7 +128,7 @@ export default function PosPaiementsPage() {
                       onClick={() => confirmPayment(payment, "failed")}
                       className="rounded-xl bg-red-600 px-4 py-2 font-bold text-white"
                     >
-                      Annuler
+                      Simuler échoué
                     </button>
                   )}
                   {payment.sale_id && (
