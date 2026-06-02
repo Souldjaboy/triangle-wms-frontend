@@ -62,11 +62,27 @@ export function middleware(req: NextRequest) {
     role === "super_admin";
   const isAdmin = tokenSaysSuperAdmin || role === "admin";
   const isDirection = role === "directeur" || role === "direction";
+  const subscriptionStatus = String(
+    req.cookies.get("triangle_subscription_status")?.value || payload?.subscription_status || ""
+  ).toLowerCase();
+  const subscriptionBlocked = [
+    "expired",
+    "expiré",
+    "expire",
+    "suspended",
+    "suspendu",
+    "inactive",
+    "inactif"
+  ].includes(subscriptionStatus);
 
   if (pathname.startsWith("/super-admin")) {
     if (isSuperAdminCookie !== "true" && !tokenSaysSuperAdmin) {
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
+  }
+
+  if (!tokenSaysSuperAdmin && subscriptionBlocked) {
+    return NextResponse.redirect(new URL("/abonnement-expire", req.url));
   }
 
   if (

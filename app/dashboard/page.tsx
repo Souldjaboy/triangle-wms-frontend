@@ -29,6 +29,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiUrl } from "../lib/api";
+import InstallPWAButton from "../../components/InstallPWAButton";
 import {
   BarChart,
   Bar,
@@ -97,6 +98,7 @@ export default function DashboardPage() {
     localStorage.removeItem("user");
     document.cookie = "triangle_token=; path=/; max-age=0";
     document.cookie = "triangle_super_admin=; path=/; max-age=0";
+    document.cookie = "triangle_subscription_status=; path=/; max-age=0";
     router.push("/login");
   };
 
@@ -374,9 +376,12 @@ export default function DashboardPage() {
       </aside>
 
     <main className="flex-1 p-8">
-  <h1 className="text-4xl font-bold text-black">
-    Tableau de bord
-  </h1>
+  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <h1 className="text-4xl font-bold text-black">
+      Tableau de bord
+    </h1>
+    <InstallPWAButton />
+  </div>
 
   {accessMessage && (
     <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 font-semibold text-red-700">

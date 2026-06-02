@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiUrl } from "../lib/api";
+import InstallPWAButton from "../../components/InstallPWAButton";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -50,6 +51,16 @@ export default function LoginPage() {
 
       document.cookie = `triangle_token=${data.token}; path=/; max-age=86400; SameSite=Lax`;
       document.cookie = `triangle_super_admin=${isSuperAdmin ? "true" : "false"}; path=/; max-age=86400; SameSite=Lax`;
+      document.cookie = `triangle_subscription_status=${encodeURIComponent(data.user?.subscription_status || "")}; path=/; max-age=86400; SameSite=Lax`;
+
+      const subscriptionStatus = String(data.user?.subscription_status || "").toLowerCase();
+      if (
+        !isSuperAdmin &&
+        ["expired", "expiré", "expire", "suspended", "suspendu", "inactive", "inactif"].includes(subscriptionStatus)
+      ) {
+        router.push("/abonnement-expire");
+        return;
+      }
 
       router.push("/dashboard");
     } catch (error) {
@@ -148,6 +159,10 @@ export default function LoginPage() {
           >
             Créer une entreprise
           </a>
+
+          <div className="mt-4 flex justify-center">
+            <InstallPWAButton />
+          </div>
         </div>
       </div>
     </div>
