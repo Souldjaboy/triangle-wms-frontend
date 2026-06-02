@@ -14,13 +14,61 @@ const paymentOptions = [
   "Crédit client",
 ];
 
+const paymentProviders = [
+  { key: "card", name: "Carte bancaire" },
+  { key: "orange_money", name: "Orange Money" },
+  { key: "moov_money", name: "Moov Money" },
+  { key: "wave", name: "Wave" },
+];
+
+const providerFields: Record<string, Array<{ name: string; label: string; type?: string; options?: string[] }>> = {
+  card: [
+    { name: "provider", label: "Fournisseur", options: ["Stripe", "CinetPay", "PayDunya"] },
+    { name: "public_key", label: "Clé publique" },
+    { name: "secret_key", label: "Clé secrète", type: "password" },
+    { name: "webhook_secret", label: "Webhook secret", type: "password" },
+    { name: "currency", label: "Devise" },
+  ],
+  orange_money: [
+    { name: "merchant_id", label: "Merchant ID" },
+    { name: "client_id", label: "Client ID" },
+    { name: "client_secret", label: "Client Secret", type: "password" },
+    { name: "merchant_account", label: "Numéro marchand Orange Money" },
+    { name: "webhook_url", label: "URL webhook" },
+    { name: "currency", label: "Devise" },
+  ],
+  moov_money: [
+    { name: "merchant_id", label: "Merchant ID" },
+    { name: "public_key", label: "API Key" },
+    { name: "secret_key", label: "Secret Key", type: "password" },
+    { name: "merchant_account", label: "Compte marchand Moov Money" },
+    { name: "webhook_url", label: "URL webhook" },
+    { name: "currency", label: "Devise" },
+  ],
+  wave: [
+    { name: "public_key", label: "API Key" },
+    { name: "secret_key", label: "Secret Key", type: "password" },
+    { name: "merchant_account", label: "Compte marchand Wave" },
+    { name: "webhook_url", label: "URL webhook" },
+    { name: "currency", label: "Devise" },
+  ],
+};
+
 export default function PosParametresPage() {
   const [user, setUser] = useState<any>(null);
   const [settings, setSettings] = useState<any>(null);
+  const [paymentSettings, setPaymentSettings] = useState<any[]>([]);
+  const [selectedPaymentProvider, setSelectedPaymentProvider] = useState("card");
+  const [paymentForm, setPaymentForm] = useState<any>({
+    provider_key: "card",
+    currency: "FCFA",
+    mode: "test",
+  });
   const [products, setProducts] = useState<any[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [query, setQuery] = useState("");
   const [message, setMessage] = useState("");
+  const [paymentMessage, setPaymentMessage] = useState("");
 
   const isAdmin = user?.is_super_admin === true || ["admin", "super_admin"].includes(String(user?.role || "").toLowerCase());
 
@@ -35,6 +83,23 @@ export default function PosParametresPage() {
     setSettings(data);
   };
 
+  const loadPaymentSettings = async () => {
+    const response = await fetch("/api/pos/payment-settings", {
+      headers: headers(),
+    });
+    const data = await response.json().catch(() => []);
+    const rows = Array.isArray(data) ? data : [];
+    const selected = rows.find((item) => item.provider_key === selectedPaymentProvider);
+    setPaymentSettings(rows);
+    setPaymentForm(
+      selected || {
+        provider_key: selectedPaymentProvider,
+        currency: "FCFA",
+        mode: "test",
+      }
+    );
+  };
+
   const searchProducts = async (value: string) => {
     const response = await fetch(`/api/pos/products/search?q=${encodeURIComponent(value)}`, {
       headers: headers(),
@@ -47,8 +112,22 @@ export default function PosParametresPage() {
     const saved = localStorage.getItem("user");
     if (saved) setUser(JSON.parse(saved));
     loadSettings();
+    loadPaymentSettings();
     searchProducts("");
   }, []);
+
+  useEffect(() => {
+    const selected = paymentSettings.find(
+      (item) => item.provider_key === selectedPaymentProvider
+    );
+    setPaymentForm(
+      selected || {
+        provider_key: selectedPaymentProvider,
+        currency: "FCFA",
+        mode: "test",
+      }
+    );
+  }, [selectedPaymentProvider, paymentSettings]);
 
   const saveSettings = async () => {
     const response = await fetch("/api/pos/settings", {
@@ -81,6 +160,10 @@ export default function PosParametresPage() {
     setSettings((current: any) => ({ ...(current || {}), [field]: value }));
   };
 
+  const updatePaymentSetting = (field: string, value: any) => {
+    setPaymentForm((current: any) => ({ ...(current || {}), [field]: value }));
+  };
+
   const updateProduct = (field: string, value: any) => {
     setSelectedProduct((current: any) => ({ ...(current || {}), [field]: value }));
   };
@@ -91,6 +174,39 @@ export default function PosParametresPage() {
       ? current.filter((item) => item !== method)
       : [...current, method];
     updateSetting("allowed_payment_methods", next.join(","));
+  };
+
+  const savePaymentSettings = async () => {
+    const response = await fetch("/api/pos/payment-settings", {
+      method: "PUT",
+      headers: headers(),
+      body: JSON.stringify({
+        ...paymentForm,
+        provider_key: selectedPaymentProvider,
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+    setPaymentMessage(
+      response.ok
+        ? "Paramètres paiement enregistrés."
+        : data.error || "Erreur paramètres paiement."
+    );
+    if (response.ok) loadPaymentSettings();
+  };
+
+  const testPaymentConnection = async () => {
+    const response = await fetch("/api/pos/payment-settings/test", {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ provider_key: selectedPaymentProvider }),
+    });
+    const data = await response.json().catch(() => ({}));
+    setPaymentMessage(
+      response.ok
+        ? data.message || "Connexion test OK."
+        : data.error || "Erreur test connexion."
+    );
+    if (response.ok) loadPaymentSettings();
   };
 
   const getProductPrice = (product: any) =>
@@ -158,6 +274,125 @@ export default function PosParametresPage() {
               </div>
             </div>
             <button onClick={saveSettings} className="bg-yellow-500 text-black px-5 py-3 rounded-xl font-bold">Enregistrer paramètres</button>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow p-5 xl:col-span-2">
+          <h2 className="text-2xl font-bold mb-4">Paramètres paiement</h2>
+          <p className="text-gray-500 mb-4">
+            Sélectionne un fournisseur : seuls ses champs s’affichent.
+          </p>
+
+          {paymentMessage && (
+            <div className="mb-4 rounded-xl bg-yellow-100 p-4 font-bold">
+              {paymentMessage}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+            <div className="rounded-2xl border p-3">
+              {paymentProviders.map((provider) => (
+                <button
+                  key={provider.key}
+                  onClick={() => setSelectedPaymentProvider(provider.key)}
+                  className={`mb-2 block w-full rounded-xl p-3 text-left font-bold ${
+                    selectedPaymentProvider === provider.key
+                      ? "bg-yellow-500"
+                      : "bg-gray-100"
+                  }`}
+                >
+                  {provider.name}
+                </button>
+              ))}
+            </div>
+
+            <div className="lg:col-span-2">
+              <div className="mb-4 grid grid-cols-1 gap-3 rounded-xl bg-gray-100 p-4 md:grid-cols-3">
+                <div>
+                  <p className="text-sm text-gray-500">Statut connexion</p>
+                  <p className="font-bold">
+                    {paymentForm.connection_status || "Non testé"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Dernière vérification</p>
+                  <p className="font-bold">
+                    {paymentForm.last_checked_at
+                      ? new Date(paymentForm.last_checked_at).toLocaleString("fr-FR")
+                      : "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Secret</p>
+                  <p className="font-bold">
+                    {paymentForm.secret_key ||
+                    paymentForm.client_secret ||
+                    paymentForm.webhook_secret
+                      ? "Clé secrète déjà enregistrée"
+                      : "Aucune clé secrète enregistrée"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                {(providerFields[selectedPaymentProvider] || []).map((field) =>
+                  field.options ? (
+                    <select
+                      key={field.name}
+                      value={paymentForm[field.name] || field.options[0]}
+                      onChange={(e) => updatePaymentSetting(field.name, e.target.value)}
+                      className="rounded-xl border p-3"
+                    >
+                      {field.options.map((option) => (
+                        <option key={option}>{option}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      key={field.name}
+                      type={field.type || "text"}
+                      value={paymentForm[field.name] || ""}
+                      onChange={(e) => updatePaymentSetting(field.name, e.target.value)}
+                      placeholder={field.label}
+                      className="rounded-xl border p-3"
+                    />
+                  )
+                )}
+
+                <select
+                  value={paymentForm.mode || "test"}
+                  onChange={(e) => updatePaymentSetting("mode", e.target.value)}
+                  className="rounded-xl border p-3"
+                >
+                  <option value="test">Mode test</option>
+                  <option value="production">Mode production</option>
+                </select>
+
+                <label className="flex items-center gap-2 font-bold">
+                  <input
+                    type="checkbox"
+                    checked={paymentForm.is_active === true}
+                    onChange={(e) => updatePaymentSetting("is_active", e.target.checked)}
+                  />
+                  Paiement actif
+                </label>
+              </div>
+
+              <div className="mt-5 flex flex-wrap gap-3">
+                <button
+                  onClick={savePaymentSettings}
+                  className="rounded-xl bg-yellow-500 px-5 py-3 font-bold text-black"
+                >
+                  Enregistrer
+                </button>
+                <button
+                  onClick={testPaymentConnection}
+                  className="rounded-xl bg-black px-5 py-3 font-bold text-white"
+                >
+                  Tester connexion
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
