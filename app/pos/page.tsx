@@ -44,6 +44,8 @@ export default function PosPage() {
   const [companySettings, setCompanySettings] = useState<any>(null);
   const [caisses, setCaisses] = useState<any[]>([]);
   const [selectedCaisseId, setSelectedCaisseId] = useState("");
+  const [partners, setPartners] = useState<any[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState("");
   const [cameraMessage, setCameraMessage] = useState("");
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -65,6 +67,7 @@ export default function PosPage() {
     loadSettings();
     loadCompanySettings();
     loadCaisses();
+    loadPartners();
     const params = new URLSearchParams(window.location.search);
     const scanCode = params.get("scan");
     searchProducts(scanCode || "").then((loaded) => {
@@ -105,6 +108,12 @@ export default function PosPage() {
       const openCaisse = data.find((caisse) => caisse.statut === "ouverte") || data[0];
       if (openCaisse) setSelectedCaisseId(String(openCaisse.id));
     }
+  };
+
+  const loadPartners = async () => {
+    const response = await fetch("/api/partners", { headers: authHeaders() });
+    const data = await response.json().catch(() => []);
+    setPartners(Array.isArray(data) ? data : []);
   };
 
   const stopCameraScanner = () => {
@@ -395,6 +404,13 @@ export default function PosPage() {
           : paymentMethod === "Carte bancaire"
             ? "Paiement carte"
             : "Initier paiement";
+  const clientPartners = partners.filter((partner) => {
+    const type = String(partner.type || "").toLowerCase();
+    return type.includes("client") || type.includes("mixte") || type === "";
+  });
+  const selectedClient = clientPartners.find(
+    (partner) => String(partner.id) === selectedClientId
+  );
 
   const updateMixedPayment = (index: number, key: string, value: string) => {
     setMixedPayments((current) =>
@@ -425,7 +441,10 @@ export default function PosPage() {
         amount_received: amountReceivedNumber,
         change_due: changeDue,
         remaining_amount: remainingAmount,
-        customer_phone: paymentPhone,
+        client_id: selectedClient?.id || null,
+        client_name: selectedClient?.name || "Client comptoir",
+        customer_name: selectedClient?.name || "Client comptoir",
+        customer_phone: selectedClient?.phone || paymentPhone,
         mixed_payments: mixedPayments,
       }),
     });
@@ -517,7 +536,10 @@ export default function PosPage() {
         amount_received: amountReceivedNumber,
         change_due: changeDue,
         remaining_amount: remainingAmount,
-        customer_phone: paymentPhone,
+        client_id: selectedClient?.id || null,
+        client_name: selectedClient?.name || "Client comptoir",
+        customer_name: selectedClient?.name || "Client comptoir",
+        customer_phone: selectedClient?.phone || paymentPhone,
         mixed_payments: mixedPayments,
       }),
     });
@@ -579,6 +601,7 @@ export default function PosPage() {
             <p>Caisse : ${lastSale.nom_caisse || "-"}</p>
             <p>Caissier : ${lastSale.created_by_name || "-"}</p>
             <p>Client : ${lastSale.customer_name || "-"}</p>
+            ${lastSale.customer_phone ? `<p>Tél client : ${lastSale.customer_phone}</p>` : ""}
             <table>
               <thead><tr><th>Produit</th><th>Qté</th><th class="right">Total</th></tr></thead>
               <tbody>
@@ -849,6 +872,35 @@ export default function PosPage() {
 
           <div className="border-t mt-5 pt-5 space-y-3">
             <h2 className="text-2xl font-bold">Paiement</h2>
+            <div className="rounded-xl border p-3">
+              <label className="mb-2 block font-bold">Client</label>
+              <select
+                value={selectedClientId}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setSelectedClientId(value);
+                  const partner = clientPartners.find(
+                    (item) => String(item.id) === value
+                  );
+                  if (partner?.phone) setPaymentPhone(partner.phone);
+                }}
+                className="w-full rounded-xl border p-3"
+              >
+                <option value="">Client comptoir</option>
+                {clientPartners.map((partner) => (
+                  <option key={partner.id} value={partner.id}>
+                    {partner.name} {partner.phone ? `- ${partner.phone}` : ""}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-2 text-sm text-gray-500">
+                {selectedClient
+                  ? `${selectedClient.phone || "Téléphone non renseigné"}${
+                      selectedClient.address ? ` - ${selectedClient.address}` : ""
+                    }`
+                  : "Aucun client sélectionné : la vente sera enregistrée en client comptoir."}
+              </p>
+            </div>
             <select
               value={paymentMethod}
               onChange={(e) => {

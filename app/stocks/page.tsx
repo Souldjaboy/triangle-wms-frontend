@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { formatFCFA } from "../lib/format";
 
 export default function StocksPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [warehouses, setWarehouses] = useState<any[]>([]);
   const [movements, setMovements] = useState<any[]>([]);
+  const [partners, setPartners] = useState<any[]>([]);
   const [selectedType, setSelectedType] = useState("Entrée");
   const [userRole, setUserRole] = useState("");
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -26,6 +28,11 @@ export default function StocksPage() {
     source_warehouse: "",
     destination_warehouse: "",
     reason: "",
+    partner_id: "",
+    partner_name: "",
+    partner_type: "",
+    apply_price: false,
+    unit_price: "",
   });
 
   const authHeaders = () => ({
@@ -59,10 +66,20 @@ export default function StocksPage() {
     setWarehouses(Array.isArray(data) ? data : []);
   };
 
+  const fetchPartners = async () => {
+    const response = await fetch("/api/partners", {
+      headers: authHeaders(),
+    });
+
+    const data = await response.json().catch(() => []);
+    setPartners(Array.isArray(data) ? data : []);
+  };
+
   useEffect(() => {
     fetchMovements();
     fetchProducts();
     fetchWarehouses();
+    fetchPartners();
 
     const savedUser = localStorage.getItem("user");
 
@@ -140,13 +157,41 @@ export default function StocksPage() {
       type,
       destination_warehouse: "",
       reason: "",
+      partner_id: "",
+      partner_name: "",
+      partner_type: "",
+      apply_price: false,
+      unit_price: "",
     });
   };
 
   const handleChange = (e: any) => {
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value,
+      [e.target.name]: e.target.type === "checkbox" ? e.target.checked : e.target.value,
+    });
+  };
+
+  const expectedPartnerType =
+    selectedType === "Entrée"
+      ? "fournisseur"
+      : selectedType === "Sortie"
+        ? "client"
+        : "";
+
+  const filteredPartners = partners.filter((partner) => {
+    if (!expectedPartnerType) return true;
+    const type = String(partner.type || "").toLowerCase();
+    return type.includes(expectedPartnerType) || type.includes("mixte");
+  });
+
+  const handlePartnerSelect = (partnerId: string) => {
+    const partner = partners.find((item: any) => String(item.id) === partnerId);
+    setFormData({
+      ...formData,
+      partner_id: partnerId,
+      partner_name: partner?.name || "",
+      partner_type: expectedPartnerType || partner?.type || "",
     });
   };
 
@@ -180,6 +225,11 @@ export default function StocksPage() {
       source_warehouse: formData.source_warehouse,
       destination_warehouse: formData.destination_warehouse || "",
       location_code: formData.location_code,
+      partner_id: formData.partner_id || null,
+      partner_name: formData.partner_name || "",
+      partner_type: formData.partner_type || "",
+      apply_price: formData.apply_price,
+      unit_price: Number(formData.unit_price || 0),
       reason: formData.reason || formData.location_code || "",
       status: "En attente",
       user_name: currentUser?.fullname || "Utilisateur",
@@ -216,6 +266,11 @@ export default function StocksPage() {
       source_warehouse: "",
       destination_warehouse: "",
       reason: "",
+      partner_id: "",
+      partner_name: "",
+      partner_type: "",
+      apply_price: false,
+      unit_price: "",
     });
 
     fetchMovements();
@@ -401,6 +456,25 @@ export default function StocksPage() {
         />
 
         <select
+          name="partner_id"
+          value={formData.partner_id}
+          onChange={(e) => handlePartnerSelect(e.target.value)}
+          className="border p-3 rounded-xl text-black"
+        >
+          <option value="">
+            {expectedPartnerType
+              ? `Choisir ${expectedPartnerType}`
+              : "Partenaire optionnel"}
+          </option>
+
+          {filteredPartners.map((partner: any) => (
+            <option key={partner.id} value={partner.id}>
+              {partner.name} {partner.phone ? `- ${partner.phone}` : ""}
+            </option>
+          ))}
+        </select>
+
+        <select
           name="source_warehouse"
           value={formData.source_warehouse}
           onChange={handleChange}
@@ -442,6 +516,41 @@ export default function StocksPage() {
           onChange={handleChange}
           className="border p-3 rounded-xl text-black"
         />
+
+        <label className="flex items-center gap-3 rounded-xl border p-3 text-black">
+          <input
+            type="checkbox"
+            name="apply_price"
+            checked={formData.apply_price}
+            onChange={handleChange}
+          />
+          Appliquer un prix à ce mouvement
+        </label>
+
+        {formData.apply_price && (
+          <>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              name="unit_price"
+              placeholder="Prix unitaire"
+              value={formData.unit_price}
+              onChange={handleChange}
+              className="border p-3 rounded-xl text-black"
+              required
+            />
+            <div className="rounded-xl bg-gray-100 p-3 text-black">
+              <p className="text-xs font-bold text-gray-500">Total mouvement</p>
+              <p className="font-bold">
+                {formatFCFA(
+                  Number(formData.quantity || 0) *
+                    Number(formData.unit_price || 0)
+                )}
+              </p>
+            </div>
+          </>
+        )}
 
         <button
           type="submit"
@@ -495,6 +604,8 @@ export default function StocksPage() {
               <th>Quantité</th>
               <th>Source</th>
               <th>Destination</th>
+              <th>Partenaire</th>
+              <th>Montant</th>
               <th>Observation / Emplacement</th>
               <th>Utilisateur</th>
               <th>Statut</th>
@@ -521,6 +632,23 @@ export default function StocksPage() {
                 <td>{movement.quantity}</td>
                 <td>{movement.source_warehouse}</td>
                 <td>{movement.destination_warehouse || "-"}</td>
+                <td>
+                  {movement.partner_name ? (
+                    <>
+                      {movement.partner_name}
+                      <span className="block text-xs text-gray-400">
+                        {movement.partner_type || "-"}
+                      </span>
+                    </>
+                  ) : (
+                    "-"
+                  )}
+                </td>
+                <td>
+                  {movement.apply_price
+                    ? formatFCFA(movement.total_amount)
+                    : "-"}
+                </td>
                 <td>{movement.reason || "-"}</td>
                 <td>
                   {movement.created_by_name || "Utilisateur"}{" "}
