@@ -96,7 +96,6 @@ export function middleware(req: NextRequest) {
     role === "super_admin";
   const isAdmin = tokenSaysSuperAdmin || role === "admin";
   const isDirection = role === "directeur" || role === "direction";
-  const isAccounting = role === "comptable";
   const subscriptionStatus = String(
     req.cookies.get("triangle_subscription_status")?.value || payload?.subscription_status || ""
   ).toLowerCase();
@@ -149,14 +148,6 @@ export function middleware(req: NextRequest) {
     if (!isAdmin && !isDirection) {
       return NextResponse.redirect(
         new URL("/dashboard?access=direction", req.url)
-      );
-    }
-  }
-
-  if (pathname.startsWith("/comptabilite")) {
-    if (!isAdmin && !isDirection && !isAccounting) {
-      return NextResponse.redirect(
-        new URL("/dashboard?access=accounting", req.url)
       );
     }
   }

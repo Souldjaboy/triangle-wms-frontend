@@ -17,9 +17,12 @@ const emptyTransaction = {
   transaction_type: "encaissement_bancaire",
   direction: "entrée",
   bank_id: "",
+  caisse_id: "",
   amount: "",
   category: "",
   partner_name: "",
+  source_label: "",
+  destination_label: "",
   description: "",
 };
 
@@ -45,9 +48,12 @@ export default function ComptabilitePage() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [dashboard, setDashboard] = useState<any>(null);
   const [banks, setBanks] = useState<any[]>([]);
+  const [caisses, setCaisses] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [vouchers, setVouchers] = useState<any[]>([]);
   const [expenses, setExpenses] = useState<any[]>([]);
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [journalEntries, setJournalEntries] = useState<any[]>([]);
   const [statements, setStatements] = useState<any>(null);
   const [bankForm, setBankForm] = useState(emptyBank);
   const [transactionForm, setTransactionForm] = useState(emptyTransaction);
@@ -70,25 +76,49 @@ export default function ComptabilitePage() {
     role === "admin" ||
     role === "direction" ||
     role === "directeur";
+  const canViewFullModule = canManage || canApprove;
 
   const loadAll = async () => {
     setLoading(true);
-    const [dashboardRes, banksRes, transactionsRes, vouchersRes, expensesRes, statementsRes] =
-      await Promise.all([
-        authFetch("/accounting/dashboard"),
-        authFetch("/accounting/banks"),
-        authFetch("/accounting/transactions"),
-        authFetch("/accounting/vouchers"),
-        authFetch("/accounting/expense-requests"),
-        authFetch("/accounting/statements"),
-      ]);
+    if (!canViewFullModule) {
+      const expensesRes = await authFetch("/accounting/expense-requests");
+      setExpenses(await expensesRes.json().catch(() => []));
+      setActiveTab("expenses");
+      setLoading(false);
+      return;
+    }
+
+    const [
+      dashboardRes,
+      banksRes,
+      caissesRes,
+      transactionsRes,
+      vouchersRes,
+      expensesRes,
+      statementsRes,
+      accountsRes,
+      journalRes,
+    ] = await Promise.all([
+      authFetch("/accounting/dashboard"),
+      authFetch("/accounting/banks"),
+      authFetch("/accounting/caisses"),
+      authFetch("/accounting/transactions"),
+      authFetch("/accounting/vouchers"),
+      authFetch("/accounting/expense-requests"),
+      authFetch("/accounting/statements"),
+      authFetch("/accounting/chart-accounts"),
+      authFetch("/accounting/journal-entries"),
+    ]);
 
     setDashboard(await dashboardRes.json().catch(() => null));
     setBanks(await banksRes.json().catch(() => []));
+    setCaisses(await caissesRes.json().catch(() => []));
     setTransactions(await transactionsRes.json().catch(() => []));
     setVouchers(await vouchersRes.json().catch(() => []));
     setExpenses(await expensesRes.json().catch(() => []));
     setStatements(await statementsRes.json().catch(() => null));
+    setAccounts(await accountsRes.json().catch(() => []));
+    setJournalEntries(await journalRes.json().catch(() => []));
     setLoading(false);
   };
 
@@ -153,6 +183,7 @@ export default function ComptabilitePage() {
   };
 
   const totalBanks = Number(dashboard?.bank_balance || 0);
+  const totalCaisses = Number(dashboard?.cash_register_balance || 0);
   const treasury = Number(dashboard?.treasury_balance || 0);
 
   return (
@@ -162,7 +193,7 @@ export default function ComptabilitePage() {
           <p className="font-bold text-yellow-600">TRIANGLE WMS PRO</p>
           <h1 className="text-3xl font-black md:text-4xl">Comptabilité & Trésorerie</h1>
           <p className="text-gray-600">
-            Banques, encaissements, décaissements, demandes, paie et états financiers.
+            Banques, caisses, encaissements, décaissements, demandes, salaires et états financiers.
           </p>
         </div>
         <button
@@ -176,14 +207,21 @@ export default function ComptabilitePage() {
       {message && <div className="mb-5 rounded-lg bg-yellow-100 p-4 font-bold">{message}</div>}
 
       <div className="mb-6 flex gap-2 overflow-x-auto">
-        {[
+        {(canViewFullModule
+          ? [
           ["dashboard", "Tableau"],
           ["banks", "Banques"],
+          ["caisses", "Caisses"],
           ["transactions", "Mouvements"],
           ["vouchers", "Bons"],
           ["expenses", "Demandes"],
+          ["payroll", "Salaires"],
           ["statements", "États"],
-        ].map(([key, label]) => (
+          ["reports", "Rapports comptables"],
+          ["settings", "Paramètres comptables"],
+        ]
+          : [["expenses", "Mes demandes"]]
+        ).map(([key, label]) => (
           <button
             key={key}
             onClick={() => setActiveTab(key)}
@@ -204,7 +242,9 @@ export default function ComptabilitePage() {
             <section className="space-y-6">
               <div className="grid gap-4 md:grid-cols-4">
                 <Metric title="Solde banques" value={formatFCFA(totalBanks)} />
+                <Metric title="Solde caisses" value={formatFCFA(totalCaisses)} />
                 <Metric title="Trésorerie" value={formatFCFA(treasury)} />
+                <Metric title="Trésorerie totale" value={formatFCFA(dashboard?.total_treasury)} />
                 <Metric title="Encaissements du jour" value={formatFCFA(dashboard?.cash_in_today)} />
                 <Metric title="Décaissements du jour" value={formatFCFA(dashboard?.cash_out_today)} />
                 <Metric title="Dépenses du mois" value={formatFCFA(dashboard?.expenses_month)} />
@@ -213,6 +253,32 @@ export default function ComptabilitePage() {
                 <Metric title="Demandes validées" value={dashboard?.expense_requests_approved || 0} />
               </div>
               <RecentTable title="Derniers mouvements" rows={transactions.slice(0, 8)} />
+            </section>
+          )}
+
+          {activeTab === "caisses" && canViewFullModule && (
+            <section className="grid gap-6 lg:grid-cols-2">
+              <Panel title="Caisses physiques">
+                <DataTable
+                  headers={["Caisse", "Code", "Statut", "Solde", "Responsable"]}
+                  rows={caisses.map((caisse) => [
+                    caisse.nom_caisse,
+                    caisse.code_caisse || "-",
+                    caisse.statut || "fermée",
+                    formatFCFA(caisse.solde_actuel),
+                    caisse.responsable_name || caisse.responsable_email || "-",
+                  ])}
+                />
+              </Panel>
+              <Panel title="Règles caisse">
+                <ul className="space-y-3 text-gray-700">
+                  <li>Les ventes POS espèces alimentent la caisse affectée.</li>
+                  <li>Les décaissements, salaires et achats espèces diminuent la caisse.</li>
+                  <li>L’ouverture et la fermeture détaillée restent gérées dans POS / Caisses.</li>
+                  <li><a href="/pos/caisses" className="font-bold text-yellow-700">Ouvrir la gestion des caisses POS</a></li>
+                  <li><a href="/pos/rapport-caisses" className="font-bold text-yellow-700">Voir le rapport des caisses</a></li>
+                </ul>
+              </Panel>
             </section>
           )}
 
@@ -264,9 +330,12 @@ export default function ComptabilitePage() {
                       <option value="sortie">Sortie</option>
                     </select>
                     <BankSelect banks={banks} value={transactionForm.bank_id} onChange={(v) => setTransactionForm({ ...transactionForm, bank_id: v })} />
+                    <CaisseSelect caisses={caisses} value={transactionForm.caisse_id} onChange={(v) => setTransactionForm({ ...transactionForm, caisse_id: v })} />
                     <Input type="number" placeholder="Montant" value={transactionForm.amount} onChange={(v) => setTransactionForm({ ...transactionForm, amount: v })} />
                     <Input placeholder="Catégorie" value={transactionForm.category} onChange={(v) => setTransactionForm({ ...transactionForm, category: v })} />
                     <Input placeholder="Client / fournisseur / bénéficiaire" value={transactionForm.partner_name} onChange={(v) => setTransactionForm({ ...transactionForm, partner_name: v })} />
+                    <Input placeholder="Source" value={transactionForm.source_label} onChange={(v) => setTransactionForm({ ...transactionForm, source_label: v })} />
+                    <Input placeholder="Destination" value={transactionForm.destination_label} onChange={(v) => setTransactionForm({ ...transactionForm, destination_label: v })} />
                     <textarea className="rounded-lg border p-3" placeholder="Description" value={transactionForm.description} onChange={(e) => setTransactionForm({ ...transactionForm, description: e.target.value })} />
                     <Submit>Enregistrer mouvement</Submit>
                   </form>
@@ -274,15 +343,41 @@ export default function ComptabilitePage() {
               )}
               <Panel title="Historique des mouvements">
                 <DataTable
-                  headers={["Numéro", "Type", "Sens", "Montant", "Banque", "Date"]}
+                  headers={["Numéro", "Type", "Sens", "Montant", "Banque", "Caisse", "Date"]}
                   rows={transactions.map((item) => [
                     item.transaction_number,
                     item.transaction_type,
                     item.direction,
                     formatFCFA(item.amount),
                     item.bank_name || "-",
+                    item.nom_caisse || "-",
                     new Date(item.created_at).toLocaleDateString("fr-FR"),
                   ])}
+                />
+              </Panel>
+            </section>
+          )}
+
+          {activeTab === "payroll" && canViewFullModule && (
+            <section className="grid gap-6 lg:grid-cols-2">
+              <Panel title="Paie connectée au pointage">
+                <p className="text-gray-700">
+                  La structure paie est prête : salaires bruts, retenues, avances, net à payer,
+                  paiement par banque, caisse ou mobile money.
+                </p>
+                <div className="mt-4 rounded-lg bg-yellow-50 p-4 font-bold">
+                  Prochaine étape : génération automatique depuis jours travaillés, retards,
+                  absences et heures supplémentaires.
+                </div>
+              </Panel>
+              <Panel title="Règles de paiement salaire">
+                <DataTable
+                  headers={["Débit", "Crédit", "Effet"]}
+                  rows={[
+                    ["64 Charges de personnel", "52 Banque", "Paiement salaire par banque"],
+                    ["64 Charges de personnel", "57 Caisse", "Paiement salaire espèces"],
+                    ["42 Personnel", "57 Caisse", "Avance employé"],
+                  ]}
                 />
               </Panel>
             </section>
@@ -370,6 +465,7 @@ export default function ComptabilitePage() {
                   headers={["Poste", "Montant"]}
                   rows={[
                     ["Banques", formatFCFA(statements?.bilan?.banques)],
+                    ["Caisses", formatFCFA(statements?.bilan?.caisses)],
                     ["Trésorerie", formatFCFA(statements?.bilan?.tresorerie)],
                     ["Actif total", formatFCFA(statements?.bilan?.actif)],
                   ]}
@@ -419,12 +515,61 @@ export default function ComptabilitePage() {
               </Panel>
               <Panel title="Grand livre récent">
                 <DataTable
-                  headers={["Date", "Libellé", "Débit", "Crédit"]}
+                  headers={["Date", "Numéro", "Libellé", "Lignes"]}
                   rows={(statements?.grand_livre || []).slice(0, 12).map((entry: any) => [
                     new Date(entry.created_at).toLocaleDateString("fr-FR"),
+                    entry.entry_number,
                     entry.label,
-                    formatFCFA(entry.debit),
-                    formatFCFA(entry.credit),
+                    `${(entry.lines || []).length} ligne(s)`,
+                  ])}
+                />
+              </Panel>
+            </section>
+          )}
+
+          {activeTab === "reports" && canViewFullModule && (
+            <section className="grid gap-6 lg:grid-cols-2">
+              <Panel title="Rapports comptables">
+                <DataTable
+                  headers={["Rapport", "Contenu", "Action"]}
+                  rows={[
+                    ["Banques", "Soldes et mouvements bancaires", <button key="print-banks" onClick={() => window.print()} className="rounded bg-yellow-500 px-3 py-2 font-bold">Imprimer</button>],
+                    ["Caisses", "Soldes, ouvertures, fermetures", <a key="caisses-report" href="/pos/rapport-caisses" className="font-bold text-yellow-700">Ouvrir</a>],
+                    ["Demandes", "Décaissements et justificatifs", <button key="print-expenses" onClick={() => window.print()} className="rounded bg-yellow-500 px-3 py-2 font-bold">Imprimer</button>],
+                    ["États", "Bilan, résultat, trésorerie", <button key="print-states" onClick={() => window.print()} className="rounded bg-yellow-500 px-3 py-2 font-bold">Imprimer</button>],
+                  ]}
+                />
+              </Panel>
+              <Panel title="Exports">
+                <p className="text-gray-700">
+                  Les impressions A4 sont prêtes via le bouton imprimer. Les exports PDF/Excel
+                  complets seront branchés sur les mêmes données filtrées.
+                </p>
+              </Panel>
+            </section>
+          )}
+
+          {activeTab === "settings" && canViewFullModule && (
+            <section className="grid gap-6 lg:grid-cols-2">
+              <Panel title="Plan comptable SYSCOHADA simplifié">
+                <DataTable
+                  headers={["Code", "Compte", "Classe", "Type"]}
+                  rows={accounts.map((account) => [
+                    account.account_code,
+                    account.account_name,
+                    account.account_class || "-",
+                    account.account_type || "-",
+                  ])}
+                />
+              </Panel>
+              <Panel title="Journal comptable">
+                <DataTable
+                  headers={["Numéro", "Libellé", "Source", "Lignes"]}
+                  rows={journalEntries.slice(0, 20).map((entry) => [
+                    entry.entry_number,
+                    entry.label,
+                    entry.module_source || "-",
+                    `${(entry.lines || []).length} ligne(s)`,
                   ])}
                 />
               </Panel>
@@ -495,6 +640,27 @@ function BankSelect({
       {banks.map((bank: any) => (
         <option key={bank.id} value={bank.id}>
           {bank.bank_name} - {formatFCFA(bank.current_balance)}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function CaisseSelect({
+  caisses,
+  value,
+  onChange,
+}: {
+  caisses: any[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <select className="rounded-lg border p-3" value={value} onChange={(event) => onChange(event.target.value)}>
+      <option value="">Sans caisse</option>
+      {caisses.map((caisse: any) => (
+        <option key={caisse.id} value={caisse.id}>
+          {caisse.nom_caisse} - {formatFCFA(caisse.solde_actuel)}
         </option>
       ))}
     </select>
