@@ -29,18 +29,24 @@ const protectedRoutes = [
 
 const moduleRouteMap: Record<string, string> = {
   "/assistant": "ia",
+  "/produits": "produits",
+  "/stocks": "stock",
+  "/entrepots": "entrepots",
+  "/emplacements": "emplacements",
+  "/scanner": "stock",
   "/pos": "pos",
   "/pos/ventes": "ventes",
   "/pos/historique": "ventes",
   "/pos/recus": "ventes",
   "/pos/paiements": "ventes",
+  "/pos/parametres-paiement": "paiements",
   "/inventaires": "inventaire",
   "/documents": "documents",
   "/rapports": "rapports",
   "/attendance-scan": "pointage",
   "/pointage": "pointage",
   "/parametres-pointage": "pointage",
-  "/partenaires": "crm",
+  "/partenaires": "partenaires",
 };
 
 function readJwtPayload(token: string) {

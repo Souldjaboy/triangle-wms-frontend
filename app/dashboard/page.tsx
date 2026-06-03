@@ -224,14 +224,16 @@ export default function DashboardPage() {
     </li>
   </Link>
 
-  <Link href="/produits">
-    <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
-      <Package size={20} />
-      Produits
-    </li>
-  </Link>
+  {moduleEnabled("produits") && (
+    <Link href="/produits">
+      <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+        <Package size={20} />
+        Produits
+      </li>
+    </Link>
+  )}
 
-  {canManageWarehouse && moduleEnabled("crm") && (
+  {canManageWarehouse && (moduleEnabled("crm") || moduleEnabled("partenaires")) && (
     <Link href="/partenaires">
       <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
         <Handshake size={20} />
@@ -240,12 +242,14 @@ export default function DashboardPage() {
     </Link>
   )}
 
-  <Link href="/stocks">
-    <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
-      <Boxes size={20} />
-      Stockages
-    </li>
-  </Link>
+  {moduleEnabled("stock") && (
+    <Link href="/stocks">
+      <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+        <Boxes size={20} />
+        Stockages
+      </li>
+    </Link>
+  )}
 
   {moduleEnabled("inventaire") && (
     <Link href="/inventaires">
@@ -258,28 +262,34 @@ export default function DashboardPage() {
 
   {isAdminLike && (
     <>
-      <Link href="/entrepots">
-        <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
-          <Warehouse size={20} />
-          Entrepôts
-        </li>
-      </Link>
+      {moduleEnabled("entrepots") && (
+        <Link href="/entrepots">
+          <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+            <Warehouse size={20} />
+            Entrepôts
+          </li>
+        </Link>
+      )}
 
-      <Link href="/emplacements">
-        <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
-          <MapPin size={20} />
-          Emplacements
-        </li>
-      </Link>
+      {moduleEnabled("emplacements") && (
+        <Link href="/emplacements">
+          <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+            <MapPin size={20} />
+            Emplacements
+          </li>
+        </Link>
+      )}
     </>
   )}
 
-  <Link href="/scanner">
-    <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
-      <ScanLine size={20} />
-      Scanner QR
-    </li>
-  </Link>
+  {moduleEnabled("stock") && (
+    <Link href="/scanner">
+      <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+        <ScanLine size={20} />
+        Scanner QR
+      </li>
+    </Link>
+  )}
 
   {canUsePos && moduleEnabled("pos") && (
     <Link href="/pos">

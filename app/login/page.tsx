@@ -75,24 +75,45 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4 md:p-8">
       <div className="bg-white shadow-2xl rounded-3xl overflow-hidden grid grid-cols-1 lg:grid-cols-2 max-w-6xl w-full">
-        <div className="bg-black text-white p-8 md:p-12 flex flex-col justify-center">
-          <h1 className="text-5xl font-bold mb-5">
-            Triangle WMS Pro
-          </h1>
-
-          <p className="text-gray-300 text-lg">
-            Gestion professionnelle des stocks, entrepôts, inventaires,
-            documents logistiques et abonnements SaaS.
-          </p>
-
-          <div className="mt-10">
-            <div className="w-32 h-32 bg-gray-700 rounded-full flex items-center justify-center text-5xl">
-              👤
+        <div className="relative bg-black text-white p-8 md:p-12 flex flex-col justify-between overflow-hidden">
+          <div className="absolute inset-x-0 bottom-0 h-40 bg-yellow-500/20" />
+          <div className="relative">
+            <div className="flex items-center gap-4">
+              <img
+                src="/icons/triangle-wms-icon.svg"
+                alt="Triangle WMS Pro"
+                className="h-16 w-16 rounded-2xl bg-yellow-500 p-3"
+              />
+              <div>
+                <h1 className="text-4xl font-bold">Triangle WMS Pro</h1>
+                <p className="text-sm font-bold uppercase tracking-wide text-yellow-400">
+                  ERP / WMS intelligent
+                </p>
+              </div>
             </div>
 
-            <p className="mt-5 text-gray-400">
-              Connectez-vous pour accéder à votre espace sécurisé.
+            <h2 className="mt-10 text-3xl font-bold leading-tight md:text-5xl">
+              Gérez votre entreprise depuis une seule plateforme intelligente.
+            </h2>
+
+            <p className="mt-5 text-lg text-gray-300">
+              Stocks, ventes, achats, paiements, rapports, pointage et intelligence
+              artificielle réunis dans une solution unique.
             </p>
+          </div>
+
+          <div className="relative mt-10 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {[
+              "Gestion des stocks",
+              "Gestion des ventes",
+              "Multi-entrepôts",
+              "Rapports intelligents",
+              "Assistant IA intégré",
+            ].map((item) => (
+              <div key={item} className="rounded-xl bg-white/10 p-3 font-bold">
+                {item}
+              </div>
+            ))}
           </div>
         </div>
 
@@ -110,12 +131,12 @@ export default function LoginPage() {
           <form onSubmit={handleLogin} className="space-y-5">
             <div>
               <label className="block text-black font-bold mb-2">
-                Email
+                Email ou téléphone
               </label>
 
               <input
-                type="email"
-                placeholder="Votre email"
+                type="text"
+                placeholder="Votre email ou téléphone"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full border p-4 rounded-xl text-black"
@@ -146,6 +167,14 @@ export default function LoginPage() {
               {loading ? "Connexion..." : "Se connecter"}
             </button>
           </form>
+
+          <button
+            type="button"
+            onClick={() => setError("La réinitialisation du mot de passe sera disponible prochainement. Contactez votre administrateur.")}
+            className="mt-4 w-full text-center text-sm font-bold text-gray-600 hover:text-black"
+          >
+            Mot de passe oublié
+          </button>
 
           <p className="text-gray-500 text-sm mt-5 text-center">
             Pas encore de compte ?{" "}

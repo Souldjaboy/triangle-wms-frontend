@@ -12,7 +12,7 @@ const DEFAULT_PLANS = [
     price_monthly: 5000,
     max_users: 3,
     max_warehouses: 1,
-    max_products: 200,
+    max_products: 300,
     trial_days: 15,
   },
   {
@@ -21,19 +21,45 @@ const DEFAULT_PLANS = [
     price_monthly: 10000,
     max_users: 10,
     max_warehouses: 3,
-    max_products: 1000,
+    max_products: 2000,
     trial_days: 15,
   },
   {
     id: 3,
     name: "Premium",
     price_monthly: 15000,
-    max_users: "Illimité",
-    max_warehouses: "Illimité",
-    max_products: "Illimité",
+    max_users: 30,
+    max_warehouses: 10,
+    max_products: 10000,
     trial_days: 15,
   },
 ];
+
+const AVAILABLE_MODULES = [
+  { key: "produits", label: "Produits" },
+  { key: "stock", label: "Stock" },
+  { key: "inventaire", label: "Inventaires" },
+  { key: "mouvements", label: "Mouvements" },
+  { key: "entrepots", label: "Entrepôts" },
+  { key: "emplacements", label: "Emplacements" },
+  { key: "ventes", label: "Ventes" },
+  { key: "pos", label: "POS / Caisse" },
+  { key: "paiements", label: "Paiements" },
+  { key: "recus", label: "Reçus" },
+  { key: "achats", label: "Achats" },
+  { key: "fournisseurs", label: "Fournisseurs" },
+  { key: "clients", label: "Clients" },
+  { key: "partenaires", label: "Partenaires" },
+  { key: "documents", label: "Documents" },
+  { key: "rapports", label: "Rapports" },
+  { key: "pointage", label: "Pointage" },
+  { key: "ia", label: "Assistant IA" },
+];
+
+const defaultSelectedModules = AVAILABLE_MODULES.reduce((acc: Record<string, boolean>, module) => {
+  acc[module.key] = true;
+  return acc;
+}, {});
 
 export default function RegisterPage() {
 
@@ -60,9 +86,12 @@ export default function RegisterPage() {
       responsible_name: "",
       email: "",
       phone: "",
+      country: "",
       address: "",
       password: "",
     });
+  const [selectedModules, setSelectedModules] =
+    useState<Record<string, boolean>>(defaultSelectedModules);
 
   const fetchPlans = async () => {
 
@@ -107,6 +136,18 @@ export default function RegisterPage() {
         e.target.value,
     });
 
+  };
+
+  const toggleModule = (moduleKey: string) => {
+    setSelectedModules((current) => ({
+      ...current,
+      [moduleKey]: current[moduleKey] === false,
+    }));
+  };
+
+  const displayLimit = (value: any) => {
+    const numberValue = Number(value || 0);
+    return numberValue > 0 ? numberValue.toLocaleString("fr-FR") : "Non défini";
   };
 
   /* REGISTER + PAYMENT */
@@ -155,6 +196,8 @@ export default function RegisterPage() {
                 selectedPlan.name,
               plan_price:
                 selectedPlan.price_monthly,
+              selected_modules:
+                selectedModules,
             }),
           }
         );
@@ -275,14 +318,39 @@ export default function RegisterPage() {
         {/* LEFT */}
 
         <div className="lg:col-span-2 bg-white rounded-3xl shadow p-6 md:p-10">
+          <div className="mb-8 flex flex-col gap-5 rounded-2xl bg-black p-6 text-white md:flex-row md:items-center">
+            <img
+              src="/icons/triangle-wms-icon.svg"
+              alt="Triangle WMS Pro"
+              className="h-20 w-20 rounded-2xl bg-yellow-500 p-3"
+            />
+            <div>
+              <p className="text-sm font-bold uppercase tracking-wide text-yellow-400">
+                ERP / WMS SaaS intelligent
+              </p>
+              <h1 className="mt-1 text-3xl font-bold md:text-4xl">
+                Créez votre entreprise en quelques minutes.
+              </h1>
+              <p className="mt-3 max-w-3xl text-gray-300">
+                Triangle WMS Pro vous aide à gérer stocks, ventes, achats, utilisateurs,
+                paiements et opérations quotidiennes depuis une plateforme moderne.
+              </p>
+            </div>
+          </div>
 
-          <h1 className="text-4xl font-bold text-black mb-2">
-            Créer votre entreprise
-          </h1>
-
-          <p className="text-gray-500 mb-10">
-            Triangle WMS Pro SaaS
-          </p>
+          <div className="mb-8 grid grid-cols-1 gap-3 md:grid-cols-5">
+            {[
+              "Gestion centralisée",
+              "Suivi en temps réel",
+              "Assistant IA intégré",
+              "Rapports automatiques",
+              "Sécurité avancée",
+            ].map((item) => (
+              <div key={item} className="rounded-xl bg-yellow-50 p-3 text-sm font-bold text-black">
+                {item}
+              </div>
+            ))}
+          </div>
 
           <button
             type="button"
@@ -363,6 +431,15 @@ export default function RegisterPage() {
 
             <input
               type="text"
+              name="country"
+              placeholder="Pays"
+              value={formData.country}
+              onChange={handleChange}
+              className="border rounded-xl p-4 text-black"
+            />
+
+            <input
+              type="text"
               name="address"
               placeholder="Adresse"
               value={formData.address}
@@ -376,9 +453,48 @@ export default function RegisterPage() {
               placeholder="Mot de passe"
               value={formData.password}
               onChange={handleChange}
-              className="border rounded-xl p-4 text-black col-span-2"
+              className="border rounded-xl p-4 text-black md:col-span-2"
               required
             />
+
+            <div className="md:col-span-2 rounded-2xl border p-4">
+              <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-black">
+                    Modules à activer
+                  </h2>
+                  <p className="text-sm text-gray-500">
+                    Le choix des modules ne change pas les limites du plan sélectionné.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedModules(defaultSelectedModules)}
+                  className="rounded-xl bg-black px-4 py-2 text-sm font-bold text-white"
+                >
+                  Tout activer
+                </button>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {AVAILABLE_MODULES.map((module) => (
+                  <label
+                    key={module.key}
+                    className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 font-bold ${
+                      selectedModules[module.key] !== false
+                        ? "border-yellow-400 bg-yellow-50 text-black"
+                        : "border-gray-200 bg-white text-gray-500"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedModules[module.key] !== false}
+                      onChange={() => toggleModule(module.key)}
+                    />
+                    {module.label}
+                  </label>
+                ))}
+              </div>
+            </div>
 
             <button
               type="submit"
@@ -433,19 +549,19 @@ export default function RegisterPage() {
                 <p>
                   👥 Utilisateurs :
                   {" "}
-                  {plan.max_users}
+                  {displayLimit(plan.max_users)}
                 </p>
 
                 <p>
                   🏢 Entrepôts :
                   {" "}
-                  {plan.max_warehouses}
+                  {displayLimit(plan.max_warehouses)}
                 </p>
 
                 <p>
                   📦 Produits :
                   {" "}
-                  {plan.max_products}
+                  {displayLimit(plan.max_products)}
                 </p>
 
                 <p>
