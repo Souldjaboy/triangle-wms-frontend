@@ -16,6 +16,7 @@ import {
   ScanLine,
   FileText,
   ShoppingCart,
+  Calculator,
   BarChart3,
   TriangleAlert,
   Activity,
@@ -59,6 +60,9 @@ export default function DashboardPage() {
     }
     if (access === "direction") {
       setAccessMessage("Accès refusé : module réservé à la direction");
+    }
+    if (access === "accounting") {
+      setAccessMessage("Accès refusé : module réservé à la comptabilité ou à la direction");
     }
     const module = new URLSearchParams(window.location.search).get("module");
     if (module) {
@@ -163,8 +167,10 @@ export default function DashboardPage() {
     role === "responsable d'entrepôt";
   const isReadOnlyRole = role === "direction" || role === "client";
   const isDirectionRole = role === "direction" || role === "directeur";
+  const isAccountingRole = role === "comptable";
   const canManageWarehouse = isAdminLike || isWarehouseManager;
   const canViewDirectionModules = isAdminLike || isDirectionRole;
+  const canViewAccounting = isAdminLike || isDirectionRole || isAccountingRole;
   const canUsePos = isAdminLike || role === "caissier" || role === "vendeur" || role === "direction";
   const modules = userData?.modules || {};
   const moduleEnabled = (key: string) => modules[key] !== false || isSuperAdmin;
@@ -296,6 +302,15 @@ export default function DashboardPage() {
       <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
         <ShoppingCart size={20} />
         POS / Caisse
+      </li>
+    </Link>
+  )}
+
+  {canViewAccounting && moduleEnabled("comptabilite") && (
+    <Link href="/comptabilite">
+      <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+        <Calculator size={20} />
+        Comptabilité
       </li>
     </Link>
   )}

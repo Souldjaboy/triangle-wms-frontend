@@ -217,6 +217,7 @@ export default function UtilisateursPage() {
           <option value="employe">Employé</option>
           <option value="responsable_entrepot">Responsable d’entrepôt</option>
           <option value="caissier">Caissier</option>
+          <option value="comptable">Comptable</option>
           <option value="direction">Direction</option>
           <option value="client">Client</option>
           <option value="admin">Admin</option>

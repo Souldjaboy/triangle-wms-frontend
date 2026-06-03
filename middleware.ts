@@ -15,6 +15,7 @@ const protectedRoutes = [
   "/emplacements",
   "/scanner",
   "/pos",
+  "/comptabilite",
   "/documents",
   "/rapports",
   "/alertes",
@@ -40,6 +41,7 @@ const moduleRouteMap: Record<string, string> = {
   "/pos/recus": "ventes",
   "/pos/paiements": "ventes",
   "/pos/parametres-paiement": "paiements",
+  "/comptabilite": "comptabilite",
   "/inventaires": "inventaire",
   "/documents": "documents",
   "/rapports": "rapports",
@@ -94,6 +96,7 @@ export function middleware(req: NextRequest) {
     role === "super_admin";
   const isAdmin = tokenSaysSuperAdmin || role === "admin";
   const isDirection = role === "directeur" || role === "direction";
+  const isAccounting = role === "comptable";
   const subscriptionStatus = String(
     req.cookies.get("triangle_subscription_status")?.value || payload?.subscription_status || ""
   ).toLowerCase();
@@ -150,6 +153,14 @@ export function middleware(req: NextRequest) {
     }
   }
 
+  if (pathname.startsWith("/comptabilite")) {
+    if (!isAdmin && !isDirection && !isAccounting) {
+      return NextResponse.redirect(
+        new URL("/dashboard?access=accounting", req.url)
+      );
+    }
+  }
+
   return NextResponse.next();
 }
 
@@ -169,6 +180,7 @@ export const config = {
     "/emplacements/:path*",
     "/scanner/:path*",
     "/pos/:path*",
+    "/comptabilite/:path*",
     "/documents/:path*",
     "/rapports/:path*",
     "/alertes/:path*",

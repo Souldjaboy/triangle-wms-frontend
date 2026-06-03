@@ -50,6 +50,7 @@ const AVAILABLE_MODULES = [
   { key: "fournisseurs", label: "Fournisseurs" },
   { key: "clients", label: "Clients" },
   { key: "partenaires", label: "Partenaires" },
+  { key: "comptabilite", label: "Comptabilité" },
   { key: "documents", label: "Documents" },
   { key: "rapports", label: "Rapports" },
   { key: "pointage", label: "Pointage" },
