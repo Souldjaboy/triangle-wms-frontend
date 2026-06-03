@@ -10,6 +10,7 @@ type SearchResults = {
   documents?: any[];
   sales?: any[];
   receipts?: any[];
+  partners?: any[];
   locations?: any[];
   users?: any[];
   totals?: Record<string, number>;
@@ -35,6 +36,7 @@ export default function RecherchePage() {
       results.documents,
       results.sales,
       results.receipts,
+      results.partners,
       results.locations,
       results.users
     ].some((section) => (section || []).length > 0);
@@ -128,6 +130,7 @@ export default function RecherchePage() {
           <InventoriesSection data={results.inventories || []} />
           <SalesSection data={results.sales || []} />
           <ReceiptsSection data={results.receipts || []} />
+          <PartnersSection data={results.partners || []} />
           <DocumentsSection data={results.documents || []} />
           <UsersSection data={results.users || []} />
         </div>
@@ -145,6 +148,7 @@ function Summary({ results, movements }: any) {
       <Card title="Inventaires" value={results.totals?.inventories || 0} />
       <Card title="Ventes" value={results.totals?.sales || 0} />
       <Card title="Reçus" value={results.totals?.receipts || 0} />
+      <Card title="Partenaires" value={results.totals?.partners || 0} />
       <Card title="Documents" value={results.totals?.documents || 0} />
       <Card title="Utilisateurs" value={results.totals?.users || 0} />
     </div>
@@ -363,6 +367,43 @@ function ReceiptsSection({ data }: any) {
               <td>{receipt.payment_method || "-"}</td>
               <td>{receipt.payment_status || receipt.status || "-"}</td>
               <td>{receipt.created_at ? new Date(receipt.created_at).toLocaleString("fr-FR") : "-"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </SectionShell>
+  );
+}
+
+function PartnersSection({ data }: any) {
+  return (
+    <SectionShell title="Partenaires" data={data}>
+      <table className="w-full min-w-[760px] text-left">
+        <thead>
+          <tr className="border-b text-gray-500">
+            <th className="py-3">Type</th>
+            <th>Nom</th>
+            <th>Téléphone</th>
+            <th>Email</th>
+            <th>Ville</th>
+            <th>Contact</th>
+            <th>Statut</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((partner: any) => (
+            <tr key={partner.id} className="border-b">
+              <td className="py-4 font-bold">{partner.type || "-"}</td>
+              <td>
+                <a href={`/partenaires/${partner.id}`} className="font-bold text-blue-600">
+                  {partner.name || "-"}
+                </a>
+              </td>
+              <td>{partner.phone || "-"}</td>
+              <td>{partner.email || "-"}</td>
+              <td>{partner.city || "-"}</td>
+              <td>{partner.contact_person || "-"}</td>
+              <td>{partner.status || "-"}</td>
             </tr>
           ))}
         </tbody>

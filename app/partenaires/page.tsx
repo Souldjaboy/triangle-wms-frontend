@@ -83,15 +83,17 @@ export default function PartenairesPage() {
   };
 
   const deletePartner = async (id: number) => {
-    if (!confirm("Supprimer ce partenaire ?")) return;
+    if (!confirm("Supprimer ce partenaire ? S’il est utilisé, il sera désactivé au lieu d’être supprimé.")) return;
 
-    await fetch(`/api/partners/${id}`, {
+    const response = await fetch(`/api/partners/${id}`, {
       method: "DELETE",
       headers: {
         Authorization: `Bearer ${localStorage.getItem("token")}`,
       },
     });
+    const data = await response.json().catch(() => ({}));
 
+    setMessage(data.message || data.error || "Action partenaire terminée.");
     fetchPartners();
   };
 
@@ -248,7 +250,13 @@ export default function PartenairesPage() {
                   <td>{partner.city || "-"}</td>
                   <td>{partner.contact_person || "-"}</td>
                   <td>{partner.status}</td>
-                  <td>
+                  <td className="flex flex-wrap gap-2 py-3">
+                    <a
+                      href={`/partenaires/${partner.id}`}
+                      className="bg-black text-white px-4 py-2 rounded-xl font-bold"
+                    >
+                      Voir fiche
+                    </a>
                     <button
                       onClick={() => deletePartner(partner.id)}
                       className="bg-red-600 text-white px-4 py-2 rounded-xl font-bold"

@@ -35,6 +35,7 @@ export default function LoginPage() {
       document.cookie = `triangle_token=${encodeURIComponent(data.token)}; path=/; max-age=86400; SameSite=Lax`;
       document.cookie = `triangle_super_admin=${isSuperAdmin ? "true" : "false"}; path=/; max-age=86400; SameSite=Lax`;
       document.cookie = `triangle_subscription_status=${encodeURIComponent(data.user?.subscription_status || "")}; path=/; max-age=86400; SameSite=Lax`;
+      document.cookie = `triangle_modules=${encodeURIComponent(JSON.stringify(data.user?.modules || {}))}; path=/; max-age=86400; SameSite=Lax`;
 
       router.push("/dashboard");
     } else {

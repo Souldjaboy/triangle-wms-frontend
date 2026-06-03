@@ -60,6 +60,10 @@ export default function DashboardPage() {
     if (access === "direction") {
       setAccessMessage("Accès refusé : module réservé à la direction");
     }
+    const module = new URLSearchParams(window.location.search).get("module");
+    if (module) {
+      setAccessMessage(`Module ${module} désactivé pour cette entreprise.`);
+    }
 
     const storedUser = localStorage.getItem("user");
 
@@ -99,6 +103,7 @@ export default function DashboardPage() {
     document.cookie = "triangle_token=; path=/; max-age=0";
     document.cookie = "triangle_super_admin=; path=/; max-age=0";
     document.cookie = "triangle_subscription_status=; path=/; max-age=0";
+    document.cookie = "triangle_modules=; path=/; max-age=0";
     router.push("/login");
   };
 
@@ -161,6 +166,8 @@ export default function DashboardPage() {
   const canManageWarehouse = isAdminLike || isWarehouseManager;
   const canViewDirectionModules = isAdminLike || isDirectionRole;
   const canUsePos = isAdminLike || role === "caissier" || role === "vendeur" || role === "direction";
+  const modules = userData?.modules || {};
+  const moduleEnabled = (key: string) => modules[key] !== false || isSuperAdmin;
 
   return (
     <div className="min-h-screen flex bg-gray-100">
@@ -184,12 +191,14 @@ export default function DashboardPage() {
     </li>
   </Link>
 
-  <Link href="/assistant">
-    <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
-      <Bot size={20} />
-      Assistant IA
-    </li>
-  </Link>
+  {moduleEnabled("ia") && (
+    <Link href="/assistant">
+      <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+        <Bot size={20} />
+        Assistant IA
+      </li>
+    </Link>
+  )}
 
   {isSuperAdmin && (
     <Link href="/super-admin">
@@ -222,7 +231,7 @@ export default function DashboardPage() {
     </li>
   </Link>
 
-  {canManageWarehouse && (
+  {canManageWarehouse && moduleEnabled("crm") && (
     <Link href="/partenaires">
       <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
         <Handshake size={20} />
@@ -238,12 +247,14 @@ export default function DashboardPage() {
     </li>
   </Link>
 
-  <Link href="/inventaires">
-    <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
-      <ClipboardList size={20} />
-      Inventaires
-    </li>
-  </Link>
+  {moduleEnabled("inventaire") && (
+    <Link href="/inventaires">
+      <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+        <ClipboardList size={20} />
+        Inventaires
+      </li>
+    </Link>
+  )}
 
   {isAdminLike && (
     <>
@@ -270,7 +281,7 @@ export default function DashboardPage() {
     </li>
   </Link>
 
-  {canUsePos && (
+  {canUsePos && moduleEnabled("pos") && (
     <Link href="/pos">
       <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
         <ShoppingCart size={20} />
@@ -279,21 +290,25 @@ export default function DashboardPage() {
     </Link>
   )}
 
-  {canViewDirectionModules && (
+  {canViewDirectionModules && (moduleEnabled("documents") || moduleEnabled("rapports")) && (
     <>
-      <Link href="/documents">
-        <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
-          <FileText size={20} />
-          Documents
-        </li>
-      </Link>
+      {moduleEnabled("documents") && (
+        <Link href="/documents">
+          <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+            <FileText size={20} />
+            Documents
+          </li>
+        </Link>
+      )}
 
-      <Link href="/rapports">
-        <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
-          <BarChart3 size={20} />
-          Rapports
-        </li>
-      </Link>
+      {moduleEnabled("rapports") && (
+        <Link href="/rapports">
+          <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+            <BarChart3 size={20} />
+            Rapports
+          </li>
+        </Link>
+      )}
 
     </>
   )}
@@ -332,21 +347,25 @@ export default function DashboardPage() {
   )}
 
 
-  <Link href="/attendance-scan">
-    <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
-      <QrCode size={20} />
-      Pointage QR
-    </li>
-  </Link>
+  {moduleEnabled("pointage") && (
+    <Link href="/attendance-scan">
+      <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+        <QrCode size={20} />
+        Pointage QR
+      </li>
+    </Link>
+  )}
 
-  <Link href="/pointage">
-    <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
-      <ClipboardCheck size={20} />
-      Pointage
-    </li>
-  </Link>
+  {moduleEnabled("pointage") && (
+    <Link href="/pointage">
+      <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+        <ClipboardCheck size={20} />
+        Pointage
+      </li>
+    </Link>
+  )}
 
-  {isAdminLike && (
+  {isAdminLike && moduleEnabled("pointage") && (
     <>
       <Link href="/parametres-pointage">
         <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">

@@ -27,11 +27,37 @@ const protectedRoutes = [
   "/parametres",
 ];
 
+const moduleRouteMap: Record<string, string> = {
+  "/assistant": "ia",
+  "/pos": "pos",
+  "/pos/ventes": "ventes",
+  "/pos/historique": "ventes",
+  "/pos/recus": "ventes",
+  "/pos/paiements": "ventes",
+  "/inventaires": "inventaire",
+  "/documents": "documents",
+  "/rapports": "rapports",
+  "/attendance-scan": "pointage",
+  "/pointage": "pointage",
+  "/parametres-pointage": "pointage",
+  "/partenaires": "crm",
+};
+
 function readJwtPayload(token: string) {
   try {
     const payload = token.split(".")[1];
     const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
     return JSON.parse(atob(normalized));
+  } catch {
+    return null;
+  }
+}
+
+function readModulesCookie(value?: string) {
+  if (!value) return null;
+
+  try {
+    return JSON.parse(decodeURIComponent(value));
   } catch {
     return null;
   }
@@ -65,6 +91,7 @@ export function middleware(req: NextRequest) {
   const subscriptionStatus = String(
     req.cookies.get("triangle_subscription_status")?.value || payload?.subscription_status || ""
   ).toLowerCase();
+  const modules = readModulesCookie(req.cookies.get("triangle_modules")?.value);
   const subscriptionBlocked = [
     "expired",
     "expiré",
@@ -83,6 +110,18 @@ export function middleware(req: NextRequest) {
 
   if (!tokenSaysSuperAdmin && subscriptionBlocked) {
     return NextResponse.redirect(new URL("/abonnement-expire", req.url));
+  }
+
+  if (!tokenSaysSuperAdmin && modules) {
+    const matchedModule = Object.entries(moduleRouteMap)
+      .sort((a, b) => b[0].length - a[0].length)
+      .find(([route]) => pathname === route || pathname.startsWith(route + "/"))?.[1];
+
+    if (matchedModule && modules[matchedModule] === false) {
+      return NextResponse.redirect(
+        new URL(`/dashboard?module=${matchedModule}`, req.url)
+      );
+    }
   }
 
   if (
