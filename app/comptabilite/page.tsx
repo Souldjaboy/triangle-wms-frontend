@@ -32,6 +32,7 @@ const emptyVoucher = {
   origin: "",
   beneficiary: "",
   bank_id: "",
+  caisse_id: "",
   partner_name: "",
   reason: "",
   expense_category: "",
@@ -185,6 +186,57 @@ export default function ComptabilitePage() {
   const totalBanks = Number(dashboard?.bank_balance || 0);
   const totalCaisses = Number(dashboard?.cash_register_balance || 0);
   const treasury = Number(dashboard?.treasury_balance || 0);
+  const today = new Date().toLocaleDateString("fr-FR");
+
+  const printReport = (title: string, headers: string[], rows: any[][], totalLabel = "", total = "") => {
+    const htmlRows = rows
+      .map((row) => `<tr>${row.map((cell) => `<td>${String(cell ?? "-")}</td>`).join("")}</tr>`)
+      .join("");
+    const popup = window.open("", "_blank", "width=1000,height=800");
+    if (!popup) return;
+    popup.document.write(`
+      <html>
+        <head>
+          <title>${title}</title>
+          <style>
+            body { font-family: Arial, sans-serif; color: #111; padding: 28px; }
+            .header { display: flex; justify-content: space-between; border-bottom: 3px solid #eab308; padding-bottom: 16px; margin-bottom: 24px; }
+            .brand { font-size: 22px; font-weight: 900; }
+            .meta { text-align: right; color: #555; }
+            h1 { font-size: 24px; margin: 0 0 16px; }
+            table { width: 100%; border-collapse: collapse; font-size: 12px; }
+            th { background: #111; color: white; text-align: left; }
+            th, td { border: 1px solid #ddd; padding: 8px; }
+            .total { margin-top: 18px; font-weight: 900; font-size: 16px; }
+            .signature { margin-top: 60px; display: flex; justify-content: flex-end; }
+            .signature div { width: 240px; border-top: 1px solid #111; text-align: center; padding-top: 8px; }
+            @media print { body { padding: 0; } button { display: none; } }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <div class="brand">TRIANGLE WMS PRO</div>
+              <div>Comptabilité & Trésorerie</div>
+            </div>
+            <div class="meta">
+              <div>Date impression : ${today}</div>
+              <div>Période : Toutes les données chargées</div>
+            </div>
+          </div>
+          <h1>${title}</h1>
+          <table>
+            <thead><tr>${headers.map((header) => `<th>${header}</th>`).join("")}</tr></thead>
+            <tbody>${htmlRows || `<tr><td colspan="${headers.length}">Aucune donnée</td></tr>`}</tbody>
+          </table>
+          ${totalLabel ? `<div class="total">${totalLabel} : ${total}</div>` : ""}
+          <div class="signature"><div>Signature</div></div>
+          <script>window.onload = () => { window.print(); };</script>
+        </body>
+      </html>
+    `);
+    popup.document.close();
+  };
 
   return (
     <main className="min-h-screen bg-gray-100 p-4 pb-24 text-black md:p-8">
@@ -320,6 +372,7 @@ export default function ComptabilitePage() {
                     <select className="rounded-lg border p-3" value={transactionForm.transaction_type} onChange={(e) => setTransactionForm({ ...transactionForm, transaction_type: e.target.value })}>
                       <option value="encaissement_bancaire">Encaissement bancaire</option>
                       <option value="retrait_banque">Retrait banque vers trésorerie</option>
+                      <option value="depot_caisse_banque">Dépôt caisse vers banque</option>
                       <option value="encaissement_especes">Encaissement espèces</option>
                       <option value="depense">Dépense</option>
                       <option value="paiement_fournisseur">Paiement fournisseur</option>
@@ -348,7 +401,7 @@ export default function ComptabilitePage() {
                     item.transaction_number,
                     item.transaction_type,
                     item.direction,
-                    formatFCFA(item.amount),
+                    <SignedAmount key={item.id} amount={item.amount} direction={item.direction} />,
                     item.bank_name || "-",
                     item.nom_caisse || "-",
                     new Date(item.created_at).toLocaleDateString("fr-FR"),
@@ -394,6 +447,7 @@ export default function ComptabilitePage() {
                     </select>
                     <Input type="number" placeholder="Montant" value={voucherForm.amount} onChange={(v) => setVoucherForm({ ...voucherForm, amount: v })} />
                     <BankSelect banks={banks} value={voucherForm.bank_id} onChange={(v) => setVoucherForm({ ...voucherForm, bank_id: v })} />
+                    <CaisseSelect caisses={caisses} value={voucherForm.caisse_id} onChange={(v) => setVoucherForm({ ...voucherForm, caisse_id: v })} />
                     <Input placeholder="Origine" value={voucherForm.origin} onChange={(v) => setVoucherForm({ ...voucherForm, origin: v })} />
                     <Input placeholder="Bénéficiaire" value={voucherForm.beneficiary} onChange={(v) => setVoucherForm({ ...voucherForm, beneficiary: v })} />
                     <Input placeholder="Partenaire" value={voucherForm.partner_name} onChange={(v) => setVoucherForm({ ...voucherForm, partner_name: v })} />
@@ -411,11 +465,34 @@ export default function ComptabilitePage() {
                     voucher.voucher_type,
                     formatFCFA(voucher.amount),
                     voucher.status,
-                    canApprove && voucher.status === "brouillon" ? (
+                    <div key={voucher.id} className="flex flex-wrap gap-2">
+                    {canApprove && ["brouillon", "soumis"].includes(String(voucher.status || "").toLowerCase()) ? (
                       <button className="rounded bg-yellow-500 px-3 py-2 font-bold" onClick={() => patchJson(`/accounting/vouchers/${voucher.id}/validate`, {}, "Bon validé.")}>
                         Valider
                       </button>
-                    ) : "-",
+                    ) : null}
+                    {["validé", "paiement_effectué", "clôturé"].includes(String(voucher.status || "").toLowerCase()) && (
+                      <button
+                        className="rounded bg-black px-3 py-2 font-bold text-white"
+                        onClick={() => printReport(
+                          `Bon ${voucher.voucher_number}`,
+                          ["Champ", "Valeur"],
+                          [
+                            ["Numéro", voucher.voucher_number],
+                            ["Type", voucher.voucher_type],
+                            ["Montant", formatFCFA(voucher.amount)],
+                            ["Banque", voucher.bank_name || "-"],
+                            ["Caisse", voucher.nom_caisse || "-"],
+                            ["Bénéficiaire", voucher.beneficiary || "-"],
+                            ["Motif", voucher.reason || "-"],
+                            ["Statut", voucher.status],
+                          ]
+                        )}
+                      >
+                        Imprimer
+                      </button>
+                    )}
+                    </div>,
                   ])}
                 />
               </Panel>
@@ -442,7 +519,7 @@ export default function ComptabilitePage() {
                   headers={["Numéro", "Montant", "Motif", "Statut", "Actions"]}
                   rows={expenses.map((expense) => [
                     expense.request_number,
-                    formatFCFA(expense.requested_amount),
+                    <SignedAmount key={expense.id} amount={expense.requested_amount} direction="sortie" />,
                     expense.reason,
                     expense.status,
                     <ExpenseActions
@@ -451,6 +528,17 @@ export default function ComptabilitePage() {
                       canApprove={canApprove}
                       canManage={canManage}
                       onUpdate={patchJson}
+                      onPrint={() => printReport(
+                        `Demande ${expense.request_number}`,
+                        ["Champ", "Valeur"],
+                        [
+                          ["Numéro", expense.request_number],
+                          ["Montant", formatFCFA(expense.requested_amount)],
+                          ["Motif", expense.reason],
+                          ["Statut", expense.status],
+                          ["Justificatif", expense.proof_url || expense.attachment_url || "-"],
+                        ]
+                      )}
                     />,
                   ])}
                 />
@@ -533,10 +621,145 @@ export default function ComptabilitePage() {
                 <DataTable
                   headers={["Rapport", "Contenu", "Action"]}
                   rows={[
-                    ["Banques", "Soldes et mouvements bancaires", <button key="print-banks" onClick={() => window.print()} className="rounded bg-yellow-500 px-3 py-2 font-bold">Imprimer</button>],
-                    ["Caisses", "Soldes, ouvertures, fermetures", <a key="caisses-report" href="/pos/rapport-caisses" className="font-bold text-yellow-700">Ouvrir</a>],
-                    ["Demandes", "Décaissements et justificatifs", <button key="print-expenses" onClick={() => window.print()} className="rounded bg-yellow-500 px-3 py-2 font-bold">Imprimer</button>],
-                    ["États", "Bilan, résultat, trésorerie", <button key="print-states" onClick={() => window.print()} className="rounded bg-yellow-500 px-3 py-2 font-bold">Imprimer</button>],
+                    [
+                      "Banques",
+                      "Soldes et mouvements bancaires",
+                      <button
+                        key="print-banks"
+                        onClick={() => printReport(
+                          "Rapport banques",
+                          ["Banque", "Compte", "Solde initial", "Solde final", "Statut"],
+                          banks.map((bank) => [
+                            bank.bank_name,
+                            bank.account_number || "-",
+                            formatFCFA(bank.initial_balance),
+                            formatFCFA(bank.current_balance),
+                            bank.is_active === false ? "Inactive" : "Active",
+                          ]),
+                          "Total banques",
+                          formatFCFA(totalBanks)
+                        )}
+                        className="rounded bg-yellow-500 px-3 py-2 font-bold"
+                      >
+                        Imprimer
+                      </button>,
+                    ],
+                    [
+                      "Caisses",
+                      "Soldes, ouvertures, fermetures",
+                      <button
+                        key="print-caisses"
+                        onClick={() => printReport(
+                          "Rapport caisses",
+                          ["Caisse", "Code", "Statut", "Solde initial", "Solde final", "Responsable"],
+                          caisses.map((caisse) => [
+                            caisse.nom_caisse,
+                            caisse.code_caisse || "-",
+                            caisse.statut || "fermée",
+                            formatFCFA(caisse.solde_initial),
+                            formatFCFA(caisse.solde_actuel),
+                            caisse.responsable_name || caisse.responsable_email || "-",
+                          ]),
+                          "Total caisses",
+                          formatFCFA(totalCaisses)
+                        )}
+                        className="rounded bg-yellow-500 px-3 py-2 font-bold"
+                      >
+                        Imprimer
+                      </button>,
+                    ],
+                    [
+                      "Mouvements",
+                      "Entrées, sorties, banques, caisses",
+                      <button
+                        key="print-transactions"
+                        onClick={() => printReport(
+                          "Rapport mouvements financiers",
+                          ["Date", "Numéro", "Type", "Sens", "Montant", "Banque", "Caisse", "Motif"],
+                          transactions.map((item) => [
+                            new Date(item.created_at).toLocaleDateString("fr-FR"),
+                            item.transaction_number,
+                            item.transaction_type,
+                            item.direction,
+                            `${item.direction === "sortie" ? "-" : "+"}${formatFCFA(item.amount)}`,
+                            item.bank_name || "-",
+                            item.nom_caisse || "-",
+                            item.description || item.category || "-",
+                          ])
+                        )}
+                        className="rounded bg-yellow-500 px-3 py-2 font-bold"
+                      >
+                        Imprimer
+                      </button>,
+                    ],
+                    [
+                      "Bons",
+                      "Bons d’encaissement et de décaissement",
+                      <button
+                        key="print-vouchers"
+                        onClick={() => printReport(
+                          "Rapport bons",
+                          ["Numéro", "Type", "Montant", "Statut", "Banque", "Caisse", "Bénéficiaire", "Motif"],
+                          vouchers.map((voucher) => [
+                            voucher.voucher_number,
+                            voucher.voucher_type,
+                            formatFCFA(voucher.amount),
+                            voucher.status,
+                            voucher.bank_name || "-",
+                            voucher.nom_caisse || "-",
+                            voucher.beneficiary || "-",
+                            voucher.reason || "-",
+                          ])
+                        )}
+                        className="rounded bg-yellow-500 px-3 py-2 font-bold"
+                      >
+                        Imprimer
+                      </button>,
+                    ],
+                    [
+                      "Demandes",
+                      "Décaissements et justificatifs",
+                      <button
+                        key="print-expenses"
+                        onClick={() => printReport(
+                          "Rapport demandes de décaissement",
+                          ["Numéro", "Montant", "Motif", "Urgence", "Statut", "Justificatif"],
+                          expenses.map((expense) => [
+                            expense.request_number,
+                            formatFCFA(expense.requested_amount),
+                            expense.reason,
+                            expense.urgency || "-",
+                            expense.status,
+                            expense.proof_url || expense.attachment_url || "-",
+                          ])
+                        )}
+                        className="rounded bg-yellow-500 px-3 py-2 font-bold"
+                      >
+                        Imprimer
+                      </button>,
+                    ],
+                    [
+                      "États",
+                      "Bilan, résultat, trésorerie",
+                      <button
+                        key="print-states"
+                        onClick={() => printReport(
+                          "Rapport états financiers",
+                          ["État", "Poste", "Montant"],
+                          [
+                            ["Bilan", "Banques", formatFCFA(statements?.bilan?.banques)],
+                            ["Bilan", "Caisses", formatFCFA(statements?.bilan?.caisses)],
+                            ["Bilan", "Trésorerie", formatFCFA(statements?.bilan?.tresorerie)],
+                            ["Bilan", "Actif total", formatFCFA(statements?.bilan?.actif)],
+                            ["Compte de résultat", "Produits", formatFCFA(statements?.compte_resultat?.produits)],
+                            ["Compte de résultat", "Charges", formatFCFA(statements?.compte_resultat?.charges)],
+                          ]
+                        )}
+                        className="rounded bg-yellow-500 px-3 py-2 font-bold"
+                      >
+                        Imprimer
+                      </button>,
+                    ],
                   ]}
                 />
               </Panel>
@@ -699,7 +922,7 @@ function RecentTable({ title, rows }: { title: string; rows: any[] }) {
           row.transaction_number,
           row.transaction_type,
           row.direction,
-          formatFCFA(row.amount),
+          <SignedAmount key={row.id} amount={row.amount} direction={row.direction} />,
           new Date(row.created_at).toLocaleDateString("fr-FR"),
         ])}
       />
@@ -707,10 +930,24 @@ function RecentTable({ title, rows }: { title: string; rows: any[] }) {
   );
 }
 
-function ExpenseActions({ expense, canApprove, canManage, onUpdate }: any) {
+function SignedAmount({ amount, direction }: { amount: any; direction: string }) {
+  const isOut = String(direction || "").toLowerCase() === "sortie";
+  return (
+    <span className={`font-black ${isOut ? "text-red-600" : "text-green-700"}`}>
+      {isOut ? "-" : "+"}
+      {formatFCFA(amount)}
+    </span>
+  );
+}
+
+function ExpenseActions({ expense, canApprove, canManage, onUpdate, onPrint }: any) {
+  const printable = ["validé", "paiement_effectué", "payé", "clôturé"].includes(
+    String(expense.status || "").toLowerCase()
+  );
+
   if (expense.status === "soumis" && canApprove) {
     return (
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <button className="rounded bg-green-600 px-3 py-2 font-bold text-white" onClick={() => onUpdate(`/accounting/expense-requests/${expense.id}/status`, { status: "validé" }, "Demande validée.")}>
           Valider
         </button>
@@ -723,25 +960,35 @@ function ExpenseActions({ expense, canApprove, canManage, onUpdate }: any) {
 
   if (expense.status === "validé" && canManage) {
     return (
-      <button className="rounded bg-yellow-500 px-3 py-2 font-bold" onClick={() => onUpdate(`/accounting/expense-requests/${expense.id}/status`, { status: "payé" }, "Demande payée.")}>
-        Marquer payé
-      </button>
+      <div className="flex flex-wrap gap-2">
+        <button className="rounded bg-yellow-500 px-3 py-2 font-bold" onClick={() => onUpdate(`/accounting/expense-requests/${expense.id}/status`, { status: "paiement_effectué" }, "Paiement effectué.")}>
+          Marquer payé
+        </button>
+        <button className="rounded bg-black px-3 py-2 font-bold text-white" onClick={onPrint}>Imprimer</button>
+      </div>
     );
   }
 
-  if (expense.status === "payé" && canManage) {
+  if (["payé", "paiement_effectué"].includes(String(expense.status || "").toLowerCase()) && canManage) {
     return (
-      <button
-        className="rounded bg-black px-3 py-2 font-bold text-white"
-        onClick={() => {
-          const proof = window.prompt("URL du justificatif obligatoire pour clôturer :");
-          if (proof) onUpdate(`/accounting/expense-requests/${expense.id}/status`, { status: "clôturé", proof_url: proof }, "Demande clôturée.");
-        }}
-      >
-        Clôturer
-      </button>
+      <div className="flex flex-wrap gap-2">
+        <button
+          className="rounded bg-black px-3 py-2 font-bold text-white"
+          onClick={() => {
+            const proof = window.prompt("URL du justificatif obligatoire pour clôturer :");
+            if (proof) onUpdate(`/accounting/expense-requests/${expense.id}/status`, { status: "clôturé", proof_url: proof }, "Demande clôturée.");
+          }}
+        >
+          Clôturer
+        </button>
+        <button className="rounded bg-yellow-500 px-3 py-2 font-bold" onClick={onPrint}>Imprimer</button>
+      </div>
     );
   }
 
-  return <span>-</span>;
+  return printable ? (
+    <button className="rounded bg-yellow-500 px-3 py-2 font-bold" onClick={onPrint}>Imprimer</button>
+  ) : (
+    <span>-</span>
+  );
 }
