@@ -63,7 +63,7 @@ export default function LoginPage() {
         return;
       }
 
-      router.push("/dashboard");
+      router.push(isSuperAdmin ? "/super-admin" : "/dashboard");
     } catch (error) {
       console.error(error);
       setError("Erreur serveur");

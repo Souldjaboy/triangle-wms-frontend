@@ -6,6 +6,10 @@ export default function ParametresPage() {
   const [message, setMessage] = useState("");
   const [uploading, setUploading] = useState(false);
   const [isReadOnly, setIsReadOnly] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({
+    current_password: "",
+    new_password: "",
+  });
 
   const [formData, setFormData] = useState({
     company_name: "",
@@ -114,6 +118,29 @@ export default function ParametresPage() {
     setMessage("Paramètres entreprise enregistrés avec succès.");
   };
 
+  const handlePasswordSubmit = async (e: any) => {
+    e.preventDefault();
+    setMessage("");
+
+    const response = await fetch("/api/me/password", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+      },
+      body: JSON.stringify(passwordForm),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      setMessage(data.error || "Erreur changement mot de passe.");
+      return;
+    }
+
+    setPasswordForm({ current_password: "", new_password: "" });
+    setMessage("Mot de passe modifié avec succès.");
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 p-8">
       <h1 className="text-4xl font-bold text-black mb-2">
@@ -131,6 +158,7 @@ export default function ParametresPage() {
       )}
 
       <div className="grid grid-cols-2 gap-8">
+        <div className="space-y-8">
         <form
           onSubmit={handleSubmit}
           className="bg-white p-6 rounded-2xl shadow grid grid-cols-1 gap-4"
@@ -223,6 +251,48 @@ export default function ParametresPage() {
             {isReadOnly ? "Lecture seule" : "Enregistrer les paramètres"}
           </button>
         </form>
+
+        <form
+          onSubmit={handlePasswordSubmit}
+          className="bg-white p-6 rounded-2xl shadow grid grid-cols-1 gap-4"
+        >
+          <h2 className="text-2xl font-bold text-black">
+            Changer mon mot de passe
+          </h2>
+          <input
+            type="password"
+            placeholder="Mot de passe actuel"
+            value={passwordForm.current_password}
+            onChange={(event) =>
+              setPasswordForm((current) => ({
+                ...current,
+                current_password: event.target.value,
+              }))
+            }
+            className="border p-3 rounded-xl text-black"
+            required
+          />
+          <input
+            type="password"
+            placeholder="Nouveau mot de passe"
+            value={passwordForm.new_password}
+            onChange={(event) =>
+              setPasswordForm((current) => ({
+                ...current,
+                new_password: event.target.value,
+              }))
+            }
+            className="border p-3 rounded-xl text-black"
+            required
+          />
+          <button
+            type="submit"
+            className="bg-black text-white font-bold rounded-xl py-3"
+          >
+            Modifier mon mot de passe
+          </button>
+        </form>
+        </div>
 
         <div className="bg-white p-6 rounded-2xl shadow">
           <h2 className="text-2xl font-bold text-black mb-5">

@@ -340,6 +340,33 @@ export default function SuperAdminPage() {
 
   };
 
+  const resetUserPassword = async (id: number) => {
+    if (!confirm("Générer un nouveau mot de passe temporaire pour cet utilisateur ?")) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/users/${id}/reset-password`, {
+        method: "POST",
+        headers: getHeaders(),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setMessage(data.error || "Erreur réinitialisation mot de passe.");
+        return;
+      }
+
+      setMessage(
+        `Mot de passe temporaire pour ${data.user?.email || "utilisateur"} : ${data.temporary_password}`
+      );
+      await fetchAll(false);
+    } catch (error) {
+      console.error(error);
+      setMessage("Erreur serveur réinitialisation mot de passe.");
+    }
+  };
+
   const deleteCompany = async (
     id: number
   ) => {
@@ -883,6 +910,12 @@ export default function SuperAdminPage() {
                 </td>
 
                 <td className="p-4">
+                  <button
+                    onClick={() => resetUserPassword(user.id)}
+                    className="mr-2 bg-yellow-500 text-black px-4 py-2 rounded-xl font-bold"
+                  >
+                    Reset MDP
+                  </button>
 
                   <button
                     onClick={() =>

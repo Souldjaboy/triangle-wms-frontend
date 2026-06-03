@@ -27,6 +27,7 @@ export default function UtilisateursPage() {
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error">("success");
   const [loading, setLoading] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   const authHeaders = () => ({
     "Content-Type": "application/json",
@@ -50,8 +51,16 @@ export default function UtilisateursPage() {
   };
 
   useEffect(() => {
+    const savedUser = localStorage.getItem("user");
+    if (savedUser) {
+      setCurrentUser(JSON.parse(savedUser));
+    }
     fetchUsers();
   }, []);
+
+  const isSuperAdmin =
+    currentUser?.is_super_admin === true ||
+    String(currentUser?.role || "").toLowerCase() === "super_admin";
 
   const handleChange = (event: any) => {
     const { name, value, type, checked } = event.target;
@@ -211,7 +220,7 @@ export default function UtilisateursPage() {
           <option value="direction">Direction</option>
           <option value="client">Client</option>
           <option value="admin">Admin</option>
-          <option value="super_admin">Super Admin</option>
+          {isSuperAdmin && <option value="super_admin">Super Admin</option>}
         </select>
         <label className="flex items-center gap-3 border p-3 rounded-xl">
           <input
