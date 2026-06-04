@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { apiUrl } from "../lib/api";
 import InstallPWAButton from "../../components/InstallPWAButton";
 import WhatsAppSupportButton from "../../components/WhatsAppSupportButton";
+import SocialAuthButtons from "../../components/SocialAuthButtons";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -190,6 +191,8 @@ export default function LoginPage() {
           >
             Mot de passe oublié
           </button>
+
+          <SocialAuthButtons mode="login" />
 
           <p className="text-gray-500 text-sm mt-5 text-center">
             Pas encore de compte ?{" "}

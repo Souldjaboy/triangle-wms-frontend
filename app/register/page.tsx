@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { apiUrl } from "../lib/api";
 import { formatFCFA } from "../lib/format";
 import WhatsAppSupportButton from "../../components/WhatsAppSupportButton";
+import SocialAuthButtons from "../../components/SocialAuthButtons";
 
 const DEFAULT_PLANS = [
   {
@@ -313,6 +314,8 @@ export default function RegisterPage() {
           >
             Déjà un compte ? Se connecter
           </button>
+
+          <SocialAuthButtons mode="register" />
 
           {message && (
 
