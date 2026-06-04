@@ -46,7 +46,14 @@ export default function SocialAuthButtons({ mode = "login" }: Props) {
       </p>
 
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {providers.map((provider) => (
+        {providers
+          .filter((provider) => {
+            if (["instagram", "tiktok"].includes(provider.provider)) {
+              return provider.enabled === true;
+            }
+            return true;
+          })
+          .map((provider) => (
           <button
             key={provider.provider}
             type="button"

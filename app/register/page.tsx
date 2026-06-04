@@ -241,9 +241,6 @@ export default function RegisterPage() {
       const query = new URLSearchParams();
       if (verification.target_value) query.set("target", verification.target_value);
       if (registerData.user?.id) query.set("user_id", String(registerData.user.id));
-      if (verification.delivery?.sandbox_code) {
-        query.set("sandbox_code", verification.delivery.sandbox_code);
-      }
 
       setMessage("Entreprise créée. Vérifiez votre contact pour activer l’accès.");
       router.push(`${verifyPage}?${query.toString()}`);

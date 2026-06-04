@@ -20,7 +20,6 @@ export default function VerifyCodeForm({ targetType }: Props) {
   const token = searchParams.get("token") || "";
   const userId = searchParams.get("user_id") || "";
   const initialTarget = searchParams.get("target") || "";
-  const sandboxCode = searchParams.get("sandbox_code") || "";
 
   const title = targetType === "email" ? "Vérifiez votre email" : "Vérifiez votre téléphone";
   const inputLabel = targetType === "email" ? "Email" : "Téléphone";
@@ -90,10 +89,7 @@ export default function VerifyCodeForm({ targetType }: Props) {
         return;
       }
 
-      const sandbox = data?.delivery?.sandbox_code
-        ? ` Code sandbox : ${data.delivery.sandbox_code}`
-        : "";
-      setMessage(`${data.message || "Nouveau code envoyé."}${sandbox}`);
+      setMessage(data.message || "Nouveau code envoyé.");
     } catch (err) {
       console.error(err);
       setError("Erreur serveur.");
@@ -110,12 +106,6 @@ export default function VerifyCodeForm({ targetType }: Props) {
           Saisissez le code reçu. Le code expire après 10 minutes.
         </p>
       </div>
-
-      {sandboxCode && (
-        <div className="rounded-xl bg-yellow-100 p-4 font-bold text-black">
-          Code sandbox : {sandboxCode}
-        </div>
-      )}
 
       {message && <div className="rounded-xl bg-green-100 p-4 font-bold text-green-700">{message}</div>}
       {error && <div className="rounded-xl bg-red-100 p-4 font-bold text-red-700">{error}</div>}
