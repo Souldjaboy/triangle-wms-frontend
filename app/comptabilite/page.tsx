@@ -82,9 +82,6 @@ export default function ComptabilitePage() {
   const loadAll = async () => {
     setLoading(true);
     if (!canViewFullModule) {
-      const expensesRes = await authFetch("/accounting/expense-requests");
-      setExpenses(await expensesRes.json().catch(() => []));
-      setActiveTab("expenses");
       setLoading(false);
       return;
     }
@@ -183,6 +180,13 @@ export default function ComptabilitePage() {
     if (response.ok) await loadAll();
   };
 
+  const deleteJson = async (path: string, success: string) => {
+    const response = await authFetch(path, { method: "DELETE" });
+    const data = await response.json().catch(() => ({}));
+    setMessage(response.ok ? success : data.error || "Erreur serveur.");
+    if (response.ok) await loadAll();
+  };
+
   const totalBanks = Number(dashboard?.bank_balance || 0);
   const totalCaisses = Number(dashboard?.cash_register_balance || 0);
   const treasury = Number(dashboard?.treasury_balance || 0);
@@ -258,9 +262,17 @@ export default function ComptabilitePage() {
 
       {message && <div className="mb-5 rounded-lg bg-yellow-100 p-4 font-bold">{message}</div>}
 
-      <div className="mb-6 flex gap-2 overflow-x-auto">
-        {(canViewFullModule
-          ? [
+      {!canViewFullModule ? (
+        <div className="rounded-lg bg-white p-8 shadow">
+          <h2 className="text-2xl font-black">Accès comptabilité refusé</h2>
+          <p className="mt-2 text-gray-600">
+            Ce module est réservé au super admin, administrateur, comptable et directeur.
+          </p>
+        </div>
+      ) : null}
+
+      {canViewFullModule && <div className="mb-6 flex gap-2 overflow-x-auto">
+        {[
           ["dashboard", "Tableau"],
           ["banks", "Banques"],
           ["caisses", "Caisses"],
@@ -271,9 +283,7 @@ export default function ComptabilitePage() {
           ["statements", "États"],
           ["reports", "Rapports comptables"],
           ["settings", "Paramètres comptables"],
-        ]
-          : [["expenses", "Mes demandes"]]
-        ).map(([key, label]) => (
+        ].map(([key, label]) => (
           <button
             key={key}
             onClick={() => setActiveTab(key)}
@@ -284,11 +294,11 @@ export default function ComptabilitePage() {
             {label}
           </button>
         ))}
-      </div>
+      </div>}
 
       {loading ? (
         <div className="rounded-lg bg-white p-8 font-bold shadow">Chargement comptabilité...</div>
-      ) : (
+      ) : canViewFullModule ? (
         <>
           {activeTab === "dashboard" && (
             <section className="space-y-6">
@@ -351,13 +361,22 @@ export default function ComptabilitePage() {
               )}
               <Panel title="Comptes bancaires">
                 <DataTable
-                  headers={["Banque", "Compte", "Devise", "Solde", "Statut"]}
+                  headers={["Banque", "Compte", "Devise", "Solde", "Statut", "Actions"]}
                   rows={banks.map((bank) => [
                     bank.bank_name,
                     bank.account_number || "-",
                     bank.currency || "FCFA",
                     formatFCFA(bank.current_balance),
                     bank.is_active === false ? "Inactive" : "Active",
+                    canManage && bank.is_active !== false ? (
+                      <button
+                        key={bank.id}
+                        className="rounded bg-red-600 px-3 py-2 font-bold text-white"
+                        onClick={() => deleteJson(`/accounting/banks/${bank.id}`, "Banque désactivée.")}
+                      >
+                        Désactiver
+                      </button>
+                    ) : "-",
                   ])}
                 />
               </Panel>
@@ -469,6 +488,17 @@ export default function ComptabilitePage() {
                     {canApprove && ["brouillon", "soumis"].includes(String(voucher.status || "").toLowerCase()) ? (
                       <button className="rounded bg-yellow-500 px-3 py-2 font-bold" onClick={() => patchJson(`/accounting/vouchers/${voucher.id}/validate`, {}, "Bon validé.")}>
                         Valider
+                      </button>
+                    ) : null}
+                    {canApprove && ["brouillon", "soumis"].includes(String(voucher.status || "").toLowerCase()) ? (
+                      <button
+                        className="rounded bg-red-600 px-3 py-2 font-bold text-white"
+                        onClick={() => {
+                          const reason = window.prompt("Motif du refus :") || "";
+                          patchJson(`/accounting/vouchers/${voucher.id}/reject`, { rejection_reason: reason }, "Bon refusé.");
+                        }}
+                      >
+                        Refuser
                       </button>
                     ) : null}
                     {["validé", "paiement_effectué", "clôturé"].includes(String(voucher.status || "").toLowerCase()) && (
@@ -799,7 +829,7 @@ export default function ComptabilitePage() {
             </section>
           )}
         </>
-      )}
+      ) : null}
     </main>
   );
 }
