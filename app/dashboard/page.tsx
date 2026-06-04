@@ -50,6 +50,7 @@ export default function DashboardPage() {
 
   const [userData, setUserData] = useState<any>(null);
   const [stats, setStats] = useState<any>(null);
+  const [companyIdentity, setCompanyIdentity] = useState<any>(null);
   const [statsError, setStatsError] = useState("");
   const [accessMessage, setAccessMessage] = useState("");
 
@@ -99,6 +100,13 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchStats();
+  }, []);
+
+  useEffect(() => {
+    authFetch("/company-settings/current", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((data) => setCompanyIdentity(data || null))
+      .catch(() => setCompanyIdentity(null));
   }, []);
 
   const handleLogout = () => {
@@ -174,12 +182,36 @@ export default function DashboardPage() {
   const canUsePos = isAdminLike || role === "caissier" || role === "vendeur" || role === "direction";
   const modules = userData?.modules || {};
   const moduleEnabled = (key: string) => modules[key] !== false || isSuperAdmin;
+  const displayCompanyName =
+    companyIdentity?.company_name ||
+    (isSuperAdmin && !userData?.company_id ? "Plateforme globale" : userData?.company_name) ||
+    "Triangle WMS Pro";
+  const displayLogoUrl = companyIdentity?.logo_url || "";
+  const displayPlanName =
+    companyIdentity?.plan_name ||
+    (isSuperAdmin && !userData?.company_id ? "Administrateur système" : userData?.plan_name) ||
+    "";
+  const displaySubscriptionStatus =
+    companyIdentity?.subscription_status ||
+    (isSuperAdmin && !userData?.company_id ? "Illimité" : userData?.subscription_status) ||
+    "";
 
   return (
     <div className="min-h-screen flex bg-gray-100">
       <aside className="w-64 bg-black text-white p-6 overflow-y-auto">
-        <h1 className="text-2xl font-bold text-yellow-500">TRIANGLE</h1>
-        <p className="text-sm text-gray-400 mb-10">WMS PRO</p>
+        <div className="mb-10 flex items-center gap-3">
+          {displayLogoUrl ? (
+            <img src={displayLogoUrl} alt={displayCompanyName} className="h-12 w-12 rounded-lg bg-white object-contain p-1" />
+          ) : (
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-yellow-500 font-black text-black">
+              {displayCompanyName.slice(0, 1).toUpperCase()}
+            </div>
+          )}
+          <div>
+            <h1 className="text-lg font-bold text-yellow-500 leading-tight">{displayCompanyName}</h1>
+            <p className="text-xs text-gray-400">Triangle WMS Pro</p>
+          </div>
+        </div>
 
        <ul className="space-y-3">
 
@@ -439,12 +471,12 @@ export default function DashboardPage() {
 
         <p>
           <span className="font-bold">Entreprise :</span>{" "}
-          {userData.company_name || "N/A"}
+          {displayCompanyName}
         </p>
 
         <p>
           <span className="font-bold">Plan :</span>{" "}
-          {userData.plan_name || "N/A"}
+          {displayPlanName || "Non défini"}
         </p>
 
         <p>
@@ -453,10 +485,12 @@ export default function DashboardPage() {
             className={
               userData.subscription_status === "active"
                 ? "text-green-600 font-bold"
-                : "text-red-600 font-bold"
+                : displaySubscriptionStatus === "Illimité"
+                  ? "text-green-600 font-bold"
+                  : "text-red-600 font-bold"
             }
           >
-            {userData.subscription_status || "N/A"}
+            {displaySubscriptionStatus || "Non défini"}
           </span>
         </p>
 

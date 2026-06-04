@@ -406,6 +406,13 @@ export default function SuperAdminPage() {
 
   };
 
+  const accessCompany = (company: any) => {
+    localStorage.setItem("active_company_id", String(company.id));
+    localStorage.setItem("active_company_name", company.name || "");
+    setMessage(`Entreprise active : ${company.name}`);
+    router.push("/dashboard");
+  };
+
   const changeCompanyStatus = async (
     companyId: number,
     status: string
@@ -716,6 +723,15 @@ export default function SuperAdminPage() {
                 </td>
 
                 <td className="p-4 flex gap-2 flex-wrap">
+
+                  <button
+                    onClick={() =>
+                      accessCompany(company)
+                    }
+                    className="bg-yellow-500 text-black px-3 py-2 rounded-xl font-bold"
+                  >
+                    Accéder
+                  </button>
 
                   <button
                     onClick={() =>

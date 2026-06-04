@@ -30,6 +30,12 @@ export function authHeaders(extraHeaders: HeadersInit = {}) {
     headers.set("Authorization", `Bearer ${token}`);
   }
 
+  const activeCompanyId =
+    typeof window !== "undefined" ? localStorage.getItem("active_company_id") || "" : "";
+  if (activeCompanyId) {
+    headers.set("x-active-company-id", activeCompanyId);
+  }
+
   return headers;
 }
 
