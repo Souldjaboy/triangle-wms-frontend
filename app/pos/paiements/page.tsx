@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { authHeaders } from "../../lib/api";
 import { formatFCFA } from "../../lib/format";
 
 export default function PosPaiementsPage() {
@@ -13,10 +14,7 @@ export default function PosPaiementsPage() {
     user?.is_super_admin === true ||
     ["admin", "super_admin"].includes(String(user?.role || "").toLowerCase());
 
-  const headers = () => ({
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
-  });
+  const headers = () => authHeaders({ "Content-Type": "application/json" });
 
   const loadPayments = async () => {
     const response = await fetch("/api/payments", { headers: headers() });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { authHeaders } from "../../lib/api";
 
 const labels: Record<string, string> = {
   stock_faible: "Stock faible",
@@ -16,9 +17,7 @@ const labels: Record<string, string> = {
 export default function PosAlertesPage() {
   const [alerts, setAlerts] = useState<any[]>([]);
 
-  const headers = () => ({
-    Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
-  });
+  const headers = () => authHeaders();
 
   const load = async () => {
     const response = await fetch("/api/pos/alerts", { headers: headers() });

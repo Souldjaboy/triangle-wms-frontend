@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { authHeaders } from "../../lib/api";
 
 const providers = [
   { key: "card", name: "Carte bancaire" },
@@ -53,10 +54,7 @@ export default function PosPaymentSettingsPage() {
     user?.is_super_admin === true ||
     ["admin", "super_admin"].includes(String(user?.role || "").toLowerCase());
 
-  const headers = () => ({
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
-  });
+  const headers = () => authHeaders({ "Content-Type": "application/json" });
 
   const load = async () => {
     const response = await fetch("/api/pos/payment-settings", {

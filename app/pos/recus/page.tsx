@@ -1,15 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { authHeaders } from "../../lib/api";
 import { formatFCFA } from "../../lib/format";
 
 export default function PosRecusPage() {
   const [sales, setSales] = useState<any[]>([]);
   const [message, setMessage] = useState("");
 
-  const headers = () => ({
-    Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
-  });
+  const headers = () => authHeaders();
 
   useEffect(() => {
     fetch("/api/pos/sales", { headers: headers() })

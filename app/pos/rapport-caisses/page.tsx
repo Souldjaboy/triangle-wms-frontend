@@ -1,16 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { authHeaders } from "../../lib/api";
 import { formatFCFA } from "../../lib/format";
 
 export default function RapportCaissesPage() {
   const [rows, setRows] = useState<any[]>([]);
   const [filters, setFilters] = useState({ date_from: "", date_to: "" });
 
-  const headers = () => ({
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
-  });
+  const headers = () => authHeaders({ "Content-Type": "application/json" });
 
   const loadReport = async () => {
     const params = new URLSearchParams();

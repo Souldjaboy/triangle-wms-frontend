@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { authHeaders } from "../../lib/api";
 import { formatFCFA } from "../../lib/format";
 
 export default function PosVentesPage() {
@@ -19,10 +20,7 @@ export default function PosVentesPage() {
     cash_register_id: "",
   });
 
-  const headers = () => ({
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
-  });
+  const headers = () => authHeaders({ "Content-Type": "application/json" });
 
   const fetchSales = async () => {
     const params = new URLSearchParams();

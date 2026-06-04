@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { authHeaders } from "../../lib/api";
 import { formatFCFA } from "../../lib/format";
 
 export default function PosCaissesPage() {
@@ -14,10 +15,7 @@ export default function PosCaissesPage() {
     solde_initial: "",
   });
 
-  const headers = () => ({
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
-  });
+  const headers = () => authHeaders({ "Content-Type": "application/json" });
 
   const loadCaisses = async () => {
     const response = await fetch("/api/pos/caisses", { headers: headers() });

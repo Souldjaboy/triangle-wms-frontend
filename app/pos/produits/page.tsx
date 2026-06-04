@@ -2,15 +2,14 @@
 
 import { QRCodeCanvas } from "qrcode.react";
 import { useEffect, useState } from "react";
+import { authHeaders } from "../../lib/api";
 import { formatFCFA } from "../../lib/format";
 
 export default function PosProduitsPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [query, setQuery] = useState("");
 
-  const headers = () => ({
-    Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
-  });
+  const headers = () => authHeaders();
 
   const search = async (value: string) => {
     const response = await fetch(`/api/pos/products/search?q=${encodeURIComponent(value)}`, {

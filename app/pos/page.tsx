@@ -2,6 +2,7 @@
 
 import { QRCodeCanvas } from "qrcode.react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { authHeaders } from "../lib/api";
 import { formatFCFA } from "../lib/format";
 
 const paymentMethods = [
@@ -56,10 +57,7 @@ export default function PosPage() {
   ) || currentUser?.is_super_admin === true;
   const canManagePaymentSettings = canEditPrice;
 
-  const authHeaders = () => ({
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
-  });
+  const jsonHeaders = () => authHeaders({ "Content-Type": "application/json" });
 
   useEffect(() => {
     const savedUser = localStorage.getItem("user");
@@ -101,7 +99,7 @@ export default function PosPage() {
   };
 
   const loadCaisses = async () => {
-    const response = await fetch("/api/pos/caisses", { headers: authHeaders() });
+    const response = await fetch("/api/pos/caisses", { headers: jsonHeaders() });
     const data = await response.json().catch(() => []);
     if (Array.isArray(data)) {
       setCaisses(data);
@@ -111,7 +109,7 @@ export default function PosPage() {
   };
 
   const loadPartners = async () => {
-    const response = await fetch("/api/partners", { headers: authHeaders() });
+    const response = await fetch("/api/partners", { headers: jsonHeaders() });
     const data = await response.json().catch(() => []);
     setPartners(Array.isArray(data) ? data : []);
   };
@@ -213,7 +211,7 @@ export default function PosPage() {
   };
 
   const loadSettings = async () => {
-    const response = await fetch("/api/pos/settings", { headers: authHeaders() });
+    const response = await fetch("/api/pos/settings", { headers: jsonHeaders() });
     const data = await response.json().catch(() => null);
     setSettings(data);
   };
@@ -258,7 +256,7 @@ export default function PosPage() {
   const searchProducts = async (value: string) => {
     const response = await fetch(
       `/api/pos/products/search?q=${encodeURIComponent(value)}`,
-      { headers: authHeaders() }
+      { headers: jsonHeaders() }
     );
     const data = await response.json().catch(() => []);
     const rows = Array.isArray(data) ? data : [];
@@ -430,7 +428,7 @@ export default function PosPage() {
 
     const response = await fetch("/api/pos/sales", {
       method: "POST",
-      headers: authHeaders(),
+      headers: jsonHeaders(),
       body: JSON.stringify({
         items: cart,
         discount_amount: Number(discount || 0),
@@ -483,7 +481,7 @@ export default function PosPage() {
     try {
       const response = await fetch("/api/payments/confirm", {
         method: "POST",
-        headers: authHeaders(),
+        headers: jsonHeaders(),
         body: JSON.stringify({
           transaction_id: paymentTransaction?.id || lastSale?.transaction_id,
           provider_reference: paymentTransaction?.provider_reference || lastSale?.payment_reference || "",
@@ -525,7 +523,7 @@ export default function PosPage() {
 
     const response = await fetch("/api/pos/sales", {
       method: "POST",
-      headers: authHeaders(),
+      headers: jsonHeaders(),
       body: JSON.stringify({
         items: cart,
         discount_amount: Number(discount || 0),
