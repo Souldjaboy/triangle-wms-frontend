@@ -7,7 +7,7 @@ export default function AssistantPage() {
     {
       role: "assistant",
       content:
-        "Bonjour, je suis l’assistant IA de Triangle WMS Pro. Je peux t’aider sur la logistique, les stocks, les inventaires, les documents, le pointage et l’organisation.",
+        "Bonjour, je suis l’assistant IA de Triangle WMS Pro. Je connais les modules du WMS, POS, pointage, rapports, documents et comptabilité. Je peux expliquer leur rôle ou consulter les données autorisées.",
     },
   ]);
 
@@ -76,8 +76,8 @@ export default function AssistantPage() {
       </h1>
 
       <p className="text-gray-500 mb-8">
-        Assistant intelligent spécialisé en logistique, WMS, stock, inventaire,
-        documents, RH et organisation.
+        Assistant intelligent connecté aux modules, aux règles métier et aux
+        données autorisées de Triangle WMS Pro.
       </p>
 
       <div className="bg-white rounded-2xl shadow p-6 h-[650px] flex flex-col">
