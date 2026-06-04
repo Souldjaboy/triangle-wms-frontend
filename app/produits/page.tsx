@@ -29,6 +29,14 @@ export default function ProduitsPage() {
     barcode: "",
     description: "",
     minimum_stock: "5",
+    purchase_price: "",
+    sale_price: "",
+    rental_price: "",
+    daily_price: "",
+    monthly_price: "",
+    product_type: "stock_normal",
+    is_sellable: true,
+    is_rentable: false,
     image_url: "",
     is_active: true,
     location_id: "",
@@ -171,6 +179,14 @@ useEffect(() => {
       barcode: "",
       description: "",
       minimum_stock: "5",
+      purchase_price: "",
+      sale_price: "",
+      rental_price: "",
+      daily_price: "",
+      monthly_price: "",
+      product_type: "stock_normal",
+      is_sellable: true,
+      is_rentable: false,
       image_url: "",
       is_active: true,
       location_id: "",
@@ -254,6 +270,14 @@ const handleSubmit = async (e: any) => {
       barcode: produit.barcode || "",
       description: produit.description || "",
       minimum_stock: String(produit.minimum_stock || "5"),
+      purchase_price: String(produit.purchase_price || ""),
+      sale_price: String(produit.sale_price || ""),
+      rental_price: String(produit.rental_price || ""),
+      daily_price: String(produit.daily_price || ""),
+      monthly_price: String(produit.monthly_price || ""),
+      product_type: produit.product_type || "stock_normal",
+      is_sellable: produit.is_sellable !== false,
+      is_rentable: produit.is_rentable === true,
       image_url: produit.image_url || "",
       is_active: produit.is_active !== false,
       location_id: produit.location_id ? String(produit.location_id) : "",
@@ -383,6 +407,85 @@ const handleSubmit = async (e: any) => {
             onChange={handleChange}
             className="border p-3 rounded-xl text-black"
           />
+
+          <select
+            name="product_type"
+            value={formData.product_type}
+            onChange={handleChange}
+            className="border p-3 rounded-xl text-black"
+          >
+            <option value="stock_normal">Stock normal</option>
+            <option value="vehicle">Véhicule</option>
+            <option value="property">Bien immobilier</option>
+            <option value="room">Chambre</option>
+            <option value="restaurant_item">Plat restaurant</option>
+            <option value="service">Service</option>
+          </select>
+
+          <input
+            type="number"
+            name="purchase_price"
+            placeholder="Prix achat optionnel"
+            value={formData.purchase_price}
+            onChange={handleChange}
+            className="border p-3 rounded-xl text-black"
+          />
+
+          <input
+            type="number"
+            name="sale_price"
+            placeholder="Prix vente optionnel"
+            value={formData.sale_price}
+            onChange={handleChange}
+            className="border p-3 rounded-xl text-black"
+          />
+
+          <input
+            type="number"
+            name="rental_price"
+            placeholder="Prix location optionnel"
+            value={formData.rental_price}
+            onChange={handleChange}
+            className="border p-3 rounded-xl text-black"
+          />
+
+          <input
+            type="number"
+            name="daily_price"
+            placeholder="Prix journalier optionnel"
+            value={formData.daily_price}
+            onChange={handleChange}
+            className="border p-3 rounded-xl text-black"
+          />
+
+          <input
+            type="number"
+            name="monthly_price"
+            placeholder="Prix mensuel optionnel"
+            value={formData.monthly_price}
+            onChange={handleChange}
+            className="border p-3 rounded-xl text-black"
+          />
+
+          <label className="flex items-center gap-3 text-black">
+            <input
+              type="checkbox"
+              name="is_sellable"
+              checked={formData.is_sellable}
+              onChange={handleChange}
+            />
+            Vendable
+          </label>
+
+          <label className="flex items-center gap-3 text-black">
+            <input
+              type="checkbox"
+              name="is_rentable"
+              checked={formData.is_rentable}
+              onChange={handleChange}
+            />
+            Louable
+          </label>
 
           <div
             onDragOver={(event) => {

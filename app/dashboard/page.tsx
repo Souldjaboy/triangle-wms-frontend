@@ -18,6 +18,9 @@ import {
   ShoppingCart,
   Calculator,
   BarChart3,
+  Car,
+  Building2,
+  Utensils,
   TriangleAlert,
   Activity,
   Users,
@@ -345,6 +348,33 @@ export default function DashboardPage() {
       <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
         <ShoppingCart size={20} />
         Marketplace
+      </li>
+    </Link>
+  )}
+
+  {moduleEnabled("automobile") && (
+    <Link href="/automobile">
+      <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+        <Car size={20} />
+        Automobile
+      </li>
+    </Link>
+  )}
+
+  {(moduleEnabled("immobilier") || moduleEnabled("hotel")) && (
+    <Link href="/immobilier">
+      <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+        <Building2 size={20} />
+        Immobilier / Hôtel
+      </li>
+    </Link>
+  )}
+
+  {moduleEnabled("restaurant") && (
+    <Link href="/restaurant">
+      <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+        <Utensils size={20} />
+        Restaurant
       </li>
     </Link>
   )}
