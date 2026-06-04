@@ -31,6 +31,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { authFetch } from "../lib/api";
 import InstallPWAButton from "../../components/InstallPWAButton";
+import TrialBanner from "../../components/TrialBanner";
+import WhatsAppSupportButton from "../../components/WhatsAppSupportButton";
 import {
   BarChart,
   Bar,
@@ -459,6 +461,8 @@ export default function DashboardPage() {
     <InstallPWAButton />
   </div>
 
+  <TrialBanner user={userData} />
+
   {accessMessage && (
     <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 font-semibold text-red-700">
       {accessMessage}
@@ -619,6 +623,9 @@ export default function DashboardPage() {
         >
           🤖 Triangle IA
         </a>
+        <div className="fixed bottom-24 right-6 z-50">
+          <WhatsAppSupportButton className="shadow-2xl" label="Support" />
+        </div>
       </main>
     </div>
   );

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiUrl } from "../lib/api";
 import InstallPWAButton from "../../components/InstallPWAButton";
+import WhatsAppSupportButton from "../../components/WhatsAppSupportButton";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -35,6 +36,20 @@ export default function LoginPage() {
       const data = await response.json();
 
       if (!response.ok) {
+        if (data.code === "verification_required") {
+          const query = new URLSearchParams();
+          if (data.target_type) query.set("type", data.target_type);
+          if (data.target_value) query.set("target", data.target_value);
+          if (data.user_id) query.set("user_id", String(data.user_id));
+          router.push(`/verification-required?${query.toString()}`);
+          return;
+        }
+
+        if (data.code === "subscription_expired" || data.redirect === "/abonnement-expire") {
+          router.push("/abonnement-expire");
+          return;
+        }
+
         setError(data.error || "Erreur connexion");
         setLoading(false);
         return;
@@ -192,6 +207,10 @@ export default function LoginPage() {
 
           <div className="mt-4 flex justify-center">
             <InstallPWAButton />
+          </div>
+
+          <div className="mt-4 flex justify-center">
+            <WhatsAppSupportButton className="w-full" />
           </div>
         </div>
       </div>

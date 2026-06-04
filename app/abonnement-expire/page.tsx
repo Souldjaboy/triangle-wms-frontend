@@ -1,3 +1,5 @@
+import WhatsAppSupportButton from "../../components/WhatsAppSupportButton";
+
 export default function AbonnementExpirePage() {
   return (
     <main className="min-h-screen bg-gray-100 p-4 text-black md:p-8">
@@ -14,18 +16,10 @@ export default function AbonnementExpirePage() {
             votre licence pour continuer.
           </p>
           <div className="flex flex-col justify-center gap-3 md:flex-row">
-            <a
-              href="mailto:support@trianglewmspro.com?subject=Renouvellement%20abonnement%20Triangle%20WMS%20Pro"
-              className="rounded-xl bg-yellow-500 px-6 py-4 font-bold text-black"
-            >
+            <a href="/support" className="rounded-xl bg-yellow-500 px-6 py-4 font-bold text-black">
               Renouveler abonnement
             </a>
-            <a
-              href="mailto:support@trianglewmspro.com"
-              className="rounded-xl bg-black px-6 py-4 font-bold text-white"
-            >
-              Contacter support
-            </a>
+            <WhatsAppSupportButton className="bg-black" />
             <a
               href="/login"
               className="rounded-xl border px-6 py-4 font-bold text-black"

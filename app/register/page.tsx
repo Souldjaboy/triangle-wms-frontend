@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiUrl } from "../lib/api";
 import { formatFCFA } from "../lib/format";
+import WhatsAppSupportButton from "../../components/WhatsAppSupportButton";
 
 const DEFAULT_PLANS = [
   {
@@ -169,6 +170,11 @@ export default function RegisterPage() {
 
     }
 
+    if (!formData.email.trim() && !formData.phone.trim()) {
+      setError("Veuillez saisir au moins un email ou un téléphone.");
+      return;
+    }
+
     setLoading(true);
 
     setMessage("");
@@ -229,70 +235,17 @@ export default function RegisterPage() {
 
       }
 
-      /* PAYMENT */
-
-      try {
-        const paymentResponse =
-          await fetch(
-            apiUrl("/payments/create"),
-            {
-              method: "POST",
-
-              headers: {
-                "Content-Type":
-                  "application/json",
-              },
-
-              body: JSON.stringify({
-
-                company_id:
-                  registerData.company?.id,
-
-                plan_id:
-                  selectedPlan.id,
-
-                amount:
-                  selectedPlan.price_monthly,
-
-                customer_name:
-                  formData.company_name,
-
-                customer_email:
-                  formData.email,
-
-                customer_phone:
-                  formData.phone,
-
-              }),
-            }
-          );
-
-        const paymentData =
-          await paymentResponse.json().catch(() => ({}));
-
-        if (
-          paymentData.data?.payment_url
-        ) {
-
-          window.location.href =
-            paymentData.data.payment_url;
-
-          return;
-
-        }
-      } catch (paymentError) {
-        console.error("Paiement non disponible :", paymentError);
+      const verification = registerData.verification || {};
+      const verifyPage = verification.target_type === "phone" ? "/verify-phone" : "/verify-email";
+      const query = new URLSearchParams();
+      if (verification.target_value) query.set("target", verification.target_value);
+      if (registerData.user?.id) query.set("user_id", String(registerData.user.id));
+      if (verification.delivery?.sandbox_code) {
+        query.set("sandbox_code", verification.delivery.sandbox_code);
       }
 
-      setMessage(
-        "Entreprise créée avec succès. Vous pouvez vous connecter."
-      );
-
-      setTimeout(() => {
-
-        router.push("/login");
-
-      }, 2000);
+      setMessage("Entreprise créée. Vérifiez votre contact pour activer l’accès.");
+      router.push(`${verifyPage}?${query.toString()}`);
 
     } catch (error) {
 
@@ -417,7 +370,6 @@ export default function RegisterPage() {
               value={formData.email}
               onChange={handleChange}
               className="border rounded-xl p-4 text-black"
-              required
             />
 
             <input
@@ -427,7 +379,6 @@ export default function RegisterPage() {
               value={formData.phone}
               onChange={handleChange}
               className="border rounded-xl p-4 text-black"
-              required
             />
 
             <input
@@ -510,6 +461,10 @@ export default function RegisterPage() {
             </button>
 
           </form>
+
+          <div className="mt-6">
+            <WhatsAppSupportButton />
+          </div>
 
         </div>
 
