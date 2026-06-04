@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { formatFCFA } from "../lib/format";
 
 export default function DocumentsPage() {
@@ -82,14 +83,6 @@ export default function DocumentsPage() {
     fetchData();
   };
 
-  const printDocument = () => {
-    window.print();
-  };
-
-  const sendByEmail = () => {
-    setMessage("Envoi email préparé. Configurez SMTP côté serveur pour l’envoi automatique.");
-  };
-
   const getMovementColor = (type: string) => {
     if (type === "Entrée") return "bg-green-100 text-green-700";
     if (type === "Sortie") return "bg-blue-100 text-blue-700";
@@ -112,19 +105,9 @@ export default function DocumentsPage() {
           </p>
         </div>
 
-        <button
-          onClick={printDocument}
-          className="bg-black text-white font-bold px-6 py-3 rounded-xl"
-        >
-          Imprimer / PDF
-        </button>
-
-        <button
-          onClick={sendByEmail}
-          className="bg-yellow-500 text-black font-bold px-6 py-3 rounded-xl"
-        >
-          Envoyer par email
-        </button>
+        <p className="rounded-xl bg-white px-4 py-3 text-sm font-bold text-gray-600">
+          Ouvrez un document pour imprimer, exporter ou envoyer seulement celui-ci.
+        </p>
       </div>
 
       {message && (
@@ -252,12 +235,12 @@ export default function DocumentsPage() {
                         {doc.status || "Brouillon"}
                       </p>
 
-                      <button
-                        onClick={printDocument}
-                        className="bg-black text-white px-4 py-2 rounded-xl font-bold mt-3 print:hidden"
+                      <Link
+                        href={`/documents/${doc.id}`}
+                        className="inline-block bg-black text-white px-4 py-2 rounded-xl font-bold mt-3 print:hidden"
                       >
                         Voir / Imprimer
-                      </button>
+                      </Link>
                     </div>
                   </div>
 
