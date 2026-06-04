@@ -340,6 +340,15 @@ export default function DashboardPage() {
     </Link>
   )}
 
+  {moduleEnabled("marketplace") && (
+    <Link href="/marketplace">
+      <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+        <ShoppingCart size={20} />
+        Marketplace
+      </li>
+    </Link>
+  )}
+
   {canViewAccounting && moduleEnabled("comptabilite") && (
     <Link href="/comptabilite">
       <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
