@@ -8,17 +8,27 @@ import { formatFCFA } from "../lib/format";
 export default function MarketplacePage() {
   const [products, setProducts] = useState<any[]>([]);
   const [query, setQuery] = useState("");
+  const [category, setCategory] = useState("");
+  const [vendor, setVendor] = useState("");
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
   const [message, setMessage] = useState("");
 
-  const loadProducts = async (value = "") => {
-    const response = await fetch(apiUrl(`/marketplace/products?q=${encodeURIComponent(value)}`));
+  const loadProducts = async (value = query) => {
+    const params = new URLSearchParams();
+    if (value) params.set("q", value);
+    if (category) params.set("category", category);
+    if (vendor) params.set("vendor_company_id", vendor);
+    if (minPrice) params.set("min_price", minPrice);
+    if (maxPrice) params.set("max_price", maxPrice);
+    const response = await fetch(apiUrl(`/marketplace/products?${params.toString()}`));
     const data = await response.json().catch(() => []);
     setProducts(Array.isArray(data) ? data : []);
   };
 
   useEffect(() => {
     loadProducts();
-  }, []);
+  }, [category, vendor, minPrice, maxPrice]);
 
   const addToCart = async (product: any) => {
     const response = await authFetch("/marketplace/cart/items", {
@@ -39,14 +49,17 @@ export default function MarketplacePage() {
         </div>
         <div className="flex flex-wrap gap-3">
           <Link href="/marketplace/cart" className="rounded-xl bg-yellow-500 px-5 py-3 font-bold text-black">Panier</Link>
-          <Link href="/client/orders" className="rounded-xl bg-white px-5 py-3 font-bold text-black">Mes commandes</Link>
-          <Link href="/vendor/products" className="rounded-xl bg-black px-5 py-3 font-bold text-white">Espace vendeur</Link>
+          <Link href="/client/login" className="rounded-xl bg-white px-5 py-3 font-bold text-black">Connexion client</Link>
+          <Link href="/client/register" className="rounded-xl bg-white px-5 py-3 font-bold text-black">Créer compte client</Link>
+          <Link href="/marketplace/orders" className="rounded-xl bg-white px-5 py-3 font-bold text-black">Mes commandes</Link>
+          <Link href="/marketplace/business" className="rounded-xl bg-black px-5 py-3 font-bold text-white">Achat B2B</Link>
+          <Link href="/marketplace/vendor/products" className="rounded-xl bg-black px-5 py-3 font-bold text-white">Espace vendeur</Link>
         </div>
       </div>
 
       {message && <div className="mb-5 rounded-xl bg-yellow-100 p-4 font-bold text-yellow-800">{message}</div>}
 
-      <div className="mb-6 rounded-2xl bg-white p-4 shadow">
+      <div className="mb-6 grid gap-3 rounded-2xl bg-white p-4 shadow md:grid-cols-6">
         <input
           value={query}
           onChange={(event) => {
@@ -54,8 +67,12 @@ export default function MarketplacePage() {
             loadProducts(event.target.value);
           }}
           placeholder="Rechercher produit, référence, catégorie..."
-          className="w-full rounded-xl border p-4"
+          className="rounded-xl border p-4 md:col-span-2"
         />
+        <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Catégorie" className="rounded-xl border p-4" />
+        <input value={vendor} onChange={(e) => setVendor(e.target.value)} placeholder="ID entreprise" className="rounded-xl border p-4" />
+        <input value={minPrice} onChange={(e) => setMinPrice(e.target.value)} placeholder="Prix min" className="rounded-xl border p-4" />
+        <input value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)} placeholder="Prix max" className="rounded-xl border p-4" />
       </div>
 
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">

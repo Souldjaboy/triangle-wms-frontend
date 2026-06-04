@@ -5,7 +5,16 @@ import { useEffect, useState } from "react";
 import { authFetch } from "../../lib/api";
 import { formatFCFA } from "../../lib/format";
 
-const emptyForm = { product_id: "", title: "", description: "", category: "", price: "", image_url: "" };
+const emptyForm = {
+  product_id: "",
+  title: "",
+  description: "",
+  category: "",
+  price: "",
+  published_quantity: "",
+  image_url: "",
+  status: "published",
+};
 
 export default function VendorProductsPage() {
   const [products, setProducts] = useState<any[]>([]);
@@ -31,7 +40,13 @@ export default function VendorProductsPage() {
     const response = await authFetch("/marketplace/vendor/products", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, product_id: Number(form.product_id), price: Number(form.price || 0) }),
+      body: JSON.stringify({
+        ...form,
+        product_id: Number(form.product_id),
+        price: Number(form.price || 0),
+        public_price: Number(form.price || 0),
+        published_quantity: Number(form.published_quantity || 0),
+      }),
     });
     const data = await response.json().catch(() => ({}));
     setMessage(response.ok ? "Produit publié." : data.error || "Erreur publication.");
@@ -64,9 +79,14 @@ export default function VendorProductsPage() {
           ))}
         </select>
         <input className="rounded-xl border p-3" placeholder="Titre marketplace" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
-        <input className="rounded-xl border p-3" placeholder="Prix" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
+        <input className="rounded-xl border p-3" placeholder="Prix public marketplace" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
+        <input className="rounded-xl border p-3" placeholder="Quantité à publier" value={form.published_quantity} onChange={(e) => setForm({ ...form, published_quantity: e.target.value })} />
         <input className="rounded-xl border p-3" placeholder="Catégorie" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} />
         <input className="rounded-xl border p-3" placeholder="Image URL" value={form.image_url} onChange={(e) => setForm({ ...form, image_url: e.target.value })} />
+        <select className="rounded-xl border p-3" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+          <option value="published">Publié</option>
+          <option value="draft">Brouillon</option>
+        </select>
         <button className="rounded-xl bg-yellow-500 p-3 font-black">Publier</button>
         <textarea className="rounded-xl border p-3 md:col-span-3" placeholder="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
       </form>
@@ -76,6 +96,10 @@ export default function VendorProductsPage() {
             <p className="text-xl font-black">{product.title}</p>
             <p className="text-gray-500">{product.reference || product.product_name}</p>
             <p className="mt-2 text-2xl font-black text-green-700">{formatFCFA(product.price)}</p>
+            <p className="text-sm text-gray-500">
+              Publié : {Number(product.published_quantity || product.available_stock || 0).toLocaleString("fr-FR")} -
+              Disponible : {Number(product.available_quantity || product.available_stock || 0).toLocaleString("fr-FR")}
+            </p>
             <p className="text-sm text-gray-500">Statut : {product.status}</p>
             <button onClick={() => disableProduct(product.id)} className="mt-4 rounded-xl bg-red-100 px-4 py-2 font-bold text-red-700">Désactiver</button>
           </div>
