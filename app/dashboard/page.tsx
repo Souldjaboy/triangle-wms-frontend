@@ -21,6 +21,7 @@ import {
   Car,
   Building2,
   Utensils,
+  FlaskConical,
   TriangleAlert,
   Activity,
   Users,
@@ -375,6 +376,15 @@ export default function DashboardPage() {
       <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
         <Utensils size={20} />
         Restaurant
+      </li>
+    </Link>
+  )}
+
+  {moduleEnabled("laboratoire") && (
+    <Link href="/laboratoire">
+      <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+        <FlaskConical size={20} />
+        Laboratoire
       </li>
     </Link>
   )}

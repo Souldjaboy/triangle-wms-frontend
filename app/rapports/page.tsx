@@ -43,8 +43,25 @@ export default function RapportsPage() {
     window.print();
   };
 
-  const sendEmail = () => {
-    alert("Envoi email préparé. Configurez SMTP côté serveur pour activer l’envoi automatique.");
+  const sendEmail = async () => {
+    const recipient = window.prompt("Email destinataire du rapport");
+    if (!recipient) return;
+    const html = document.querySelector(".print\\:bg-white")?.innerHTML || document.body.innerHTML;
+    const response = await fetch("/api/reports/email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeaders(),
+      },
+      body: JSON.stringify({
+        recipient_email: recipient,
+        subject: `Rapport ${activeReport} Triangle WMS Pro`,
+        html,
+        message: filters.observation || `Rapport ${activeReport}`,
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+    alert(response.ok ? data.message || "Rapport envoyé." : data.error || "Erreur envoi email rapport.");
   };
 
   const filteredProducts = products.filter((product: any) => {

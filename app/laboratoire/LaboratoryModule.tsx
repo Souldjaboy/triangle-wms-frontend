@@ -28,6 +28,7 @@ export default function LaboratoryModule({ mode = "dashboard" }: { mode?: string
   const [patientForm, setPatientForm] = useState({ full_name: "", phone: "", email: "", gender: "", age: "", address: "" });
   const [analysisForm, setAnalysisForm] = useState({ name: "", description: "", price: "", result_delay: "" });
   const [caseForm, setCaseForm] = useState({ patient_id: "", analysis_ids: [] as string[] });
+  const [resultDrafts, setResultDrafts] = useState<Record<number, { summary: string; email: string }>>({});
 
   const loadAll = async () => {
     const [settingsRes, analysesRes, patientsRes, appointmentsRes, casesRes, paymentsRes, documentsRes] = await Promise.all([
@@ -107,17 +108,46 @@ export default function LaboratoryModule({ mode = "dashboard" }: { mode?: string
   };
 
   const updateCaseResult = async (item: any, publish = false) => {
+    const draft = resultDrafts[item.id] || { summary: "", email: "" };
     await authFetch(`/laboratory/cases/${item.id}/result`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         status: publish ? "publié" : "résultat_prêt",
-        result_summary: item.result_summary || "Résultat prêt.",
+        result_summary: draft.summary || item.result_summary || "Résultat prêt.",
         result_file_url: item.result_file_url || "",
         result_published: publish,
       }),
     });
     await loadAll();
+  };
+
+  const uploadResultFile = async (item: any, file?: File) => {
+    if (!file) return;
+    const formData = new FormData();
+    formData.append("result", file);
+    const response = await authFetch(`/laboratory/cases/${item.id}/upload-result`, {
+      method: "POST",
+      body: formData,
+    });
+    const data = await response.json().catch(() => ({}));
+    setMessage(response.ok ? "Fichier résultat ajouté." : data.error || "Erreur upload résultat.");
+    await loadAll();
+  };
+
+  const emailResult = async (item: any) => {
+    const draft = resultDrafts[item.id] || { summary: "", email: "" };
+    if (!draft.email) {
+      setMessage("Email destinataire obligatoire.");
+      return;
+    }
+    const response = await authFetch(`/laboratory/cases/${item.id}/email-result`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ recipient_email: draft.email, message: draft.summary }),
+    });
+    const data = await response.json().catch(() => ({}));
+    setMessage(response.ok ? "Résultat envoyé par email." : data.error || "Erreur envoi email résultat.");
   };
 
   const confirmPayment = async (item: any) => {
@@ -213,10 +243,28 @@ export default function LaboratoryModule({ mode = "dashboard" }: { mode?: string
             <button onClick={createCase} className="rounded-xl bg-yellow-500 font-black text-black">Créer dossier</button>
           </div>
           <Table rows={cases} columns={["case_number", "result_code", "patient_name", "total_amount", "payment_status", "status"]} action={(row) => (
-            <div className="flex gap-2">
-              <button onClick={() => updateCaseResult(row, false)} className="rounded-lg bg-black px-3 py-2 text-white">Résultat prêt</button>
-              <button onClick={() => updateCaseResult(row, true)} className="rounded-lg bg-green-700 px-3 py-2 text-white">Publier</button>
-              <button onClick={() => confirmPayment(row)} className="rounded-lg bg-yellow-500 px-3 py-2 font-bold text-black">Paiement</button>
+            <div className="grid min-w-[360px] gap-2">
+              <textarea
+                className="rounded-lg border p-2"
+                placeholder="Résumé résultat"
+                value={resultDrafts[row.id]?.summary ?? row.result_summary ?? ""}
+                onChange={(e) => setResultDrafts({ ...resultDrafts, [row.id]: { ...(resultDrafts[row.id] || { email: "" }), summary: e.target.value } })}
+              />
+              <input type="file" accept="application/pdf,image/*" onChange={(e) => uploadResultFile(row, e.target.files?.[0])} className="rounded-lg border p-2" />
+              <input
+                className="rounded-lg border p-2"
+                placeholder="Email destinataire"
+                value={resultDrafts[row.id]?.email || ""}
+                onChange={(e) => setResultDrafts({ ...resultDrafts, [row.id]: { ...(resultDrafts[row.id] || { summary: "" }), email: e.target.value } })}
+              />
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => updateCaseResult(row, false)} className="rounded-lg bg-black px-3 py-2 text-white">Résultat prêt</button>
+                <button onClick={() => updateCaseResult(row, true)} className="rounded-lg bg-green-700 px-3 py-2 text-white">Publier</button>
+                <button onClick={() => confirmPayment(row)} className="rounded-lg bg-yellow-500 px-3 py-2 font-bold text-black">Paiement</button>
+                <button onClick={() => emailResult(row)} className="rounded-lg bg-blue-700 px-3 py-2 text-white">Email</button>
+                {row.result_file_url && <a href={row.result_file_url} className="rounded-lg bg-gray-100 px-3 py-2 font-bold text-black">PDF/Image</a>}
+                <button onClick={() => navigator.clipboard?.writeText(`${window.location.origin}/resultats-laboratoire`)} className="rounded-lg bg-gray-100 px-3 py-2 font-bold text-black">Copier lien</button>
+              </div>
             </div>
           )} />
         </section>

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { authFetch } from "../../lib/api";
+import { authFetch, apiUrl, getAuthToken } from "../../lib/api";
 import { formatFCFA } from "../../lib/format";
 
 const emptyForm = {
@@ -15,6 +15,30 @@ const emptyForm = {
   image_url: "",
   status: "published",
 };
+
+const marketplaceCategories = [
+  "Produits",
+  "Alimentation",
+  "Boissons",
+  "Pharmacie",
+  "Santé / Laboratoire",
+  "Téléphones",
+  "Informatique",
+  "Électronique",
+  "Vêtements",
+  "Chaussures",
+  "Beauté / Cosmétique",
+  "Pièces auto",
+  "Automobiles",
+  "Immobilier",
+  "Hôtels",
+  "Restaurants",
+  "Agriculture",
+  "Matériaux construction",
+  "Fournitures bureau",
+  "Maison / meubles",
+  "Services",
+];
 
 export default function VendorProductsPage() {
   const [products, setProducts] = useState<any[]>([]);
@@ -61,6 +85,20 @@ export default function VendorProductsPage() {
     load();
   };
 
+  const uploadImage = async (file?: File) => {
+    if (!file) return;
+    const formData = new FormData();
+    formData.append("image", file);
+    const response = await fetch(apiUrl("/upload-product-image"), {
+      method: "POST",
+      headers: { Authorization: `Bearer ${getAuthToken()}` },
+      body: formData,
+    });
+    const data = await response.json().catch(() => ({}));
+    if (response.ok) setForm({ ...form, image_url: data.image_url || data.url || "" });
+    setMessage(response.ok ? "Image marketplace ajoutée." : data.error || "Erreur upload image.");
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 p-4 text-black md:p-8">
       <div className="mb-6 flex items-center justify-between">
@@ -81,8 +119,14 @@ export default function VendorProductsPage() {
         <input className="rounded-xl border p-3" placeholder="Titre marketplace" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
         <input className="rounded-xl border p-3" placeholder="Prix public marketplace" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
         <input className="rounded-xl border p-3" placeholder="Quantité à publier" value={form.published_quantity} onChange={(e) => setForm({ ...form, published_quantity: e.target.value })} />
-        <input className="rounded-xl border p-3" placeholder="Catégorie" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} />
-        <input className="rounded-xl border p-3" placeholder="Image URL" value={form.image_url} onChange={(e) => setForm({ ...form, image_url: e.target.value })} />
+        <select className="rounded-xl border p-3" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
+          <option value="">Catégorie marketplace</option>
+          {marketplaceCategories.map((category) => <option key={category} value={category}>{category}</option>)}
+        </select>
+        <div className="grid gap-2">
+          <input className="rounded-xl border p-3" placeholder="Image URL" value={form.image_url} onChange={(e) => setForm({ ...form, image_url: e.target.value })} />
+          <input type="file" accept="image/*" onChange={(e) => uploadImage(e.target.files?.[0])} className="rounded-xl border p-3" />
+        </div>
         <select className="rounded-xl border p-3" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
           <option value="published">Publié</option>
           <option value="draft">Brouillon</option>
