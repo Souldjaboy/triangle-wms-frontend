@@ -27,25 +27,25 @@ export default function MarketplaceBusinessPage() {
       body: JSON.stringify({ marketplace_product_id: product.id, quantity: 1 }),
     });
     const data = await response.json().catch(() => ({}));
-    setMessage(response.ok ? "Produit B2B ajouté au panier." : data.error || "Erreur ajout panier.");
+    setMessage(response.ok ? "Produit ajouté au panier entreprise." : data.error || "Erreur ajout panier.");
   };
 
   return (
     <main className="min-h-screen bg-gray-100 p-4 text-black md:p-8">
       <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-4xl font-black">Marketplace B2B</h1>
+          <h1 className="text-4xl font-black">Marketplace entreprises</h1>
           <p className="text-gray-500">Acheter chez d'autres entreprises sans voir vos propres produits.</p>
         </div>
         <div className="flex gap-3">
           <Link href="/marketplace/cart" className="rounded-xl bg-yellow-500 px-5 py-3 font-bold text-black">Panier</Link>
-          <Link href="/marketplace/orders" className="rounded-xl bg-white px-5 py-3 font-bold text-black">Achats</Link>
+          <Link href="/marketplace/orders" className="rounded-xl bg-white px-5 py-3 font-bold text-black">Commandes envoyées</Link>
         </div>
       </div>
       {message && <div className="mb-5 rounded-xl bg-yellow-100 p-4 font-bold text-yellow-800">{message}</div>}
       <input
         className="mb-6 w-full rounded-2xl border bg-white p-4 shadow"
-        placeholder="Rechercher produit B2B"
+        placeholder="Rechercher un produit entreprise"
         value={query}
         onChange={(e) => {
           setQuery(e.target.value);
@@ -61,7 +61,7 @@ export default function MarketplaceBusinessPage() {
             <p className="mt-3 text-2xl font-black text-green-700">{formatFCFA(product.price)}</p>
             <p className="text-sm text-gray-500">Disponible : {Number(product.display_stock || 0).toLocaleString("fr-FR")}</p>
             <button onClick={() => addToCart(product)} className="mt-4 w-full rounded-xl bg-yellow-500 px-4 py-3 font-black text-black">
-              Ajouter au panier B2B
+              Ajouter au panier entreprise
             </button>
           </article>
         ))}

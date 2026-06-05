@@ -49,7 +49,20 @@ export default function ClientRegisterPage() {
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gray-100 p-4 text-black">
+    <main className="grid min-h-screen bg-gray-100 text-black lg:grid-cols-2">
+      <section className="relative hidden overflow-hidden bg-black lg:block">
+        <img
+          src="https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=1200&q=80"
+          alt="Création compte client"
+          className="absolute inset-0 h-full w-full object-cover opacity-55"
+        />
+        <div className="relative flex h-full flex-col justify-end p-12 text-white">
+          <p className="font-black text-yellow-400">Compte client public</p>
+          <h1 className="mt-3 text-5xl font-black">Un compte séparé de l’espace entreprise.</h1>
+          <p className="mt-4 max-w-md text-white/75">Créez votre profil client pour commander sur le Marketplace et suivre vos achats.</p>
+        </div>
+      </section>
+      <section className="flex items-center justify-center p-4">
       <form onSubmit={submit} className="w-full max-w-xl rounded-3xl bg-white p-6 shadow-2xl">
         <h1 className="text-3xl font-black">Créer un compte client</h1>
         <p className="mt-2 text-gray-500">Compte particulier pour commander sur Triangle Marketplace.</p>
@@ -72,6 +85,7 @@ export default function ClientRegisterPage() {
           <Link href="/marketplace">Voir le marketplace</Link>
         </div>
       </form>
+      </section>
     </main>
   );
 }

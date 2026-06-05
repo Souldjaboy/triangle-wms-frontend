@@ -5,15 +5,36 @@ import { QRCodeCanvas } from "qrcode.react";
 
 export default function BadgesPage() {
   const [users, setUsers] = useState<any[]>([]);
+  const [error, setError] = useState("");
+  const [canViewBadges, setCanViewBadges] = useState(false);
 
   const fetchUsers = async () => {
+    const storedUser = localStorage.getItem("user");
+    const user = storedUser ? JSON.parse(storedUser) : null;
+    const role = String(user?.role || "").toLowerCase();
+    const allowed =
+      user?.is_super_admin === true ||
+      role === "super_admin" ||
+      role === "admin";
+
+    if (!allowed) {
+      setCanViewBadges(false);
+      setError("Accès refusé : les badges sont réservés à l’administrateur.");
+      return;
+    }
+
+    setCanViewBadges(true);
     const response = await fetch("/api/users", {
       headers: {
         Authorization: `Bearer ${localStorage.getItem("token")}`,
       },
     });
 
-    const data = await response.json();
+    const data = await response.json().catch(() => []);
+    if (!response.ok) {
+      setError(data.error || "Erreur chargement badges.");
+      return;
+    }
     setUsers(Array.isArray(data) ? data : []);
   };
 
@@ -49,7 +70,13 @@ export default function BadgesPage() {
         </button>
       </div>
 
-      {users.length === 0 ? (
+      {error && (
+        <div className="mb-6 rounded-xl bg-red-100 p-4 font-bold text-red-700">
+          {error}
+        </div>
+      )}
+
+      {!canViewBadges ? null : users.length === 0 ? (
         <p className="text-gray-500">Aucun utilisateur trouvé.</p>
       ) : (
         <div className="grid grid-cols-3 gap-8 print:grid-cols-2">

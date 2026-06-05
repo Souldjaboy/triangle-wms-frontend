@@ -20,7 +20,7 @@ export default function ClientOrdersPage() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-4xl font-black">Mes commandes</h1>
-          <p className="text-gray-500">Historique marketplace client et B2B.</p>
+          <p className="text-gray-500">Historique des commandes.</p>
         </div>
         <Link href="/marketplace" className="rounded-xl bg-black px-5 py-3 font-bold text-white">Marketplace</Link>
       </div>

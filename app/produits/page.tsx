@@ -27,6 +27,7 @@ const marketplaceCategories = [
 
 export default function ProduitsPage() {
   const [produits, setProduits] = useState<any[]>([]);
+  const [companies, setCompanies] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [userRole, setUserRole] = useState("");
@@ -64,7 +65,7 @@ export default function ProduitsPage() {
     rental_price: "",
     daily_price: "",
     monthly_price: "",
-    product_type: "stock_normal",
+    product_type: "general_product",
     is_sellable: true,
     is_rentable: false,
     image_url: "",
@@ -75,6 +76,8 @@ export default function ProduitsPage() {
     marketplace_category: "",
     marketplace_price: "",
     marketplace_quantity: "",
+    company_id: "",
+    is_durable: false,
   });
 
 const fetchProduits = async () => {
@@ -103,21 +106,38 @@ const fetchLocations = async () => {
   setLocations(Array.isArray(data) ? data : []);
 };
 
-useEffect(() => {
-  fetchProduits();
-  fetchLocations();
+const fetchCompanies = async () => {
+  const response = await fetch("/api/super-admin/companies", {
+    headers: authHeaders(),
+  });
+  const data = await response.json().catch(() => []);
+  setCompanies(Array.isArray(data) ? data : []);
+};
 
+useEffect(() => {
   const savedUser = localStorage.getItem("user");
 
   if (savedUser) {
     const user = JSON.parse(savedUser);
     setUserRole(user.role);
-    setIsSuperAdmin(
+    const superAdmin =
       user.is_super_admin === true ||
         user.is_super_admin === "true" ||
-        user.is_super_admin === 1
-    );
+        user.is_super_admin === 1 ||
+        String(user.role || "").toLowerCase() === "super_admin";
+    setIsSuperAdmin(superAdmin);
+    if (!superAdmin && user.company_id) {
+      setFormData((current) => ({
+        ...current,
+        company_id: String(user.company_id),
+      }));
+    }
+    if (superAdmin) {
+      fetchCompanies();
+    }
   }
+  fetchProduits();
+  fetchLocations();
 }, []);
 
   const handleChange = (e: any) => {
@@ -212,7 +232,7 @@ useEffect(() => {
       rental_price: "",
       daily_price: "",
       monthly_price: "",
-      product_type: "stock_normal",
+      product_type: "general_product",
       is_sellable: true,
       is_rentable: false,
       image_url: "",
@@ -223,6 +243,8 @@ useEffect(() => {
       marketplace_category: "",
       marketplace_price: "",
       marketplace_quantity: "",
+      company_id: formData.company_id,
+      is_durable: false,
     });
     setImagePreview("");
   };
@@ -240,9 +262,15 @@ const handleSubmit = async (e: any) => {
 
   const payload = {
     ...formData,
+    active_company_id: formData.company_id || undefined,
     user_name: user?.fullname || "Utilisateur",
     user_role: user?.role || userRole,
   };
+
+  if (isSuperAdmin && !formData.company_id) {
+    alert("Sélectionnez une entreprise avant de créer ou modifier un produit.");
+    return;
+  }
 
   const headers = authHeaders({ "Content-Type": "application/json" });
 
@@ -312,9 +340,10 @@ const handleSubmit = async (e: any) => {
       rental_price: String(produit.rental_price || ""),
       daily_price: String(produit.daily_price || ""),
       monthly_price: String(produit.monthly_price || ""),
-      product_type: produit.product_type || "stock_normal",
+      product_type: produit.product_type || "general_product",
       is_sellable: produit.is_sellable !== false,
       is_rentable: produit.is_rentable === true,
+      is_durable: produit.is_durable === true,
       image_url: produit.image_url || "",
       is_active: produit.is_active !== false,
       location_id: produit.location_id ? String(produit.location_id) : "",
@@ -323,6 +352,7 @@ const handleSubmit = async (e: any) => {
       marketplace_category: produit.category || "",
       marketplace_price: String(produit.sale_price || produit.price || ""),
       marketplace_quantity: String(produit.stock || ""),
+      company_id: produit.company_id ? String(produit.company_id) : formData.company_id,
     });
     setImagePreview(produit.image_url || "");
   };
@@ -332,6 +362,10 @@ const handleSubmit = async (e: any) => {
     options: { category?: string; price?: string; quantity?: string } = {}
   ) => {
     if (!produit?.id) return;
+    if (produit.is_sellable === false) {
+      alert("Ce produit n’est pas vendable. Activez d’abord l’option Produit vendable.");
+      return;
+    }
 
     const price = Number(options.price || produit.sale_price || produit.price || 0);
     const quantity = Number(options.quantity || produit.stock || 0);
@@ -399,6 +433,28 @@ const handleSubmit = async (e: any) => {
           onSubmit={handleSubmit}
           className="bg-white p-6 rounded-2xl shadow mb-10 grid grid-cols-3 gap-4"
         >
+          <select
+            name="company_id"
+            value={formData.company_id}
+            onChange={handleChange}
+            className="border p-3 rounded-xl text-black"
+            required
+            disabled={!isSuperAdmin}
+          >
+            <option value="">
+              {isSuperAdmin ? "Choisir l’entreprise" : "Entreprise automatique"}
+            </option>
+            {isSuperAdmin
+              ? companies.map((company: any) => (
+                  <option key={company.id} value={company.id}>
+                    {company.name || company.company_name || `Entreprise ${company.id}`}
+                  </option>
+                ))
+              : formData.company_id && (
+                  <option value={formData.company_id}>Mon entreprise</option>
+                )}
+          </select>
+
           <input
             type="text"
             name="reference"
@@ -492,12 +548,12 @@ const handleSubmit = async (e: any) => {
             onChange={handleChange}
             className="border p-3 rounded-xl text-black"
           >
-            <option value="stock_normal">Stock normal</option>
-            <option value="vehicle">Véhicule</option>
-            <option value="property">Bien immobilier</option>
-            <option value="room">Chambre</option>
-            <option value="restaurant_item">Plat restaurant</option>
-            <option value="service">Service</option>
+            <option value="stock_vehicle">Stock véhicules</option>
+            <option value="stock_property">Stock biens immobiliers</option>
+            <option value="stock_room">Stock chambres / hôtel</option>
+            <option value="restaurant_item">Plats restaurant</option>
+            <option value="service">Services</option>
+            <option value="general_product">Produits généraux</option>
           </select>
 
           <input
@@ -552,7 +608,17 @@ const handleSubmit = async (e: any) => {
               checked={formData.is_sellable}
               onChange={handleChange}
             />
-            Vendable
+            Produit vendable
+          </label>
+
+          <label className="flex items-center gap-3 text-black">
+            <input
+              type="checkbox"
+              name="is_durable"
+              checked={formData.is_durable}
+              onChange={handleChange}
+            />
+            Produit durable
           </label>
 
           <label className="flex items-center gap-3 text-black">
@@ -562,7 +628,7 @@ const handleSubmit = async (e: any) => {
               checked={formData.is_rentable}
               onChange={handleChange}
             />
-            Louable
+            Produit louable
           </label>
 
           <label className="flex items-center gap-3 text-black">
@@ -775,6 +841,7 @@ const handleSubmit = async (e: any) => {
               <th className="py-3">Image</th>
               <th>Référence</th>
               <th>Produit</th>
+              {isSuperAdmin && <th>Entreprise</th>}
               <th>Catégorie</th>
               <th>Stock</th>
               <th>Min</th>
@@ -804,6 +871,7 @@ const handleSubmit = async (e: any) => {
 
                 <td className="font-bold">{produit.reference}</td>
                 <td>{produit.name}</td>
+                {isSuperAdmin && <td>{produit.company_name || produit.company_id || "-"}</td>}
                 <td>{produit.category}</td>
                 <td>{produit.stock}</td>
                 <td>{produit.minimum_stock}</td>

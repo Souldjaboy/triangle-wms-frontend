@@ -432,25 +432,31 @@ export default function DashboardPage() {
 
   {isAdminLike && (
     <>
-      <Link href="/activites">
-        <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
-          <Activity size={20} />
-          Activités
-        </li>
-      </Link>
+      {moduleEnabled("activites") && (
+        <Link href="/activites">
+          <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+            <Activity size={20} />
+            Activités
+          </li>
+        </Link>
+      )}
 
-      <Link href="/utilisateurs">
-        <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
-          <Users size={20} />
-          Utilisateurs
-        </li>
-      </Link>
+      {moduleEnabled("utilisateurs") && (
+        <Link href="/utilisateurs">
+          <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+            <Users size={20} />
+            Utilisateurs
+          </li>
+        </Link>
+      )}
 
-      <Link href="/badges">
-        <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
-          Badges
-        </li>
-      </Link>
+      {moduleEnabled("badges") && (
+        <Link href="/badges">
+          <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+            Badges
+          </li>
+        </Link>
+      )}
     </>
   )}
 
