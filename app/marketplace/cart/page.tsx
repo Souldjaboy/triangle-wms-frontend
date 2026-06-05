@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { authFetch } from "../../lib/api";
+import { authFetch, getAuthToken } from "../../lib/api";
 import { formatFCFA } from "../../lib/format";
 
 export default function MarketplaceCartPage() {
@@ -16,6 +16,10 @@ export default function MarketplaceCartPage() {
   };
 
   useEffect(() => {
+    if (!getAuthToken()) {
+      window.location.href = "/client/login";
+      return;
+    }
     loadCart();
   }, []);
 

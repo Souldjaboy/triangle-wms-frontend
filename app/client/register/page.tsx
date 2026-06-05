@@ -7,7 +7,15 @@ import { apiUrl } from "../../lib/api";
 
 export default function ClientRegisterPage() {
   const router = useRouter();
-  const [form, setForm] = useState({ fullname: "", phone: "", email: "", password: "" });
+  const [form, setForm] = useState({
+    fullname: "",
+    phone: "",
+    email: "",
+    password: "",
+    country: "",
+    city: "",
+    address: "",
+  });
   const [confirmPassword, setConfirmPassword] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -50,6 +58,9 @@ export default function ClientRegisterPage() {
           <input required className="rounded-xl border p-3" placeholder="Nom complet" value={form.fullname} onChange={(e) => setForm({ ...form, fullname: e.target.value })} />
           <input required className="rounded-xl border p-3" placeholder="Téléphone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
           <input className="rounded-xl border p-3" placeholder="Email optionnel" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+          <input required className="rounded-xl border p-3" placeholder="Pays" value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value })} />
+          <input required className="rounded-xl border p-3" placeholder="Ville" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
+          <textarea required className="rounded-xl border p-3" placeholder="Adresse de livraison" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
           <input required className="rounded-xl border p-3" type="password" placeholder="Mot de passe" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
           <input required className="rounded-xl border p-3" type="password" placeholder="Confirmer mot de passe" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
         </div>

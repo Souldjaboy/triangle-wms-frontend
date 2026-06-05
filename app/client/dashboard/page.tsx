@@ -11,6 +11,7 @@ export default function ClientDashboardPage() {
         <Link href="/marketplace" className="rounded-2xl bg-white p-6 font-black shadow">Catalogue</Link>
         <Link href="/marketplace/cart" className="rounded-2xl bg-white p-6 font-black shadow">Panier</Link>
         <Link href="/client/orders" className="rounded-2xl bg-yellow-500 p-6 font-black shadow">Mes commandes</Link>
+        <Link href="/client/profile" className="rounded-2xl bg-white p-6 font-black shadow">Mon profil</Link>
       </div>
     </div>
   );

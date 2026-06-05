@@ -96,6 +96,7 @@ export function middleware(req: NextRequest) {
     role === "super_admin";
   const isAdmin = tokenSaysSuperAdmin || role === "admin";
   const isDirection = role === "directeur" || role === "direction";
+  const isCustomer = role === "customer";
   const subscriptionStatus = String(
     req.cookies.get("triangle_subscription_status")?.value || payload?.subscription_status || ""
   ).toLowerCase();
@@ -114,6 +115,10 @@ export function middleware(req: NextRequest) {
     if (isSuperAdminCookie !== "true" && !tokenSaysSuperAdmin) {
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
+  }
+
+  if (isCustomer) {
+    return NextResponse.redirect(new URL("/client/dashboard", req.url));
   }
 
   if (!tokenSaysSuperAdmin && subscriptionBlocked) {

@@ -1,8 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { authFetch } from "../../lib/api";
+import { useEffect, useState } from "react";
+import { authFetch, getAuthToken } from "../../lib/api";
 
 export default function MarketplaceCheckoutPage() {
   const router = useRouter();
@@ -15,6 +15,12 @@ export default function MarketplaceCheckoutPage() {
     notes: "",
   });
   const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    if (!getAuthToken()) {
+      window.location.href = "/client/login";
+    }
+  }, []);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();

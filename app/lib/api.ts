@@ -62,7 +62,11 @@ export async function authFetch(path: string, options: RequestInit = {}) {
       document.cookie = "triangle_token=; path=/; max-age=0";
       document.cookie = "triangle_super_admin=; path=/; max-age=0";
       document.cookie = "triangle_subscription_status=; path=/; max-age=0";
-      window.location.href = "/login";
+      const pathname = window.location.pathname;
+      window.location.href =
+        pathname.startsWith("/client") || pathname.startsWith("/marketplace")
+          ? "/client/login"
+          : "/login";
     }
   }
 

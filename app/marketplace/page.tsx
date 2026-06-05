@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { apiUrl, authFetch } from "../lib/api";
+import { apiUrl, authFetch, getAuthToken } from "../lib/api";
 import { formatFCFA } from "../lib/format";
 
 export default function MarketplacePage() {
@@ -31,6 +31,10 @@ export default function MarketplacePage() {
   }, [category, vendor, minPrice, maxPrice]);
 
   const addToCart = async (product: any) => {
+    if (!getAuthToken()) {
+      window.location.href = "/client/login";
+      return;
+    }
     const response = await authFetch("/marketplace/cart/items", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
