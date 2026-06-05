@@ -28,6 +28,9 @@ export default function UtilisateursPage() {
   const [messageType, setMessageType] = useState<"success" | "error">("success");
   const [loading, setLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [modules, setModules] = useState<any[]>([]);
+  const [selectedPermissionUser, setSelectedPermissionUser] = useState<any>(null);
+  const [permissions, setPermissions] = useState<Record<string, any>>({});
 
   const authHeaders = () => ({
     "Content-Type": "application/json",
@@ -50,12 +53,19 @@ export default function UtilisateursPage() {
     }
   };
 
+  const fetchModules = async () => {
+    const response = await fetch("/api/modules", { headers: authHeaders() });
+    const data = await response.json().catch(() => []);
+    setModules(Array.isArray(data) ? data : []);
+  };
+
   useEffect(() => {
     const savedUser = localStorage.getItem("user");
     if (savedUser) {
       setCurrentUser(JSON.parse(savedUser));
     }
     fetchUsers();
+    fetchModules().catch(() => setModules([]));
   }, []);
 
   const isSuperAdmin =
@@ -149,6 +159,72 @@ export default function UtilisateursPage() {
       setMessageType("error");
       setMessage("Erreur serveur.");
     }
+  };
+
+  const openPermissions = async (user: any) => {
+    setSelectedPermissionUser(user);
+    const response = await fetch(`/api/users/${user.id}/permissions`, {
+      headers: authHeaders(),
+    });
+    const data = await response.json().catch(() => []);
+    const map: Record<string, any> = {};
+    modules.forEach((module) => {
+      map[module.module_key] = {
+        module_key: module.module_key,
+        can_view: true,
+        can_create: false,
+        can_edit: false,
+        can_delete: false,
+        can_validate: false,
+      };
+    });
+    if (Array.isArray(data)) {
+      data.forEach((permission) => {
+        map[permission.module_key] = {
+          ...map[permission.module_key],
+          ...permission,
+        };
+      });
+    }
+    setPermissions(map);
+  };
+
+  const togglePermission = (moduleKey: string, field: string) => {
+    setPermissions((current) => ({
+      ...current,
+      [moduleKey]: {
+        ...(current[moduleKey] || { module_key: moduleKey }),
+        [field]: !current[moduleKey]?.[field],
+      },
+    }));
+  };
+
+  const savePermissions = async () => {
+    if (!selectedPermissionUser) return;
+    const payload = Object.values(permissions);
+    const response = await fetch(`/api/users/${selectedPermissionUser.id}/permissions`, {
+      method: "PUT",
+      headers: authHeaders(),
+      body: JSON.stringify({ permissions: payload }),
+    });
+    const data = await response.json().catch(() => ({}));
+    setMessageType(response.ok ? "success" : "error");
+    setMessage(response.ok ? "Permissions utilisateur enregistrées." : data.error || "Erreur permissions utilisateur.");
+  };
+
+  const resetPassword = async (user: any) => {
+    if (!confirm(`Réinitialiser le mot de passe de ${user.email} ?`)) return;
+    const response = await fetch(`/api/users/${user.id}/reset-password`, {
+      method: "POST",
+      headers: authHeaders(),
+    });
+    const data = await response.json().catch(() => ({}));
+    setMessageType(response.ok ? "success" : "error");
+    setMessage(
+      response.ok
+        ? `${data.message || "Mot de passe réinitialisé."}${data.temporary_password ? ` Mot de passe temporaire : ${data.temporary_password}` : ""}`
+        : data.error || "Erreur reset mot de passe."
+    );
   };
 
   return (
@@ -306,6 +382,18 @@ export default function UtilisateursPage() {
                     >
                       Supprimer
                     </button>
+                    <button
+                      onClick={() => resetPassword(user)}
+                      className="bg-black text-white px-4 py-2 rounded-xl font-bold"
+                    >
+                      Reset MDP
+                    </button>
+                    <button
+                      onClick={() => openPermissions(user)}
+                      className="bg-yellow-500 text-black px-4 py-2 rounded-xl font-bold"
+                    >
+                      Modules
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -317,6 +405,51 @@ export default function UtilisateursPage() {
           <p className="p-6 text-gray-500">Aucun utilisateur trouvé.</p>
         )}
       </div>
+
+      {selectedPermissionUser && (
+        <div className="mt-8 rounded-2xl bg-white p-6 shadow">
+          <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-2xl font-bold">Modules de {selectedPermissionUser.fullname}</h2>
+              <p className="text-gray-500">Les permissions utilisateur complètent les limites de l’entreprise.</p>
+            </div>
+            <button onClick={savePermissions} className="rounded-xl bg-yellow-500 px-5 py-3 font-bold text-black">
+              Enregistrer permissions
+            </button>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] text-left text-sm">
+              <thead>
+                <tr className="border-b text-gray-500">
+                  <th className="p-3">Module</th>
+                  <th>Voir</th>
+                  <th>Créer</th>
+                  <th>Modifier</th>
+                  <th>Supprimer</th>
+                  <th>Valider</th>
+                </tr>
+              </thead>
+              <tbody>
+                {modules.map((module) => (
+                  <tr key={module.module_key} className="border-b">
+                    <td className="p-3 font-bold">{module.module_name || module.module_key}</td>
+                    {["can_view", "can_create", "can_edit", "can_delete", "can_validate"].map((field) => (
+                      <td key={field}>
+                        <input
+                          type="checkbox"
+                          checked={permissions[module.module_key]?.[field] === true}
+                          onChange={() => togglePermission(module.module_key, field)}
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {modules.length === 0 && <p className="p-4 text-gray-500">Aucun module configurable.</p>}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

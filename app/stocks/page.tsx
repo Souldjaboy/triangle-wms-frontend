@@ -37,6 +37,9 @@ export default function StocksPage() {
 
   const authHeaders = () => ({
     Authorization: `Bearer ${localStorage.getItem("token")}`,
+    ...(localStorage.getItem("active_company_id")
+      ? { "x-active-company-id": localStorage.getItem("active_company_id") || "" }
+      : {}),
   });
 
   const fetchMovements = async () => {

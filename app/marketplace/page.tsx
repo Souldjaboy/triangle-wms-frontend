@@ -6,17 +6,29 @@ import { useEffect, useState } from "react";
 import { apiUrl, authFetch, getAuthToken } from "../lib/api";
 import { formatFCFA } from "../lib/format";
 import {
+  Apple,
   Beaker,
+  BriefcaseBusiness,
   Building2,
   Car,
+  Coffee,
+  Footprints,
   Home,
   Hotel,
+  Hammer,
+  Laptop,
   MonitorSmartphone,
+  Pill,
   Search,
   ShoppingCart,
-  Store,
+  Shirt,
+  Sofa,
+  Sparkles,
+  Sprout,
+  Tv,
   User,
   Utensils,
+  Wrench,
 } from "lucide-react";
 
 const publicCategories = [
@@ -44,14 +56,27 @@ const publicCategories = [
 ];
 
 const categoryIcons: Record<string, any> = {
+  Produits: ShoppingCart,
+  Alimentation: Apple,
+  Boissons: Coffee,
+  Pharmacie: Pill,
   "Santé / Laboratoire": Beaker,
+  Téléphones: MonitorSmartphone,
+  Informatique: Laptop,
+  Électronique: Tv,
+  Vêtements: Shirt,
+  Chaussures: Footprints,
+  "Beauté / Cosmétique": Sparkles,
+  "Pièces auto": Wrench,
   Automobiles: Car,
   Immobilier: Building2,
   Hôtels: Hotel,
   Restaurants: Utensils,
-  Téléphones: MonitorSmartphone,
-  Informatique: MonitorSmartphone,
+  Agriculture: Sprout,
+  "Matériaux construction": Hammer,
+  "Fournitures bureau": BriefcaseBusiness,
   "Maison / meubles": Home,
+  Services: Sofa,
 };
 
 export default function MarketplacePage() {
@@ -149,7 +174,7 @@ export default function MarketplacePage() {
 
       <div className="mb-6 flex flex-wrap gap-3">
         {publicCategories.map((item) => {
-          const Icon = categoryIcons[item] || Store;
+          const Icon = categoryIcons[item] || ShoppingCart;
           return (
           <button
             key={item}

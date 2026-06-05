@@ -38,6 +38,13 @@ export default function ProduitsPage() {
   const isReadOnly = userRole === "direction" || userRole === "client";
   const isAdmin = userRole === "admin" || userRole === "super_admin" || isSuperAdmin;
   const canAddProduct = !isReadOnly && (isAdmin || userRole === "magasinier");
+  const authHeaders = (extra: Record<string, string> = {}) => ({
+    ...extra,
+    Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+    ...(localStorage.getItem("active_company_id")
+      ? { "x-active-company-id": localStorage.getItem("active_company_id") || "" }
+      : {}),
+  });
 
   const [formData, setFormData] = useState({
     reference: "",
@@ -74,9 +81,7 @@ const fetchProduits = async () => {
   const response = await fetch(
     "/api/products",
     {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-      },
+      headers: authHeaders(),
     }
   );
 
@@ -89,9 +94,7 @@ const fetchLocations = async () => {
   const response = await fetch(
     "/api/locations",
     {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-      },
+      headers: authHeaders(),
     }
   );
 
@@ -148,9 +151,7 @@ useEffect(() => {
 
     const response = await fetch("/api/upload-product-image", {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-      },
+      headers: authHeaders(),
       body,
     });
 
@@ -243,10 +244,7 @@ const handleSubmit = async (e: any) => {
     user_role: user?.role || userRole,
   };
 
-  const headers = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${localStorage.getItem("token")}`,
-  };
+  const headers = authHeaders({ "Content-Type": "application/json" });
 
   let response;
 
@@ -350,10 +348,7 @@ const handleSubmit = async (e: any) => {
 
     const response = await fetch("/api/marketplace/vendor/products", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-      },
+      headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({
         product_id: produit.id,
         title: produit.name,
@@ -379,9 +374,7 @@ const handleSubmit = async (e: any) => {
 
     await fetch(`/api/products/${id}`, {
       method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-      },
+      headers: authHeaders(),
     });
 
     fetchProduits();

@@ -8,6 +8,21 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
+const planFields = [
+  { key: "name", label: "Nom", type: "text" },
+  { key: "price_monthly", label: "Prix", type: "number" },
+  { key: "currency", label: "Devise", type: "text" },
+  { key: "duration_days", label: "Durée jours", type: "number" },
+  { key: "max_users", label: "Utilisateurs", type: "number" },
+  { key: "max_warehouses", label: "Entrepôts", type: "number" },
+  { key: "max_products", label: "Produits", type: "number" },
+  { key: "max_cash_registers", label: "Caisses", type: "number" },
+  { key: "max_sales_per_month", label: "Ventes/mois", type: "number" },
+  { key: "max_stock_movements_per_month", label: "Mouvements/mois", type: "number" },
+  { key: "trial_days", label: "Essai jours", type: "number" },
+  { key: "modules", label: "Modules", type: "textarea" },
+];
+
 export default function SuperAdminPage() {
 
   const router = useRouter();
@@ -54,12 +69,18 @@ export default function SuperAdminPage() {
   const [newPlan, setNewPlan] = useState({
     name: "",
     price_monthly: "",
+    currency: "FCFA",
+    duration_days: "30",
     max_users: "",
     max_warehouses: "",
     max_products: "",
+    max_cash_registers: "",
+    max_sales_per_month: "",
+    max_stock_movements_per_month: "",
     max_movements_monthly: "",
     trial_days: "",
     modules: "",
+    is_active: true,
   });
 
   const getHeaders = () => ({
@@ -230,10 +251,16 @@ export default function SuperAdminPage() {
 
             max_products:
               Number(newPlan.max_products || 0),
+            max_cash_registers:
+              Number(newPlan.max_cash_registers || 0),
+            max_sales_per_month:
+              Number(newPlan.max_sales_per_month || 0),
+            max_stock_movements_per_month:
+              Number(newPlan.max_stock_movements_per_month || newPlan.max_movements_monthly || 0),
 
             max_movements_monthly:
               Number(
-                newPlan.max_movements_monthly || 0
+                newPlan.max_movements_monthly || newPlan.max_stock_movements_per_month || 0
               ),
 
             trial_days:
@@ -241,6 +268,9 @@ export default function SuperAdminPage() {
 
             modules:
               newPlan.modules,
+            currency: newPlan.currency || "FCFA",
+            duration_days: Number(newPlan.duration_days || 30),
+            is_active: newPlan.is_active !== false,
           }),
         }
       );
@@ -250,12 +280,18 @@ export default function SuperAdminPage() {
       setNewPlan({
         name: "",
         price_monthly: "",
+        currency: "FCFA",
+        duration_days: "30",
         max_users: "",
         max_warehouses: "",
         max_products: "",
+        max_cash_registers: "",
+        max_sales_per_month: "",
+        max_stock_movements_per_month: "",
         max_movements_monthly: "",
         trial_days: "",
         modules: "",
+        is_active: true,
       });
 
       await fetchAll();
@@ -604,62 +640,35 @@ export default function SuperAdminPage() {
           Ajouter un plan SaaS
         </h2>
 
-        <div className="grid grid-cols-4 gap-4">
-
-          <input
-            className="border rounded-xl p-3 text-black"
-            placeholder="Nom"
-            value={newPlan.name}
-            onChange={(e) =>
-              setNewPlan({
-                ...newPlan,
-                name: e.target.value,
-              })
-            }
-          />
-
-          <input
-            type="number"
-            className="border rounded-xl p-3 text-black"
-            placeholder="Prix"
-            value={newPlan.price_monthly}
-            onChange={(e) =>
-              setNewPlan({
-                ...newPlan,
-                price_monthly:
-                  e.target.value,
-              })
-            }
-          />
-
-          <input
-            type="number"
-            className="border rounded-xl p-3 text-black"
-            placeholder="Utilisateurs"
-            value={newPlan.max_users}
-            onChange={(e) =>
-              setNewPlan({
-                ...newPlan,
-                max_users:
-                  e.target.value,
-              })
-            }
-          />
-
-          <input
-            type="number"
-            className="border rounded-xl p-3 text-black"
-            placeholder="Entrepôts"
-            value={newPlan.max_warehouses}
-            onChange={(e) =>
-              setNewPlan({
-                ...newPlan,
-                max_warehouses:
-                  e.target.value,
-              })
-            }
-          />
-
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+          {planFields.map((field) =>
+            field.type === "textarea" ? (
+              <textarea
+                key={field.key}
+                className="border rounded-xl p-3 text-black md:col-span-2"
+                placeholder={field.label}
+                value={(newPlan as any)[field.key] || ""}
+                onChange={(e) => setNewPlan({ ...newPlan, [field.key]: e.target.value })}
+              />
+            ) : (
+              <input
+                key={field.key}
+                type={field.type}
+                className="border rounded-xl p-3 text-black"
+                placeholder={field.label}
+                value={(newPlan as any)[field.key] || ""}
+                onChange={(e) => setNewPlan({ ...newPlan, [field.key]: e.target.value })}
+              />
+            )
+          )}
+          <label className="flex items-center gap-3 rounded-xl border p-3 text-black">
+            <input
+              type="checkbox"
+              checked={newPlan.is_active}
+              onChange={(e) => setNewPlan({ ...newPlan, is_active: e.target.checked })}
+            />
+            Plan actif
+          </label>
         </div>
 
         <button
@@ -964,23 +973,17 @@ export default function SuperAdminPage() {
           Plans SaaS
         </h2>
 
-        <table className="w-full">
+        <table className="w-full min-w-[1500px] text-sm">
 
           <thead className="bg-gray-100">
 
             <tr>
-
-              <th className="p-4 text-left text-black">
-                Nom
-              </th>
-
-              <th className="p-4 text-left text-black">
-                Prix
-              </th>
-
-              <th className="p-4 text-left text-black">
-                Utilisateurs
-              </th>
+              {planFields.map((field) => (
+                <th key={field.key} className="p-4 text-left text-black">
+                  {field.label}
+                </th>
+              ))}
+              <th className="p-4 text-left text-black">Actif</th>
 
               <th className="p-4 text-left text-black">
                 Actions
@@ -999,54 +1002,30 @@ export default function SuperAdminPage() {
                 className="border-t"
               >
 
+                {planFields.map((field) => (
+                  <td key={field.key} className="p-4 align-top">
+                    {field.type === "textarea" ? (
+                      <textarea
+                        value={plan[field.key] || ""}
+                        onChange={(e) => updatePlanField(plan.id, field.key, e.target.value)}
+                        className="min-h-20 w-56 border rounded-lg p-2 text-black"
+                      />
+                    ) : (
+                      <input
+                        type={field.type}
+                        value={plan[field.key] ?? ""}
+                        onChange={(e) => updatePlanField(plan.id, field.key, e.target.value)}
+                        className="w-32 border rounded-lg p-2 text-black"
+                      />
+                    )}
+                  </td>
+                ))}
                 <td className="p-4">
-
                   <input
-                    value={plan.name}
-                    onChange={(e) =>
-                      updatePlanField(
-                        plan.id,
-                        "name",
-                        e.target.value
-                      )
-                    }
-                    className="border rounded-lg p-2 text-black"
+                    type="checkbox"
+                    checked={plan.is_active !== false}
+                    onChange={(e) => updatePlanField(plan.id, "is_active", e.target.checked)}
                   />
-
-                </td>
-
-                <td className="p-4">
-
-                  <input
-                    type="number"
-                    value={plan.price_monthly}
-                    onChange={(e) =>
-                      updatePlanField(
-                        plan.id,
-                        "price_monthly",
-                        e.target.value
-                      )
-                    }
-                    className="border rounded-lg p-2 text-black"
-                  />
-
-                </td>
-
-                <td className="p-4">
-
-                  <input
-                    type="number"
-                    value={plan.max_users}
-                    onChange={(e) =>
-                      updatePlanField(
-                        plan.id,
-                        "max_users",
-                        e.target.value
-                      )
-                    }
-                    className="border rounded-lg p-2 text-black"
-                  />
-
                 </td>
 
                 <td className="p-4 flex gap-2">
