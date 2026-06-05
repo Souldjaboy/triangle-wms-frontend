@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { authFetch } from "../lib/api";
 import { formatFCFA } from "../lib/format";
@@ -27,6 +28,7 @@ export default function LaboratoryModule({ mode = "dashboard" }: { mode?: string
   const [message, setMessage] = useState("");
   const [patientForm, setPatientForm] = useState({ full_name: "", phone: "", email: "", gender: "", age: "", address: "" });
   const [analysisForm, setAnalysisForm] = useState({ name: "", description: "", price: "", result_delay: "" });
+  const [editingAnalysisId, setEditingAnalysisId] = useState<number | null>(null);
   const [caseForm, setCaseForm] = useState({ patient_id: "", analysis_ids: [] as string[] });
   const [resultDrafts, setResultDrafts] = useState<Record<number, { summary: string; email: string }>>({});
 
@@ -66,13 +68,15 @@ export default function LaboratoryModule({ mode = "dashboard" }: { mode?: string
   };
 
   const saveAnalysis = async () => {
-    const response = await authFetch("/laboratory/analyses", {
-      method: "POST",
+    const response = await authFetch(editingAnalysisId ? `/laboratory/analyses/${editingAnalysisId}` : "/laboratory/analyses", {
+      method: editingAnalysisId ? "PUT" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...analysisForm, price: Number(analysisForm.price || 0) }),
     });
-    setMessage(response.ok ? "Analyse ajoutée." : "Erreur ajout analyse.");
+    const data = await response.json().catch(() => ({}));
+    setMessage(response.ok ? (editingAnalysisId ? "Analyse modifiée." : "Analyse ajoutée.") : data.error || "Erreur sauvegarde analyse.");
     setAnalysisForm({ name: "", description: "", price: "", result_delay: "" });
+    setEditingAnalysisId(null);
     await loadAll();
   };
 
@@ -82,6 +86,24 @@ export default function LaboratoryModule({ mode = "dashboard" }: { mode?: string
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...analysis, ...patch }),
     });
+    await loadAll();
+  };
+
+  const editAnalysis = (analysis: any) => {
+    setEditingAnalysisId(analysis.id);
+    setAnalysisForm({
+      name: analysis.name || "",
+      description: analysis.description || "",
+      price: String(analysis.price || ""),
+      result_delay: analysis.result_delay || "",
+    });
+  };
+
+  const deleteAnalysis = async (analysis: any) => {
+    if (!confirm(`Supprimer ou désactiver l'analyse "${analysis.name}" ?`)) return;
+    const response = await authFetch(`/laboratory/analyses/${analysis.id}`, { method: "DELETE" });
+    const data = await response.json().catch(() => ({}));
+    setMessage(response.ok ? "Analyse supprimée/désactivée." : data.error || "Erreur suppression analyse.");
     await loadAll();
   };
 
@@ -208,10 +230,27 @@ export default function LaboratoryModule({ mode = "dashboard" }: { mode?: string
             <input className="rounded-xl border p-3" placeholder="Nom analyse" value={analysisForm.name} onChange={(e) => setAnalysisForm({ ...analysisForm, name: e.target.value })} />
             <input className="rounded-xl border p-3" placeholder="Prix" value={analysisForm.price} onChange={(e) => setAnalysisForm({ ...analysisForm, price: e.target.value })} />
             <input className="rounded-xl border p-3" placeholder="Délai résultat" value={analysisForm.result_delay} onChange={(e) => setAnalysisForm({ ...analysisForm, result_delay: e.target.value })} />
-            <button onClick={saveAnalysis} className="rounded-xl bg-yellow-500 font-black text-black">Ajouter</button>
+            <button onClick={saveAnalysis} className="rounded-xl bg-yellow-500 font-black text-black">
+              {editingAnalysisId ? "Modifier" : "Ajouter"}
+            </button>
+            {editingAnalysisId && (
+              <button
+                onClick={() => {
+                  setEditingAnalysisId(null);
+                  setAnalysisForm({ name: "", description: "", price: "", result_delay: "" });
+                }}
+                className="rounded-xl bg-gray-100 px-4 py-3 font-bold text-black"
+              >
+                Annuler
+              </button>
+            )}
           </div>
           <Table rows={analyses} columns={["name", "price", "result_delay", "is_available"]} action={(row) => (
-            <button onClick={() => updateAnalysis(row, { is_available: !row.is_available })} className="rounded-lg bg-black px-3 py-2 text-white">Activer/Désactiver</button>
+            <div className="flex flex-wrap gap-2">
+              <button onClick={() => editAnalysis(row)} className="rounded-lg bg-yellow-500 px-3 py-2 font-bold text-black">Modifier</button>
+              <button onClick={() => updateAnalysis(row, { is_available: !row.is_available })} className="rounded-lg bg-black px-3 py-2 text-white">Activer/Désactiver</button>
+              <button onClick={() => deleteAnalysis(row)} className="rounded-lg bg-red-100 px-3 py-2 font-bold text-red-700">Supprimer</button>
+            </div>
           )} />
         </section>
       )}
@@ -280,7 +319,7 @@ function Stat({ title, value }: { title: string; value: any }) {
   return <div className="rounded-2xl bg-white p-6 shadow"><p className="text-gray-500">{title}</p><p className="mt-2 text-3xl font-black">{value}</p></div>;
 }
 
-function Table({ rows, columns, action }: { rows: any[]; columns: string[]; action?: (row: any) => React.ReactNode }) {
+function Table({ rows, columns, action }: { rows: any[]; columns: string[]; action?: (row: any) => ReactNode }) {
   return (
     <div className="overflow-x-auto rounded-2xl bg-white p-4 shadow">
       <table className="w-full min-w-[720px] text-left text-sm">

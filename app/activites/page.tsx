@@ -1,14 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { authFetch } from "../lib/api";
 
 export default function ActivitesPage() {
   const [activities, setActivities] = useState<any[]>([]);
+  const [message, setMessage] = useState("");
 
   const fetchActivities = async () => {
-    const response = await fetch("/api/activities");
-    const data = await response.json();
-    setActivities(data);
+    setMessage("");
+    const response = await authFetch("/activities");
+    const data = await response.json().catch(() => []);
+
+    if (!response.ok) {
+      setMessage(data?.error || "Impossible de charger les activités.");
+      setActivities([]);
+      return;
+    }
+
+    setActivities(Array.isArray(data) ? data : []);
   };
 
   useEffect(() => {
@@ -16,7 +26,7 @@ export default function ActivitesPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-100 p-8">
+    <div className="min-h-screen bg-gray-100 p-4 text-black md:p-8">
       <h1 className="text-4xl font-bold text-black mb-2">
         Activités utilisateurs
       </h1>
@@ -25,8 +35,14 @@ export default function ActivitesPage() {
         Historique des actions effectuées dans le système.
       </p>
 
-      <div className="bg-white rounded-2xl shadow p-6">
-        <table className="w-full text-left">
+      {message && (
+        <div className="mb-5 rounded-xl bg-red-50 p-4 font-bold text-red-700">
+          {message}
+        </div>
+      )}
+
+      <div className="overflow-x-auto bg-white rounded-2xl shadow p-4 md:p-6">
+        <table className="w-full min-w-[760px] text-left text-sm">
           <thead>
             <tr className="border-b text-gray-500">
               <th className="py-3">Utilisateur</th>
@@ -53,6 +69,11 @@ export default function ActivitesPage() {
             ))}
           </tbody>
         </table>
+        {activities.length === 0 && !message && (
+          <div className="p-6 text-center font-bold text-gray-500">
+            Aucune activité enregistrée.
+          </div>
+        )}
       </div>
     </div>
   );

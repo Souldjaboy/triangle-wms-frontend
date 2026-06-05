@@ -2,6 +2,29 @@
 
 import { useEffect, useState } from "react";
 
+const marketplaceCategories = [
+  "Alimentation",
+  "Boissons",
+  "Pharmacie",
+  "Santé / Laboratoire",
+  "Téléphones",
+  "Informatique",
+  "Électronique",
+  "Vêtements",
+  "Chaussures",
+  "Beauté / Cosmétique",
+  "Pièces auto",
+  "Automobiles",
+  "Immobilier",
+  "Hôtels",
+  "Restaurants",
+  "Agriculture",
+  "Matériaux construction",
+  "Fournitures bureau",
+  "Maison / meubles",
+  "Services",
+];
+
 export default function ProduitsPage() {
   const [produits, setProduits] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
@@ -41,6 +64,10 @@ export default function ProduitsPage() {
     is_active: true,
     location_id: "",
     location_code: "",
+    publish_on_marketplace: false,
+    marketplace_category: "",
+    marketplace_price: "",
+    marketplace_quantity: "",
   });
 
 const fetchProduits = async () => {
@@ -191,6 +218,10 @@ useEffect(() => {
       is_active: true,
       location_id: "",
       location_code: "",
+      publish_on_marketplace: false,
+      marketplace_category: "",
+      marketplace_price: "",
+      marketplace_quantity: "",
     });
     setImagePreview("");
   };
@@ -245,6 +276,14 @@ const handleSubmit = async (e: any) => {
     return;
   }
 
+  if (formData.publish_on_marketplace) {
+    await publishToMarketplace(data, {
+      category: formData.marketplace_category || formData.category,
+      price: formData.marketplace_price || formData.sale_price,
+      quantity: formData.marketplace_quantity || formData.stock,
+    });
+  }
+
   resetForm();
   await fetchProduits();
 };
@@ -282,8 +321,54 @@ const handleSubmit = async (e: any) => {
       is_active: produit.is_active !== false,
       location_id: produit.location_id ? String(produit.location_id) : "",
       location_code: produit.location_code || produit.emplacement_code || "",
+      publish_on_marketplace: false,
+      marketplace_category: produit.category || "",
+      marketplace_price: String(produit.sale_price || produit.price || ""),
+      marketplace_quantity: String(produit.stock || ""),
     });
     setImagePreview(produit.image_url || "");
+  };
+
+  const publishToMarketplace = async (
+    produit: any,
+    options: { category?: string; price?: string; quantity?: string } = {}
+  ) => {
+    if (!produit?.id) return;
+
+    const price = Number(options.price || produit.sale_price || produit.price || 0);
+    const quantity = Number(options.quantity || produit.stock || 0);
+
+    if (price <= 0) {
+      alert("Prix marketplace obligatoire avant publication.");
+      return;
+    }
+
+    if (quantity <= 0) {
+      alert("Quantité marketplace obligatoire avant publication.");
+      return;
+    }
+
+    const response = await fetch("/api/marketplace/vendor/products", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
+      body: JSON.stringify({
+        product_id: produit.id,
+        title: produit.name,
+        description: produit.description || "",
+        category: options.category || produit.category || "",
+        price,
+        public_price: price,
+        published_quantity: quantity,
+        image_url: produit.image_url || "",
+        status: "published",
+      }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    alert(response.ok ? "Produit publié sur Marketplace." : data.error || "Erreur publication Marketplace.");
   };
 
   const handleDelete = async (id: number) => {
@@ -486,6 +571,46 @@ const handleSubmit = async (e: any) => {
             />
             Louable
           </label>
+
+          <label className="flex items-center gap-3 text-black">
+            <input
+              type="checkbox"
+              name="publish_on_marketplace"
+              checked={formData.publish_on_marketplace}
+              onChange={handleChange}
+            />
+            Publier sur Marketplace
+          </label>
+
+          <select
+            name="marketplace_category"
+            value={formData.marketplace_category}
+            onChange={handleChange}
+            className="border p-3 rounded-xl text-black"
+          >
+            <option value="">Catégorie marketplace</option>
+            {marketplaceCategories.map((category) => (
+              <option key={category} value={category}>{category}</option>
+            ))}
+          </select>
+
+          <input
+            type="number"
+            name="marketplace_price"
+            placeholder="Prix marketplace"
+            value={formData.marketplace_price}
+            onChange={handleChange}
+            className="border p-3 rounded-xl text-black"
+          />
+
+          <input
+            type="number"
+            name="marketplace_quantity"
+            placeholder="Quantité à publier"
+            value={formData.marketplace_quantity}
+            onChange={handleChange}
+            className="border p-3 rounded-xl text-black"
+          />
 
           <div
             onDragOver={(event) => {
@@ -711,6 +836,12 @@ const handleSubmit = async (e: any) => {
                       className="bg-red-500 text-white px-4 py-2 rounded-lg"
                     >
                       Supprimer
+                    </button>
+                    <button
+                      onClick={() => publishToMarketplace(produit)}
+                      className="bg-yellow-500 text-black px-4 py-2 rounded-lg font-bold"
+                    >
+                      Publier
                     </button>
                   </td>
                 )}

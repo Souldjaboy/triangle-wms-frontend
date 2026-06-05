@@ -15,6 +15,29 @@ const paymentOptions = [
   "Crédit client",
 ];
 
+const marketplaceCategories = [
+  "Alimentation",
+  "Boissons",
+  "Pharmacie",
+  "Santé / Laboratoire",
+  "Téléphones",
+  "Informatique",
+  "Électronique",
+  "Vêtements",
+  "Chaussures",
+  "Beauté / Cosmétique",
+  "Pièces auto",
+  "Automobiles",
+  "Immobilier",
+  "Hôtels",
+  "Restaurants",
+  "Agriculture",
+  "Matériaux construction",
+  "Fournitures bureau",
+  "Maison / meubles",
+  "Services",
+];
+
 export default function PosParametresPage() {
   const [user, setUser] = useState<any>(null);
   const [settings, setSettings] = useState<any>(null);
@@ -73,6 +96,30 @@ export default function PosParametresPage() {
       setSelectedProduct(data);
       searchProducts(query);
     }
+  };
+
+  const publishSelectedProduct = async () => {
+    if (!selectedProduct) return;
+    const price = Number(selectedProduct.marketplace_price || selectedProduct.sale_price || selectedProduct.effective_sale_price || 0);
+    const quantity = Number(selectedProduct.marketplace_quantity || selectedProduct.stock || 0);
+
+    const response = await fetch("/api/marketplace/vendor/products", {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({
+        product_id: selectedProduct.id,
+        title: selectedProduct.name,
+        description: selectedProduct.description || "",
+        category: selectedProduct.marketplace_category || selectedProduct.category || "",
+        price,
+        public_price: price,
+        published_quantity: quantity,
+        image_url: selectedProduct.image_url || "",
+        status: "published",
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+    setMessage(response.ok ? "Produit POS publié sur Marketplace." : data.error || "Erreur publication Marketplace.");
   };
 
   const updateSetting = (field: string, value: any) => {
@@ -223,6 +270,12 @@ export default function PosParametresPage() {
                 <input value={selectedProduct.category || ""} onChange={(e) => updateProduct("category", e.target.value)} placeholder="Catégorie" className="border p-3 rounded-xl" />
                 <input value={selectedProduct.subcategory || ""} onChange={(e) => updateProduct("subcategory", e.target.value)} placeholder="Sous-catégorie" className="border p-3 rounded-xl" />
                 <input value={selectedProduct.supplier_id || ""} onChange={(e) => updateProduct("supplier_id", e.target.value)} placeholder="Fournisseur ID" className="border p-3 rounded-xl" />
+                <select value={selectedProduct.marketplace_category || selectedProduct.category || ""} onChange={(e) => updateProduct("marketplace_category", e.target.value)} className="border p-3 rounded-xl">
+                  <option value="">Catégorie marketplace</option>
+                  {marketplaceCategories.map((category) => <option key={category} value={category}>{category}</option>)}
+                </select>
+                <input type="number" value={selectedProduct.marketplace_price || ""} onChange={(e) => updateProduct("marketplace_price", e.target.value)} placeholder="Prix marketplace" className="border p-3 rounded-xl" />
+                <input type="number" value={selectedProduct.marketplace_quantity || ""} onChange={(e) => updateProduct("marketplace_quantity", e.target.value)} placeholder="Quantité à publier" className="border p-3 rounded-xl" />
                 <label className="flex items-center gap-2 font-bold">
                   <input type="checkbox" checked={selectedProduct.batch_tracking_enabled === true} onChange={(e) => updateProduct("batch_tracking_enabled", e.target.checked)} />
                   Suivi lots
@@ -236,6 +289,7 @@ export default function PosParametresPage() {
                   Produit bloqué
                 </label>
                 <button onClick={saveProduct} className="md:col-span-2 bg-yellow-500 text-black px-5 py-3 rounded-xl font-bold">Enregistrer produit POS</button>
+                <button onClick={publishSelectedProduct} className="md:col-span-2 bg-black text-white px-5 py-3 rounded-xl font-bold">Publier sur Marketplace</button>
               </div>
             ) : (
               <p className="text-gray-500">Sélectionne un produit pour régler ses prix, TVA, lot et codes.</p>

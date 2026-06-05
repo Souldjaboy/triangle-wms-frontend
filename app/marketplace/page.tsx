@@ -5,6 +5,19 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { apiUrl, authFetch, getAuthToken } from "../lib/api";
 import { formatFCFA } from "../lib/format";
+import {
+  Beaker,
+  Building2,
+  Car,
+  Home,
+  Hotel,
+  MonitorSmartphone,
+  Search,
+  ShoppingCart,
+  Store,
+  User,
+  Utensils,
+} from "lucide-react";
 
 const publicCategories = [
   "Produits",
@@ -30,6 +43,17 @@ const publicCategories = [
   "Services",
 ];
 
+const categoryIcons: Record<string, any> = {
+  "Santé / Laboratoire": Beaker,
+  Automobiles: Car,
+  Immobilier: Building2,
+  Hôtels: Hotel,
+  Restaurants: Utensils,
+  Téléphones: MonitorSmartphone,
+  Informatique: MonitorSmartphone,
+  "Maison / meubles": Home,
+};
+
 export default function MarketplacePage() {
   const router = useRouter();
   const [products, setProducts] = useState<any[]>([]);
@@ -40,6 +64,14 @@ export default function MarketplacePage() {
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    const search = new URLSearchParams(window.location.search);
+    const initialCategory = search.get("category") || "";
+    const initialQuery = search.get("q") || "";
+    if (initialCategory) setCategory(initialCategory);
+    if (initialQuery) setQuery(initialQuery);
+  }, []);
 
   const loadProducts = async (value = query) => {
     if (category === "Santé / Laboratoire") {
@@ -83,54 +115,74 @@ export default function MarketplacePage() {
       router.push("/client/login?redirect=/marketplace");
       return;
     }
-    setMessage(response.ok ? "Produit ajouté au panier." : data.error || "Impossible d’ajouter ce produit au panier.");
+    setMessage(response.ok ? "Produit ajouté au panier." : data.error || "Impossible d’ajouter ce produit au panier. Vérifiez votre connexion client ou utilisez l’espace B2B.");
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4 text-black md:p-8">
+    <div className="min-h-screen bg-gray-100 text-black">
+      <section className="bg-black px-4 py-8 text-white md:px-8">
+        <div className="mx-auto flex max-w-7xl flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="font-bold text-yellow-400">Triangle WMS Pro</p>
+            <h1 className="mt-2 text-4xl font-black md:text-5xl">Marketplace Mali</h1>
+            <p className="mt-3 max-w-2xl text-white/70">
+              Produits, services, restaurants, hôtels, automobiles, immobilier et laboratoires publiés par les entreprises Triangle.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/client/login" className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 font-bold text-black"><User size={18} /> Se connecter</Link>
+            <Link href="/client/register" className="rounded-xl bg-yellow-500 px-5 py-3 font-bold text-black">Créer un compte client</Link>
+            <Link href="/marketplace/cart" className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-5 py-3 font-bold text-white"><ShoppingCart size={18} /> Mon panier</Link>
+          </div>
+        </div>
+      </section>
+
+      <main className="mx-auto max-w-7xl p-4 md:p-8">
       <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-4xl font-black">Triangle Marketplace</h1>
+          <h2 className="text-3xl font-black">Catalogue public</h2>
           <p className="text-gray-500">Catalogue B2B/B2C relié au stock Triangle WMS Pro.</p>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <Link href="/client/login" className="rounded-xl bg-white px-5 py-3 font-bold text-black">Se connecter</Link>
-          <Link href="/client/register" className="rounded-xl bg-white px-5 py-3 font-bold text-black">Créer un compte client</Link>
-          <Link href="/marketplace/cart" className="rounded-xl bg-yellow-500 px-5 py-3 font-bold text-black">Mon panier</Link>
         </div>
       </div>
 
       {message && <div className="mb-5 rounded-xl bg-yellow-100 p-4 font-bold text-yellow-800">{message}</div>}
 
       <div className="mb-6 flex flex-wrap gap-3">
-        {publicCategories.map((item) => (
+        {publicCategories.map((item) => {
+          const Icon = categoryIcons[item] || Store;
+          return (
           <button
             key={item}
             onClick={() => {
               setCategory(item === "Produits" ? "" : item);
               if (item === "Santé / Laboratoire") loadProducts(query);
             }}
-            className={`rounded-full px-5 py-3 font-bold shadow ${
+            className={`inline-flex items-center gap-2 rounded-full px-5 py-3 font-bold shadow ${
               (item === "Produits" && !category) || category === item
                 ? "bg-yellow-500 text-black"
                 : "bg-white text-black"
             }`}
           >
+            <Icon size={18} />
             {item}
           </button>
-        ))}
+          );
+        })}
       </div>
 
       <div className="mb-6 grid gap-3 rounded-2xl bg-white p-4 shadow md:grid-cols-6">
-        <input
-          value={query}
-          onChange={(event) => {
-            setQuery(event.target.value);
-            loadProducts(event.target.value);
-          }}
-          placeholder="Rechercher produit, référence, catégorie..."
-          className="rounded-xl border p-4 md:col-span-2"
-        />
+        <div className="relative md:col-span-2">
+          <Search className="absolute left-4 top-4 text-gray-400" size={20} />
+          <input
+            value={query}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              loadProducts(event.target.value);
+            }}
+            placeholder="Rechercher produit, référence, catégorie..."
+            className="w-full rounded-xl border p-4 pl-12"
+          />
+        </div>
         <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Catégorie" className="rounded-xl border p-4" />
         <input value={vendor} onChange={(e) => setVendor(e.target.value)} placeholder={category === "Santé / Laboratoire" ? "Ville laboratoire" : "ID entreprise"} className="rounded-xl border p-4" />
         <input value={minPrice} onChange={(e) => setMinPrice(e.target.value)} placeholder="Prix min" className="rounded-xl border p-4" />
@@ -181,6 +233,7 @@ export default function MarketplacePage() {
       </div>}
 
       {category !== "Santé / Laboratoire" && products.length === 0 && <div className="rounded-2xl bg-white p-8 text-center font-bold text-gray-500">Aucun produit publié.</div>}
+      </main>
     </div>
   );
 }

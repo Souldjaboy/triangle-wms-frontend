@@ -333,6 +333,48 @@ export default function StocksPage() {
     await fetchProducts();
   };
 
+  const publishStockProduct = async (product: any) => {
+    const price = prompt(
+      `Prix marketplace pour ${product.name}`,
+      String(product.sale_price || product.price || "")
+    );
+    if (price === null) return;
+
+    const quantity = prompt(
+      "Quantité à publier",
+      String(product.stock || "")
+    );
+    if (quantity === null) return;
+
+    const category = prompt(
+      "Catégorie marketplace",
+      String(product.category || "")
+    );
+    if (category === null) return;
+
+    const response = await fetch("/api/marketplace/vendor/products", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeaders(),
+      },
+      body: JSON.stringify({
+        product_id: product.id,
+        title: product.name,
+        description: product.description || "",
+        category,
+        price: Number(price || 0),
+        public_price: Number(price || 0),
+        published_quantity: Number(quantity || 0),
+        image_url: product.image_url || "",
+        status: "published",
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+    setMessageType(response.ok ? "success" : "error");
+    setMessage(response.ok ? "Produit publié sur Marketplace." : data.error || "Erreur publication Marketplace.");
+  };
+
   const getStatusColor = (status: string) => {
     if (status === "Validé") return "text-green-600";
     if (status === "Refusé") return "text-red-600";
@@ -590,6 +632,26 @@ export default function StocksPage() {
           </h2>
         </div>
       </div>
+
+      {isAdmin && (
+        <div className="mb-8 rounded-2xl bg-white p-6 shadow">
+          <h2 className="mb-4 text-2xl font-bold text-black">Publication Marketplace depuis le stock</h2>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {products.slice(0, 12).map((product: any) => (
+              <div key={product.id} className="rounded-xl border p-4">
+                <p className="font-black text-black">{product.reference} - {product.name}</p>
+                <p className="text-sm text-gray-500">Stock : {product.stock} | {product.category || "Sans catégorie"}</p>
+                <button
+                  onClick={() => publishStockProduct(product)}
+                  className="mt-3 rounded-xl bg-yellow-500 px-4 py-2 font-bold text-black"
+                >
+                  Publier
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl shadow p-6">
         <h2 className="text-2xl font-bold text-black mb-5">

@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { apiUrl, authFetch } from "../../../lib/api";
+import { apiUrl, authFetch, getAuthToken } from "../../../lib/api";
 import { formatFCFA } from "../../../lib/format";
 
 export default function MarketplaceProductDetailPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const [product, setProduct] = useState<any>(null);
   const [message, setMessage] = useState("");
 
@@ -19,13 +20,21 @@ export default function MarketplaceProductDetailPage() {
   }, [params.id]);
 
   const addToCart = async () => {
+    if (!getAuthToken()) {
+      router.push(`/client/login?redirect=/marketplace/product/${params.id}`);
+      return;
+    }
     const response = await authFetch("/marketplace/cart/items", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ marketplace_product_id: product.id, quantity: 1 }),
     });
     const data = await response.json().catch(() => ({}));
-    setMessage(response.ok ? "Produit ajouté au panier." : data.error || "Erreur ajout panier.");
+    if (response.status === 401 || response.status === 403) {
+      router.push(`/client/login?redirect=/marketplace/product/${params.id}`);
+      return;
+    }
+    setMessage(response.ok ? "Produit ajouté au panier." : data.error || "Impossible d’ajouter ce produit au panier.");
   };
 
   if (!product) return <div className="min-h-screen bg-gray-100 p-8 font-bold">Chargement produit...</div>;
