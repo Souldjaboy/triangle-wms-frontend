@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { authFetch, getAuthToken } from "../../lib/api";
 import { formatFCFA } from "../../lib/format";
+import MarketplaceHeader from "../MarketplaceHeader";
 
 export default function MarketplaceCartPage() {
   const [cart, setCart] = useState<any>({ items: [], total: 0 });
@@ -32,6 +33,9 @@ export default function MarketplaceCartPage() {
 
   return (
     <div className="min-h-screen bg-gray-100 p-4 text-black md:p-8">
+      <div className="mb-6 rounded-2xl bg-black p-4 text-white">
+        <MarketplaceHeader />
+      </div>
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-4xl font-black">Panier Marketplace</h1>

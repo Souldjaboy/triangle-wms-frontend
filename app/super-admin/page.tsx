@@ -19,6 +19,7 @@ const planFields = [
   { key: "max_cash_registers", label: "Caisses", type: "number" },
   { key: "max_sales_per_month", label: "Ventes/mois", type: "number" },
   { key: "max_stock_movements_per_month", label: "Mouvements/mois", type: "number" },
+  { key: "max_modules_allowed", label: "Modules autorisés", type: "number" },
   { key: "trial_days", label: "Essai jours", type: "number" },
   { key: "modules", label: "Modules", type: "textarea" },
 ];
@@ -77,6 +78,7 @@ export default function SuperAdminPage() {
     max_cash_registers: "",
     max_sales_per_month: "",
     max_stock_movements_per_month: "",
+    max_modules_allowed: "",
     max_movements_monthly: "",
     trial_days: "",
     modules: "",
@@ -257,6 +259,8 @@ export default function SuperAdminPage() {
               Number(newPlan.max_sales_per_month || 0),
             max_stock_movements_per_month:
               Number(newPlan.max_stock_movements_per_month || newPlan.max_movements_monthly || 0),
+            max_modules_allowed:
+              Number(newPlan.max_modules_allowed || 0),
 
             max_movements_monthly:
               Number(
@@ -288,6 +292,7 @@ export default function SuperAdminPage() {
         max_cash_registers: "",
         max_sales_per_month: "",
         max_stock_movements_per_month: "",
+        max_modules_allowed: "",
         max_movements_monthly: "",
         trial_days: "",
         modules: "",

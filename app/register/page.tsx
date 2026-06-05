@@ -15,6 +15,7 @@ const DEFAULT_PLANS = [
     max_users: 3,
     max_warehouses: 1,
     max_products: 300,
+    max_modules_allowed: 5,
     trial_days: 15,
   },
   {
@@ -24,6 +25,7 @@ const DEFAULT_PLANS = [
     max_users: 10,
     max_warehouses: 3,
     max_products: 2000,
+    max_modules_allowed: 12,
     trial_days: 15,
   },
   {
@@ -33,6 +35,7 @@ const DEFAULT_PLANS = [
     max_users: 30,
     max_warehouses: 10,
     max_products: 10000,
+    max_modules_allowed: 999,
     trial_days: 15,
   },
 ];
@@ -57,6 +60,16 @@ const AVAILABLE_MODULES = [
   { key: "rapports", label: "Rapports" },
   { key: "pointage", label: "Pointage" },
   { key: "ia", label: "Assistant IA" },
+  { key: "marketplace", label: "Marketplace" },
+  { key: "commandes_recues", label: "Commandes reçues" },
+  { key: "restaurant", label: "Restaurant" },
+  { key: "automobile", label: "Automobile" },
+  { key: "immobilier", label: "Immobilier / Hôtel" },
+  { key: "laboratoire", label: "Laboratoire" },
+  { key: "alertes", label: "Alertes" },
+  { key: "activites", label: "Activités" },
+  { key: "utilisateurs", label: "Utilisateurs" },
+  { key: "parametres", label: "Paramètres" },
 ];
 
 const defaultSelectedModules = AVAILABLE_MODULES.reduce((acc: Record<string, boolean>, module) => {
@@ -142,11 +155,26 @@ export default function RegisterPage() {
   };
 
   const toggleModule = (moduleKey: string) => {
+    const maxModules = Number(selectedPlan?.max_modules_allowed || 0);
+    const willEnable = selectedModules[moduleKey] === false;
+    if (
+      willEnable &&
+      maxModules > 0 &&
+      maxModules < 999 &&
+      Object.values(selectedModules).filter(Boolean).length >= maxModules
+    ) {
+      setError(`Le plan ${selectedPlan?.name || ""} autorise ${maxModules} modules maximum.`);
+      return;
+    }
     setSelectedModules((current) => ({
       ...current,
       [moduleKey]: current[moduleKey] === false,
     }));
+    setError("");
   };
+
+  const selectedModuleCount = Object.values(selectedModules).filter(Boolean).length;
+  const selectedPlanModuleLimit = Number(selectedPlan?.max_modules_allowed || 0);
 
   const displayLimit = (value: any) => {
     const numberValue = Number(value || 0);
@@ -169,6 +197,15 @@ export default function RegisterPage() {
 
       return;
 
+    }
+
+    if (
+      selectedPlanModuleLimit > 0 &&
+      selectedPlanModuleLimit < 999 &&
+      selectedModuleCount > selectedPlanModuleLimit
+    ) {
+      setError(`Le plan ${selectedPlan.name} autorise ${selectedPlanModuleLimit} modules maximum. Décochez des modules avant de continuer.`);
+      return;
     }
 
     if (!formData.email.trim() && !formData.phone.trim()) {
@@ -416,15 +453,27 @@ export default function RegisterPage() {
                     Modules à activer
                   </h2>
                   <p className="text-sm text-gray-500">
-                    Le choix des modules ne change pas les limites du plan sélectionné.
+                    {selectedPlanModuleLimit >= 999
+                      ? "Modules sélectionnés : illimité"
+                      : `Modules sélectionnés : ${selectedModuleCount}/${selectedPlanModuleLimit || AVAILABLE_MODULES.length}`}
                   </p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setSelectedModules(defaultSelectedModules)}
+                  onClick={() => {
+                    if (selectedPlanModuleLimit > 0 && selectedPlanModuleLimit < 999) {
+                      const limited = AVAILABLE_MODULES.reduce((acc: Record<string, boolean>, module, index) => {
+                        acc[module.key] = index < selectedPlanModuleLimit;
+                        return acc;
+                      }, {});
+                      setSelectedModules(limited);
+                    } else {
+                      setSelectedModules(defaultSelectedModules);
+                    }
+                  }}
                   className="rounded-xl bg-black px-4 py-2 text-sm font-bold text-white"
                 >
-                  Tout activer
+                  {selectedPlanModuleLimit > 0 && selectedPlanModuleLimit < 999 ? "Activer limite du plan" : "Tout activer"}
                 </button>
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -524,6 +573,13 @@ export default function RegisterPage() {
                   🎁 Essai :
                   {" "}
                   {plan.trial_days} jours
+                </p>
+                <p>
+                  🧩 Modules :
+                  {" "}
+                  {Number(plan.max_modules_allowed || 0) >= 999
+                    ? "Illimité"
+                    : displayLimit(plan.max_modules_allowed)}
                 </p>
 
               </div>

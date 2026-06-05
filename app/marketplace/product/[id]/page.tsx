@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { apiUrl, authFetch, getAuthToken } from "../../../lib/api";
 import { formatFCFA } from "../../../lib/format";
+import MarketplaceHeader from "../../MarketplaceHeader";
 
 export default function MarketplaceProductDetailPage() {
   const params = useParams<{ id: string }>();
@@ -41,6 +42,9 @@ export default function MarketplaceProductDetailPage() {
 
   return (
     <div className="min-h-screen bg-gray-100 p-4 text-black md:p-8">
+      <div className="mb-6 rounded-2xl bg-black p-4 text-white">
+        <MarketplaceHeader />
+      </div>
       <Link href="/marketplace" className="font-bold text-gray-600">Retour marketplace</Link>
       {message && <div className="my-5 rounded-xl bg-yellow-100 p-4 font-bold text-yellow-800">{message}</div>}
       <div className="mt-5 grid grid-cols-1 gap-8 rounded-2xl bg-white p-6 shadow lg:grid-cols-2">

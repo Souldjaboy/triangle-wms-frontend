@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { authFetch } from "../../lib/api";
 
 export default function ClientProfilePage() {
+  const router = useRouter();
   const [form, setForm] = useState({
     full_name: "",
     phone: "",
@@ -44,6 +46,12 @@ export default function ClientProfilePage() {
     const data = await response.json().catch(() => ({}));
     setMessage(response.ok ? "Profil client enregistré." : data.error || "Erreur enregistrement profil.");
   };
+  const logout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    document.cookie = "triangle_token=; path=/; max-age=0";
+    router.push("/marketplace");
+  };
 
   return (
     <main className="min-h-screen bg-gray-100 p-4 text-black md:p-8">
@@ -55,6 +63,7 @@ export default function ClientProfilePage() {
         <div className="flex flex-wrap gap-3">
           <Link href="/client/dashboard" className="rounded-xl bg-black px-5 py-3 font-bold text-white">Espace client</Link>
           <Link href="/marketplace" className="rounded-xl bg-yellow-500 px-5 py-3 font-bold text-black">Marketplace</Link>
+          <button onClick={logout} className="rounded-xl bg-red-600 px-5 py-3 font-bold text-white">Déconnexion</button>
         </div>
       </div>
 

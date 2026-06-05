@@ -43,6 +43,16 @@ export default function ClientOrderDetailPage() {
         <h1 className="text-4xl font-black">{data.order.order_number}</h1>
         <p className="mt-2 text-gray-500">Statut : {data.order.status} - Paiement : {data.order.payment_status}</p>
         <p className="mt-4 text-3xl font-black text-green-700">{formatFCFA(data.order.total_amount)}</p>
+        <div className="mt-5 grid gap-3 rounded-2xl bg-gray-50 p-4 md:grid-cols-2">
+          <p><strong>Vendeur :</strong> {data.order.vendor_name || "-"}</p>
+          <p><strong>Méthode paiement :</strong> {data.order.payment_method || "-"}</p>
+          <p><strong>Livraison :</strong> {data.order.delivery_method || "Retrait sur place"}</p>
+          <p><strong>Frais livraison :</strong> {formatFCFA(data.order.delivery_fee || 0)}</p>
+          <p><strong>Ville :</strong> {data.order.delivery_city || "-"}</p>
+          <p><strong>Quartier :</strong> {data.order.delivery_neighborhood || "-"}</p>
+          <p className="md:col-span-2"><strong>Adresse :</strong> {data.order.delivery_address || "-"}</p>
+          {data.order.vendor_message && <p className="md:col-span-2"><strong>Message vendeur :</strong> {data.order.vendor_message}</p>}
+        </div>
         {String(data.order.order_type || "").toUpperCase() === "B2B" && data.order.stock_entry_created !== true && (
           <button onClick={receiveOrder} className="mt-5 rounded-xl bg-yellow-500 px-5 py-3 font-black text-black">
             Créer l'entrée stock après réception

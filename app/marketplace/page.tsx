@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { apiUrl, authFetch, getAuthToken } from "../lib/api";
 import { formatFCFA } from "../lib/format";
+import MarketplaceHeader from "./MarketplaceHeader";
 import {
   Apple,
   Beaker,
@@ -26,7 +27,6 @@ import {
   Sparkles,
   Sprout,
   Tv,
-  User,
   Utensils,
   Wrench,
 } from "lucide-react";
@@ -154,11 +154,7 @@ export default function MarketplacePage() {
               Produits, services, restaurants, hôtels, automobiles, immobilier et laboratoires publiés par les entreprises Triangle.
             </p>
           </div>
-          <div className="flex flex-wrap gap-3">
-            <Link href="/client/login" className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 font-bold text-black"><User size={18} /> Se connecter</Link>
-            <Link href="/client/register" className="rounded-xl bg-yellow-500 px-5 py-3 font-bold text-black">Créer un compte client</Link>
-            <Link href="/marketplace/cart" className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-5 py-3 font-bold text-white"><ShoppingCart size={18} /> Mon panier</Link>
-          </div>
+          <MarketplaceHeader />
         </div>
       </section>
 
