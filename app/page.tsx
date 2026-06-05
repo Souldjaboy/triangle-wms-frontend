@@ -21,6 +21,7 @@ import {
 
 const publicActions = [
   { href: "/marketplace", title: "Marketplace", description: "Voir les produits et services publiés.", primary: true },
+  { href: "/solutions", title: "Solutions", description: "Stock, caisse, logistique et marketplace." },
   { href: "/client/register", title: "Créer un compte client", description: "Acheter comme particulier." },
   { href: "/client/login", title: "Connexion client", description: "Accéder au panier et aux commandes." },
   { href: "/login", title: "Connexion entreprise", description: "Accéder à Triangle WMS Pro." },
@@ -64,10 +65,10 @@ export default function PublicHomePage() {
         <div className="relative mx-auto max-w-6xl">
           <p className="text-sm font-black uppercase tracking-wide text-yellow-400">Triangle WMS Pro</p>
           <h1 className="mt-3 max-w-4xl text-4xl font-black md:text-6xl">
-            WMS, POS et Marketplace pour entreprises et clients.
+            Logiciel de gestion de stock, caisse POS et marketplace au Mali.
           </h1>
           <p className="mt-5 max-w-2xl text-lg text-white/80">
-            Les entreprises gèrent leurs stocks et publient volontairement leurs articles. Les clients achètent depuis un compte séparé.
+            Triangle WMS Pro aide les entreprises à Bamako, au Mali et en Afrique à gérer stocks, entrepôts, ventes, caisse, documents, logistique et publication marketplace.
           </p>
           <form onSubmit={submitSearch} className="mt-8 flex max-w-2xl gap-3 rounded-2xl bg-white p-2 text-black shadow-2xl">
             <Search className="ml-3 mt-3 text-gray-400" />
@@ -83,7 +84,7 @@ export default function PublicHomePage() {
           </form>
         </div>
 
-        <div className="relative mx-auto mt-10 grid max-w-6xl gap-4 md:grid-cols-5">
+        <div className="relative mx-auto mt-10 grid max-w-6xl gap-4 md:grid-cols-3 xl:grid-cols-6">
           {publicActions.map((action) => (
             <Link
               key={action.href}
@@ -127,6 +128,30 @@ export default function PublicHomePage() {
             );
           })}
         </div>
+      </section>
+
+      <section className="mx-auto grid max-w-6xl gap-5 px-4 pb-12 md:grid-cols-3 md:px-8">
+        <article className="rounded-2xl bg-white p-6 shadow">
+          <h2 className="text-2xl font-black">Gestion de stock et entrepôt</h2>
+          <p className="mt-3 text-sm leading-6 text-gray-600">
+            Suivez vos produits, stocks, emplacements, mouvements, inventaires, QR codes et alertes de rupture dans une application simple.
+          </p>
+          <Link href="/solutions" className="mt-5 inline-block font-black text-yellow-700">Découvrir les solutions</Link>
+        </article>
+        <article className="rounded-2xl bg-white p-6 shadow">
+          <h2 className="text-2xl font-black">Caisse POS et ventes</h2>
+          <p className="mt-3 text-sm leading-6 text-gray-600">
+            Encaissez, imprimez les reçus, suivez les caisses et connectez les ventes au stock pour boutiques, pharmacies et restaurants.
+          </p>
+          <Link href="/services" className="mt-5 inline-block font-black text-yellow-700">Voir les services</Link>
+        </article>
+        <article className="rounded-2xl bg-white p-6 shadow">
+          <h2 className="text-2xl font-black">Marketplace entreprise</h2>
+          <p className="mt-3 text-sm leading-6 text-gray-600">
+            Publiez volontairement vos produits et services pour vendre aux clients ou aux autres entreprises, sans exposer vos données internes.
+          </p>
+          <Link href="/marketplace" className="mt-5 inline-block font-black text-yellow-700">Ouvrir la marketplace</Link>
+        </article>
       </section>
     </main>
   );

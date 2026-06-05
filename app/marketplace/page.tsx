@@ -162,9 +162,30 @@ export default function MarketplacePage() {
       <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-3xl font-black">Catalogue public</h2>
-          <p className="text-gray-500">Catalogue B2B/B2C relié au stock Triangle WMS Pro.</p>
+          <p className="text-gray-500">Marketplace clients et entreprises au Mali, reliée uniquement aux produits publiés volontairement.</p>
         </div>
       </div>
+
+      <section className="mb-6 grid gap-4 md:grid-cols-3">
+        <article className="rounded-2xl bg-white p-5 shadow">
+          <h2 className="text-xl font-black">Produits publiés</h2>
+          <p className="mt-2 text-sm leading-6 text-gray-600">
+            Les entreprises choisissent ce qu’elles veulent vendre en ligne. Les données internes de stock restent privées.
+          </p>
+        </article>
+        <article className="rounded-2xl bg-white p-5 shadow">
+          <h2 className="text-xl font-black">Achat client ou entreprise</h2>
+          <p className="mt-2 text-sm leading-6 text-gray-600">
+            Les clients particuliers et les entreprises acheteuses ont des parcours séparés pour éviter toute confusion.
+          </p>
+        </article>
+        <article className="rounded-2xl bg-white p-5 shadow">
+          <h2 className="text-xl font-black">Catégories locales</h2>
+          <p className="mt-2 text-sm leading-6 text-gray-600">
+            Retrouvez produits, pharmacies, laboratoires, restaurants, hôtels, automobile, immobilier, services et logistique.
+          </p>
+        </article>
+      </section>
 
       {message && <div className="mb-5 rounded-xl bg-yellow-100 p-4 font-bold text-yellow-800">{message}</div>}
 

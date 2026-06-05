@@ -1,13 +1,37 @@
 {
   "name": "Triangle WMS Pro",
   "short_name": "Triangle WMS",
-  "description": "Système professionnel de gestion d’entrepôts, stocks, ventes, caisses et pointage",
+  "description": "Logiciel de gestion de stock, caisse POS, marketplace, logistique et entrepôts pour les entreprises au Mali et en Afrique.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#f5b400",
   "orientation": "portrait-primary",
+  "categories": ["business", "productivity", "shopping"],
+  "shortcuts": [
+    {
+      "name": "Marketplace",
+      "short_name": "Marketplace",
+      "description": "Voir les produits et services publiés.",
+      "url": "/marketplace",
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Connexion entreprise",
+      "short_name": "Entreprise",
+      "description": "Accéder à l’espace de gestion Triangle WMS Pro.",
+      "url": "/login",
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Contact",
+      "short_name": "Contact",
+      "description": "Contacter Triangle WMS Pro à Bamako.",
+      "url": "/contact",
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
+    }
+  ],
   "icons": [
     {
       "src": "/icons/icon-192x192.png",
