@@ -52,12 +52,9 @@ export default function MarketplacePage() {
           <p className="text-gray-500">Catalogue B2B/B2C relié au stock Triangle WMS Pro.</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Link href="/marketplace/cart" className="rounded-xl bg-yellow-500 px-5 py-3 font-bold text-black">Panier</Link>
-          <Link href="/client/login" className="rounded-xl bg-white px-5 py-3 font-bold text-black">Connexion client</Link>
-          <Link href="/client/register" className="rounded-xl bg-white px-5 py-3 font-bold text-black">Créer compte client</Link>
-          <Link href="/marketplace/orders" className="rounded-xl bg-white px-5 py-3 font-bold text-black">Mes commandes</Link>
-          <Link href="/marketplace/business" className="rounded-xl bg-black px-5 py-3 font-bold text-white">Achat B2B</Link>
-          <Link href="/marketplace/vendor/products" className="rounded-xl bg-black px-5 py-3 font-bold text-white">Espace vendeur</Link>
+          <Link href="/client/login" className="rounded-xl bg-white px-5 py-3 font-bold text-black">Se connecter</Link>
+          <Link href="/client/register" className="rounded-xl bg-white px-5 py-3 font-bold text-black">Créer un compte client</Link>
+          <Link href="/marketplace/cart" className="rounded-xl bg-yellow-500 px-5 py-3 font-bold text-black">Mon panier</Link>
         </div>
       </div>
 
