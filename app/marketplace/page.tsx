@@ -6,11 +6,34 @@ import { useEffect, useState } from "react";
 import { apiUrl, authFetch, getAuthToken } from "../lib/api";
 import { formatFCFA } from "../lib/format";
 
-const publicCategories = ["Produits", "Restaurant", "Hôtel", "Immobilier", "Automobile"];
+const publicCategories = [
+  "Produits",
+  "Alimentation",
+  "Boissons",
+  "Pharmacie",
+  "Santé / Laboratoire",
+  "Téléphones",
+  "Informatique",
+  "Électronique",
+  "Vêtements",
+  "Chaussures",
+  "Beauté / Cosmétique",
+  "Pièces auto",
+  "Automobiles",
+  "Immobilier",
+  "Hôtels",
+  "Restaurants",
+  "Agriculture",
+  "Matériaux construction",
+  "Fournitures bureau",
+  "Maison / meubles",
+  "Services",
+];
 
 export default function MarketplacePage() {
   const router = useRouter();
   const [products, setProducts] = useState<any[]>([]);
+  const [laboratories, setLaboratories] = useState<any[]>([]);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
   const [vendor, setVendor] = useState("");
@@ -19,6 +42,16 @@ export default function MarketplacePage() {
   const [message, setMessage] = useState("");
 
   const loadProducts = async (value = query) => {
+    if (category === "Santé / Laboratoire") {
+      const params = new URLSearchParams();
+      if (value) params.set("q", value);
+      if (vendor) params.set("city", vendor);
+      const response = await fetch(apiUrl(`/laboratories/public?${params.toString()}`));
+      const data = await response.json().catch(() => []);
+      setLaboratories(Array.isArray(data) ? data : []);
+      setProducts([]);
+      return;
+    }
     const params = new URLSearchParams();
     if (value) params.set("q", value);
     if (category) params.set("category", category);
@@ -28,6 +61,7 @@ export default function MarketplacePage() {
     const response = await fetch(apiUrl(`/marketplace/products?${params.toString()}`));
     const data = await response.json().catch(() => []);
     setProducts(Array.isArray(data) ? data : []);
+    setLaboratories([]);
   };
 
   useEffect(() => {
@@ -72,7 +106,10 @@ export default function MarketplacePage() {
         {publicCategories.map((item) => (
           <button
             key={item}
-            onClick={() => setCategory(item === "Produits" ? "" : item)}
+            onClick={() => {
+              setCategory(item === "Produits" ? "" : item);
+              if (item === "Santé / Laboratoire") loadProducts(query);
+            }}
             className={`rounded-full px-5 py-3 font-bold shadow ${
               (item === "Produits" && !category) || category === item
                 ? "bg-yellow-500 text-black"
@@ -95,12 +132,34 @@ export default function MarketplacePage() {
           className="rounded-xl border p-4 md:col-span-2"
         />
         <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Catégorie" className="rounded-xl border p-4" />
-        <input value={vendor} onChange={(e) => setVendor(e.target.value)} placeholder="ID entreprise" className="rounded-xl border p-4" />
+        <input value={vendor} onChange={(e) => setVendor(e.target.value)} placeholder={category === "Santé / Laboratoire" ? "Ville laboratoire" : "ID entreprise"} className="rounded-xl border p-4" />
         <input value={minPrice} onChange={(e) => setMinPrice(e.target.value)} placeholder="Prix min" className="rounded-xl border p-4" />
         <input value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)} placeholder="Prix max" className="rounded-xl border p-4" />
       </div>
 
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
+      {category === "Santé / Laboratoire" && (
+        <div className="mb-6 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
+          {laboratories.map((lab) => (
+            <article key={lab.id} className="rounded-2xl bg-white p-5 shadow">
+              {lab.public_image_url || lab.logo_url ? (
+                <img src={lab.public_image_url || lab.logo_url} alt={lab.lab_name} className="mb-4 h-40 w-full rounded-xl object-cover" />
+              ) : (
+                <div className="mb-4 flex h-40 items-center justify-center rounded-xl bg-gray-100 font-bold text-gray-400">Laboratoire</div>
+              )}
+              <p className="text-sm font-bold text-gray-500">{lab.city || "Ville non renseignée"}</p>
+              <h2 className="mt-1 text-xl font-black">{lab.lab_name || lab.company_name}</h2>
+              <p className="mt-2 text-sm text-gray-500">{lab.public_description || lab.description || lab.address}</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Link href={`/client/laboratoires/${lab.id}`} className="rounded-xl bg-black px-4 py-3 text-center font-bold text-white">Voir laboratoire</Link>
+                <Link href={`/client/laboratoire/rendez-vous?lab=${lab.id}&company=${lab.company_id}`} className="rounded-xl bg-yellow-500 px-4 py-3 font-bold text-black">Rendez-vous</Link>
+              </div>
+            </article>
+          ))}
+          {laboratories.length === 0 && <div className="rounded-2xl bg-white p-8 text-center font-bold text-gray-500">Aucun laboratoire publié.</div>}
+        </div>
+      )}
+
+      {category !== "Santé / Laboratoire" && <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
         {products.map((product) => (
           <article key={product.id} className="rounded-2xl bg-white p-5 shadow">
             {product.image_url ? (
@@ -119,9 +178,9 @@ export default function MarketplacePage() {
             </div>
           </article>
         ))}
-      </div>
+      </div>}
 
-      {products.length === 0 && <div className="rounded-2xl bg-white p-8 text-center font-bold text-gray-500">Aucun produit publié.</div>}
+      {category !== "Santé / Laboratoire" && products.length === 0 && <div className="rounded-2xl bg-white p-8 text-center font-bold text-gray-500">Aucun produit publié.</div>}
     </div>
   );
 }
