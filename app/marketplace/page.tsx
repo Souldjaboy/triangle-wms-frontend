@@ -1,11 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { apiUrl, authFetch, getAuthToken } from "../lib/api";
 import { formatFCFA } from "../lib/format";
 
+const publicCategories = ["Produits", "Restaurant", "Hôtel", "Immobilier", "Automobile"];
+
 export default function MarketplacePage() {
+  const router = useRouter();
   const [products, setProducts] = useState<any[]>([]);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
@@ -32,7 +36,7 @@ export default function MarketplacePage() {
 
   const addToCart = async (product: any) => {
     if (!getAuthToken()) {
-      window.location.href = "/client/login";
+      router.push("/client/login?redirect=/marketplace");
       return;
     }
     const response = await authFetch("/marketplace/cart/items", {
@@ -41,7 +45,11 @@ export default function MarketplacePage() {
       body: JSON.stringify({ marketplace_product_id: product.id, quantity: 1 }),
     });
     const data = await response.json().catch(() => ({}));
-    setMessage(response.ok ? "Produit ajouté au panier." : data.error || "Erreur ajout panier.");
+    if (response.status === 401 || response.status === 403) {
+      router.push("/client/login?redirect=/marketplace");
+      return;
+    }
+    setMessage(response.ok ? "Produit ajouté au panier." : data.error || "Impossible d’ajouter ce produit au panier.");
   };
 
   return (
@@ -59,6 +67,22 @@ export default function MarketplacePage() {
       </div>
 
       {message && <div className="mb-5 rounded-xl bg-yellow-100 p-4 font-bold text-yellow-800">{message}</div>}
+
+      <div className="mb-6 flex flex-wrap gap-3">
+        {publicCategories.map((item) => (
+          <button
+            key={item}
+            onClick={() => setCategory(item === "Produits" ? "" : item)}
+            className={`rounded-full px-5 py-3 font-bold shadow ${
+              (item === "Produits" && !category) || category === item
+                ? "bg-yellow-500 text-black"
+                : "bg-white text-black"
+            }`}
+          >
+            {item}
+          </button>
+        ))}
+      </div>
 
       <div className="mb-6 grid gap-3 rounded-2xl bg-white p-4 shadow md:grid-cols-6">
         <input

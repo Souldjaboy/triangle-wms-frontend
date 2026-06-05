@@ -30,7 +30,11 @@ export default function ClientLoginPage() {
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
       document.cookie = `triangle_token=${encodeURIComponent(data.token)}; path=/; max-age=86400; SameSite=Lax`;
-      router.push("/client/dashboard");
+      const redirect =
+        typeof window !== "undefined"
+          ? new URLSearchParams(window.location.search).get("redirect")
+          : "";
+      router.push(redirect || "/client/dashboard");
     } catch (error: any) {
       setError(error?.message || "Erreur connexion client.");
     } finally {

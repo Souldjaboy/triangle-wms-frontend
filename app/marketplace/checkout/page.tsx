@@ -18,7 +18,7 @@ export default function MarketplaceCheckoutPage() {
 
   useEffect(() => {
     if (!getAuthToken()) {
-      window.location.href = "/client/login";
+      window.location.href = "/client/login?redirect=/marketplace/checkout";
     }
   }, []);
 

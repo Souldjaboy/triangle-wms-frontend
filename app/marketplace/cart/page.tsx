@@ -17,7 +17,7 @@ export default function MarketplaceCartPage() {
 
   useEffect(() => {
     if (!getAuthToken()) {
-      window.location.href = "/client/login";
+      window.location.href = "/client/login?redirect=/marketplace/cart";
       return;
     }
     loadCart();

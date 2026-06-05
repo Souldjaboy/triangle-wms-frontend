@@ -1,92 +1,65 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { apiUrl } from "./lib/api";
+import Link from "next/link";
 
-export default function LoginPage() {
-  const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+const publicActions = [
+  {
+    href: "/marketplace",
+    title: "Marketplace",
+    description: "Voir les produits et services publiés.",
+    primary: true,
+  },
+  {
+    href: "/client/register",
+    title: "Créer un compte client",
+    description: "Acheter comme particulier.",
+  },
+  {
+    href: "/client/login",
+    title: "Connexion client",
+    description: "Accéder au panier et aux commandes.",
+  },
+  {
+    href: "/login",
+    title: "Connexion entreprise",
+    description: "Accéder à Triangle WMS Pro.",
+  },
+  {
+    href: "/register",
+    title: "Créer une entreprise",
+    description: "Démarrer un espace WMS SaaS.",
+  },
+];
 
-  const handleLogin = async (e: any) => {
-    e.preventDefault();
-
-    const response = await fetch(apiUrl("/login"), {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ email, password }),
-    });
-
-    const data = await response.json();
-
-    if (response.ok) {
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("user", JSON.stringify(data.user));
-
-      const isSuperAdmin =
-        data.user?.is_super_admin === true ||
-        data.user?.is_super_admin === "true" ||
-        data.user?.is_super_admin === 1 ||
-        String(data.user?.role || "").toLowerCase() === "super_admin";
-
-      document.cookie = `triangle_token=${encodeURIComponent(data.token)}; path=/; max-age=86400; SameSite=Lax`;
-      document.cookie = `triangle_super_admin=${isSuperAdmin ? "true" : "false"}; path=/; max-age=86400; SameSite=Lax`;
-      document.cookie = `triangle_subscription_status=${encodeURIComponent(data.user?.subscription_status || "")}; path=/; max-age=86400; SameSite=Lax`;
-      document.cookie = `triangle_modules=${encodeURIComponent(JSON.stringify(data.user?.modules || {}))}; path=/; max-age=86400; SameSite=Lax`;
-
-      router.push("/dashboard");
-    } else {
-      alert(data.error);
-    }
-  };
-
+export default function PublicHomePage() {
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center px-6">
-      <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-8">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-black">
-            TRIANGLE WMS PRO
+    <main className="min-h-screen bg-gray-100 text-black">
+      <section className="mx-auto flex min-h-screen max-w-6xl flex-col justify-center px-4 py-12 md:px-8">
+        <div className="max-w-3xl">
+          <p className="text-sm font-black uppercase tracking-wide text-yellow-600">Triangle WMS Pro</p>
+          <h1 className="mt-3 text-4xl font-black md:text-6xl">
+            WMS, POS et Marketplace pour entreprises et clients.
           </h1>
-          <p className="text-gray-500 mt-2">
-            Connexion sécurisée au système
+          <p className="mt-5 max-w-2xl text-lg text-gray-600">
+            Les entreprises gèrent leurs stocks et publient volontairement leurs articles. Les clients particuliers achètent depuis un compte séparé.
           </p>
         </div>
 
-        <form onSubmit={handleLogin} className="space-y-5">
-          <input
-            type="email"
-            placeholder="Email"
-            className="w-full border rounded-xl px-4 py-3 text-black"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-
-          <input
-            type="password"
-            placeholder="Mot de passe"
-            className="w-full border rounded-xl px-4 py-3 text-black"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-
-          <button
-            type="submit"
-            className="w-full bg-yellow-500 text-black font-bold py-3 rounded-xl"
-          >
-            Se connecter
-          </button>
-        </form>
-
-        <p className="text-gray-500 text-sm mt-5 text-center">
-          Pas encore de compte ?{" "}
-          <a href="/register" className="text-blue-600 font-bold">
-            Créer une entreprise
-          </a>
-        </p>
-      </div>
-    </div>
+        <div className="mt-10 grid gap-4 md:grid-cols-5">
+          {publicActions.map((action) => (
+            <Link
+              key={action.href}
+              href={action.href}
+              className={`rounded-2xl p-5 shadow transition hover:-translate-y-1 hover:shadow-xl ${
+                action.primary ? "bg-yellow-500 text-black" : "bg-white text-black"
+              }`}
+            >
+              <p className="text-xl font-black">{action.title}</p>
+              <p className="mt-2 text-sm opacity-75">{action.description}</p>
+            </Link>
+          ))}
+        </div>
+      </section>
+    </main>
   );
 }
