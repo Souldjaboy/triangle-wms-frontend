@@ -111,6 +111,7 @@ export default function BusinessModulePage({
   const displayValue = (item: any, column: Column) => {
     const value = item?.[column.key];
     if (column.money) return formatFCFA(value);
+    if (typeof value === "boolean") return value ? "Oui" : "Non";
     if (value === null || value === undefined || value === "") return "-";
     return String(value);
   };

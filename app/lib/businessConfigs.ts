@@ -36,9 +36,17 @@ export const vehicleFields = [
   { name: "couleur", label: "Couleur" },
   { name: "kilometrage", label: "Kilométrage", type: "number" as const },
   { name: "carburant", label: "Carburant" },
+  { name: "boite_vitesse", label: "Boîte de vitesse", type: "select" as const, options: ["Manuelle", "Automatique"] },
+  { name: "nombre_places", label: "Nombre de places", type: "number" as const },
+  { name: "etat_vehicule", label: "État du véhicule", type: "select" as const, options: ["Neuf", "Très bon", "Bon", "À réparer"] },
   { name: "prix_vente", label: "Prix vente", type: "number" as const },
   { name: "prix_location_jour", label: "Prix location jour", type: "number" as const },
+  { name: "prix_location_semaine", label: "Prix location semaine", type: "number" as const },
   { name: "prix_location_mois", label: "Prix location mois", type: "number" as const },
+  { name: "disponibilite", label: "Disponibilité", type: "select" as const, options: ["disponible", "vendu", "loué", "maintenance"] },
+  { name: "is_sellable", label: "Vendable", type: "select" as const, options: ["oui", "non"] },
+  { name: "is_rentable", label: "Louable", type: "select" as const, options: ["oui", "non"] },
+  { name: "publish_on_marketplace", label: "Publier sur marketplace", type: "select" as const, options: ["oui", "non"] },
 ];
 
 export const vehicleColumns = [
@@ -47,8 +55,12 @@ export const vehicleColumns = [
   { key: "modele", label: "Modèle" },
   { key: "immatriculation", label: "Immatriculation" },
   { key: "statut", label: "Statut" },
+  { key: "disponibilite", label: "Disponibilité" },
   { key: "prix_vente", label: "Prix vente", money: true },
   { key: "prix_location_jour", label: "Location/jour", money: true },
+  { key: "is_sellable", label: "Vendable" },
+  { key: "is_rentable", label: "Louable" },
+  { key: "publish_on_marketplace", label: "Marketplace" },
 ];
 
 export const vehicleRentalFields = [
@@ -91,16 +103,24 @@ export const saleColumns = [
 ];
 
 export const propertyFields = [
-  { name: "type", label: "Type", type: "select" as const, options: ["maison", "terrain", "appartement", "villa", "chambre_hotel"] },
+  { name: "type", label: "Type", type: "select" as const, options: ["maison à vendre", "maison à louer", "appartement", "terrain", "chambre d’hôtel", "suite", "salle", "bien professionnel"] },
   { name: "title", label: "Titre" },
   { name: "description", label: "Description" },
   { name: "address", label: "Adresse" },
   { name: "city", label: "Ville" },
+  { name: "neighborhood", label: "Quartier" },
   { name: "surface", label: "Surface", type: "number" as const },
-  { name: "rooms_count", label: "Pièces", type: "number" as const },
+  { name: "rooms_count", label: "Nombre de chambres", type: "number" as const },
+  { name: "beds_count", label: "Nombre de lits", type: "number" as const },
+  { name: "guests_count", label: "Nombre de personnes", type: "number" as const },
   { name: "price_sale", label: "Prix vente", type: "number" as const },
   { name: "price_rent_day", label: "Prix jour", type: "number" as const },
   { name: "price_rent_month", label: "Prix mois", type: "number" as const },
+  { name: "price_night", label: "Prix nuit hôtel", type: "number" as const },
+  { name: "is_sellable", label: "Vendable", type: "select" as const, options: ["oui", "non"] },
+  { name: "is_rentable", label: "Louable", type: "select" as const, options: ["oui", "non"] },
+  { name: "is_bookable", label: "Réservable", type: "select" as const, options: ["oui", "non"] },
+  { name: "publish_on_marketplace", label: "Publier sur marketplace", type: "select" as const, options: ["oui", "non"] },
 ];
 
 export const propertyColumns = [
@@ -111,6 +131,10 @@ export const propertyColumns = [
   { key: "status", label: "Statut" },
   { key: "price_sale", label: "Prix vente", money: true },
   { key: "price_rent_month", label: "Loyer mois", money: true },
+  { key: "is_sellable", label: "Vendable" },
+  { key: "is_rentable", label: "Louable" },
+  { key: "is_bookable", label: "Réservable" },
+  { key: "publish_on_marketplace", label: "Marketplace" },
 ];
 
 export const propertyRentalFields = [
@@ -163,6 +187,8 @@ export const menuFields = [
   { name: "category", label: "Catégorie" },
   { name: "price", label: "Prix", type: "number" as const },
   { name: "image", label: "Image URL" },
+  { name: "is_available", label: "Disponible", type: "select" as const, options: ["oui", "non"] },
+  { name: "publish_on_marketplace", label: "Publier sur marketplace", type: "select" as const, options: ["oui", "non"] },
   { name: "preparation_time", label: "Préparation min", type: "number" as const },
 ];
 
@@ -172,6 +198,7 @@ export const menuColumns = [
   { key: "category", label: "Catégorie" },
   { key: "price", label: "Prix", money: true },
   { key: "is_available", label: "Disponible" },
+  { key: "publish_on_marketplace", label: "Marketplace" },
 ];
 
 export const orderColumns = [

@@ -58,7 +58,16 @@ export default function VerifyCodeForm({ targetType }: Props) {
       }
 
       setMessage(data.message || "Vérification réussie.");
-      setTimeout(() => router.push("/login"), 1200);
+      if (data.token && data.user) {
+        localStorage.setItem("triangle_token", data.token);
+        localStorage.setItem("triangle_user", JSON.stringify(data.user));
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("user", JSON.stringify(data.user));
+        document.cookie = `triangle_token=${data.token}; path=/; max-age=86400; SameSite=Lax`;
+        document.cookie = `triangle_role=${data.user.role || ""}; path=/; max-age=86400; SameSite=Lax`;
+        document.cookie = `triangle_subscription_status=${data.user.subscription_status || ""}; path=/; max-age=86400; SameSite=Lax`;
+      }
+      setTimeout(() => router.push(data.redirect || (data.token ? "/dashboard" : "/login")), 1200);
     } catch (err) {
       console.error(err);
       setError("Erreur serveur.");
