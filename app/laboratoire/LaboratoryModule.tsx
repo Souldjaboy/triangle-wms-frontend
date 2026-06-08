@@ -31,6 +31,7 @@ export default function LaboratoryModule({ mode = "dashboard" }: { mode?: string
   const [editingAnalysisId, setEditingAnalysisId] = useState<number | null>(null);
   const [caseForm, setCaseForm] = useState({ patient_id: "", analysis_ids: [] as string[] });
   const [resultDrafts, setResultDrafts] = useState<Record<number, { summary: string; email: string }>>({});
+  const [appointmentBusyId, setAppointmentBusyId] = useState<number | null>(null);
 
   const loadAll = async () => {
     const [settingsRes, analysesRes, patientsRes, appointmentsRes, casesRes, paymentsRes, documentsRes] = await Promise.all([
@@ -181,6 +182,32 @@ export default function LaboratoryModule({ mode = "dashboard" }: { mode?: string
     await loadAll();
   };
 
+  const updateAppointmentStatus = async (item: any, status: string) => {
+    if (appointmentBusyId) return;
+    setAppointmentBusyId(item.id);
+    const proposed_time =
+      status === "Reporté" || status === "Confirmé"
+        ? prompt("Horaire proposé ou confirmé", item.proposed_time || item.requested_time || "") || ""
+        : item.proposed_time || "";
+    const laboratory_message =
+      prompt("Message pour le client", item.lab_response || "") ||
+      (status === "Refusé" ? "Rendez-vous refusé par le laboratoire." : "");
+    const response = await authFetch(`/laboratory/appointments/${item.id}/status`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        status,
+        proposed_date: item.requested_date || null,
+        proposed_time,
+        laboratory_message,
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+    setMessage(response.ok ? `Rendez-vous ${status.toLowerCase()}.` : data.error || "Erreur rendez-vous.");
+    setAppointmentBusyId(null);
+    await loadAll();
+  };
+
   return (
     <main className="min-h-screen bg-gray-100 p-4 text-black md:p-8">
       <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -267,7 +294,28 @@ export default function LaboratoryModule({ mode = "dashboard" }: { mode?: string
         </section>
       )}
 
-      {mode === "appointments" && <Table rows={appointments} columns={["patient_name", "patient_phone", "analysis_name", "requested_date", "requested_time", "status"]} />}
+      {mode === "appointments" && (
+        <Table rows={appointments} columns={["patient_name", "patient_phone", "analysis_name", "requested_date", "requested_time", "proposed_time", "status", "lab_response"]} action={(row) => {
+          const normalizedStatus = String(row.status || "").toLowerCase();
+          const finalStatus = ["confirmé", "refusé", "terminé"].includes(normalizedStatus);
+          return (
+            <div className="flex min-w-[300px] flex-wrap gap-2">
+              <button disabled={appointmentBusyId === row.id || finalStatus} onClick={() => updateAppointmentStatus(row, "Confirmé")} className="rounded-lg bg-green-700 px-3 py-2 font-bold text-white disabled:opacity-40">
+                Confirmer
+              </button>
+              <button disabled={appointmentBusyId === row.id || finalStatus} onClick={() => updateAppointmentStatus(row, "Refusé")} className="rounded-lg bg-red-100 px-3 py-2 font-bold text-red-700 disabled:opacity-40">
+                Refuser
+              </button>
+              <button disabled={appointmentBusyId === row.id || finalStatus} onClick={() => updateAppointmentStatus(row, "Reporté")} className="rounded-lg bg-yellow-500 px-3 py-2 font-bold text-black disabled:opacity-40">
+                Proposer horaire
+              </button>
+              <button disabled={appointmentBusyId === row.id || normalizedStatus === "terminé"} onClick={() => updateAppointmentStatus(row, "Terminé")} className="rounded-lg bg-black px-3 py-2 font-bold text-white disabled:opacity-40">
+                Terminer
+              </button>
+            </div>
+          );
+        }} />
+      )}
 
       {mode === "results" && (
         <section className="space-y-4">

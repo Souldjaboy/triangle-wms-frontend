@@ -2,14 +2,17 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarDays, FileText, LogOut, PackageCheck, ShoppingCart, User, TestTube2 } from "lucide-react";
+import { CalendarDays, LogOut, PackageCheck, ShoppingCart, User, TestTube2 } from "lucide-react";
 
 export default function ClientDashboardPage() {
   const router = useRouter();
   const logout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+    localStorage.removeItem("client_token");
+    localStorage.removeItem("client_user");
     document.cookie = "triangle_token=; path=/; max-age=0";
+    document.cookie = "triangle_client_token=; path=/; max-age=0";
     router.push("/marketplace");
   };
   const cards = [
@@ -19,7 +22,6 @@ export default function ClientDashboardPage() {
     { href: "/client/profile", label: "Mon profil", icon: User, tone: "bg-white text-black" },
     { href: "/client/laboratoire/resultats", label: "Résultats laboratoire", icon: TestTube2, tone: "bg-white text-black" },
     { href: "/client/laboratoire/rendez-vous", label: "Mes rendez-vous", icon: CalendarDays, tone: "bg-white text-black" },
-    { href: "/documents", label: "Reçus / factures", icon: FileText, tone: "bg-white text-black" },
   ];
 
   return (

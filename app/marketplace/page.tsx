@@ -140,7 +140,7 @@ export default function MarketplacePage() {
       router.push("/client/login?redirect=/marketplace");
       return;
     }
-    setMessage(response.ok ? "Produit ajouté au panier." : data.error || "Impossible d’ajouter ce produit au panier. Vérifiez votre connexion client ou utilisez l’espace B2B.");
+    setMessage(response.ok ? "Produit ajouté au panier." : data.error || "Impossible d’ajouter ce produit au panier.");
   };
 
   return (

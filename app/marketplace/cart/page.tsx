@@ -39,7 +39,7 @@ export default function MarketplaceCartPage() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-4xl font-black">Panier Marketplace</h1>
-          <p className="text-gray-500">Vos articles B2B/B2C avant commande.</p>
+          <p className="text-gray-500">Vos articles avant commande.</p>
         </div>
         <Link href="/marketplace" className="rounded-xl bg-black px-5 py-3 font-bold text-white">Catalogue</Link>
       </div>

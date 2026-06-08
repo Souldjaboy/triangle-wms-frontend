@@ -21,6 +21,14 @@ export default function ClientLaboratoireRendezVousPage() {
     message: "",
   });
   const [message, setMessage] = useState("");
+  const [appointments, setAppointments] = useState<any[]>([]);
+
+  const loadAppointments = async () => {
+    if (!getAuthToken()) return;
+    const response = await authFetch("/client/laboratory/appointments");
+    const data = await response.json().catch(() => []);
+    setAppointments(Array.isArray(data) ? data : []);
+  };
 
   useEffect(() => {
     const search = new URLSearchParams(window.location.search);
@@ -45,6 +53,7 @@ export default function ClientLaboratoireRendezVousPage() {
         })
         .catch(() => setAnalyses([]));
     }
+    loadAppointments().catch(() => setAppointments([]));
   }, []);
 
   const submit = async (event: React.FormEvent) => {
@@ -68,6 +77,7 @@ export default function ClientLaboratoireRendezVousPage() {
     });
     const data = await response.json().catch(() => ({}));
     setMessage(response.ok ? "Rendez-vous demandé." : data.error || "Erreur demande rendez-vous.");
+    if (response.ok) await loadAppointments();
   };
 
   const selectedTotal = analyses
@@ -106,6 +116,28 @@ export default function ClientLaboratoireRendezVousPage() {
         {selectedTotal > 0 && <p className="rounded-xl bg-green-50 p-4 font-black text-green-800">Prix indicatif : {formatFCFA(selectedTotal)}</p>}
         <button className="rounded-xl bg-yellow-500 py-4 font-black text-black">Envoyer la demande</button>
       </form>
+
+      <section className="mt-8 rounded-2xl bg-white p-6 shadow">
+        <h2 className="text-2xl font-black">Mes rendez-vous laboratoire</h2>
+        <div className="mt-4 grid gap-3">
+          {appointments.map((appointment) => (
+            <article key={appointment.id} className="rounded-xl border p-4">
+              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="font-black">{appointment.lab_name || "Laboratoire"}</p>
+                  <p className="text-sm text-gray-500">{appointment.analysis_name || "Analyse"} - {appointment.requested_date || "-"} {appointment.requested_time || ""}</p>
+                  {appointment.proposed_time && <p className="text-sm font-bold text-blue-700">Horaire proposé : {appointment.proposed_time}</p>}
+                  {appointment.lab_response && <p className="text-sm text-gray-600">Message : {appointment.lab_response}</p>}
+                </div>
+                <span className="rounded-full bg-yellow-100 px-4 py-2 text-sm font-black text-yellow-800">
+                  {appointment.status || "En attente"}
+                </span>
+              </div>
+            </article>
+          ))}
+          {appointments.length === 0 && <p className="font-bold text-gray-500">Aucun rendez-vous enregistré.</p>}
+        </div>
+      </section>
     </main>
   );
 }

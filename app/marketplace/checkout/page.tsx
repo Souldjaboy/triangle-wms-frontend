@@ -41,7 +41,8 @@ export default function MarketplaceCheckoutPage() {
       setMessage(data.error || "Erreur création commande.");
       return;
     }
-    router.push("/client/orders");
+    setMessage("Commande envoyée avec succès.");
+    setTimeout(() => router.push("/client/orders"), 700);
   };
 
   return (
@@ -50,7 +51,7 @@ export default function MarketplaceCheckoutPage() {
         <MarketplaceHeader />
       </div>
       <h1 className="mb-6 text-4xl font-black">Validation commande</h1>
-      {message && <div className="mb-5 rounded-xl bg-red-100 p-4 font-bold text-red-700">{message}</div>}
+      {message && <div className="mb-5 rounded-xl bg-yellow-100 p-4 font-bold text-yellow-800">{message}</div>}
       <form onSubmit={submit} className="mx-auto grid max-w-3xl grid-cols-1 gap-4 rounded-2xl bg-white p-6 shadow">
         <input className="rounded-xl border p-4" placeholder="Nom client" value={form.customer_name} onChange={(e) => setForm({ ...form, customer_name: e.target.value })} />
         <input className="rounded-xl border p-4" placeholder="Email" value={form.customer_email} onChange={(e) => setForm({ ...form, customer_email: e.target.value })} />
@@ -68,7 +69,7 @@ export default function MarketplaceCheckoutPage() {
           {["Espèces", "Virement", "Orange Money", "Moov Money", "Wave", "Carte bancaire", "Crédit client"].map((method) => <option key={method}>{method}</option>)}
         </select>
         <textarea className="rounded-xl border p-4" placeholder="Notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
-        <button className="rounded-xl bg-yellow-500 py-4 font-black text-black">Créer la commande</button>
+        <button className="rounded-xl bg-yellow-500 py-4 font-black text-black">Envoyer la commande</button>
       </form>
     </div>
   );

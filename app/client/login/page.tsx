@@ -27,9 +27,17 @@ export default function ClientLoginPage() {
       if (String(data.user?.role || "").toLowerCase() !== "customer") {
         throw new Error("Ce compte n'est pas un compte client Marketplace.");
       }
+      localStorage.removeItem("business_token");
+      localStorage.removeItem("business_user");
+      localStorage.removeItem("admin_token");
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
+      localStorage.setItem("client_token", data.token);
+      localStorage.setItem("client_user", JSON.stringify(data.user));
+      document.cookie = "triangle_business_token=; path=/; max-age=0";
       document.cookie = `triangle_token=${encodeURIComponent(data.token)}; path=/; max-age=86400; SameSite=Lax`;
+      document.cookie = `triangle_client_token=${encodeURIComponent(data.token)}; path=/; max-age=86400; SameSite=Lax`;
+      document.cookie = "triangle_role=customer; path=/; max-age=86400; SameSite=Lax";
       const redirect =
         typeof window !== "undefined"
           ? new URLSearchParams(window.location.search).get("redirect")

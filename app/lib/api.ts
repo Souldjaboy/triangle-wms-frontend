@@ -11,12 +11,27 @@ export function apiUrl(path: string) {
 export function getAuthToken() {
   if (typeof window === "undefined") return "";
 
-  const localToken = localStorage.getItem("token") || "";
+  const pathname = window.location.pathname || "";
+  const isClientSpace =
+    pathname.startsWith("/client") ||
+    pathname.startsWith("/marketplace/cart") ||
+    pathname.startsWith("/marketplace/checkout") ||
+    pathname.startsWith("/marketplace/orders");
+  const preferredKey = isClientSpace ? "client_token" : "business_token";
+  const fallbackKey = isClientSpace ? "business_token" : "client_token";
+
+  const localToken =
+    localStorage.getItem(preferredKey) ||
+    (!isClientSpace ? localStorage.getItem("admin_token") : "") ||
+    localStorage.getItem("token") ||
+    localStorage.getItem(fallbackKey) ||
+    "";
   if (localToken) return localToken;
 
+  const preferredCookie = isClientSpace ? "triangle_client_token=" : "triangle_business_token=";
   const cookieToken = document.cookie
     .split("; ")
-    .find((item) => item.startsWith("triangle_token="))
+    .find((item) => item.startsWith(preferredCookie) || item.startsWith("triangle_token="))
     ?.split("=")[1];
 
   return cookieToken ? decodeURIComponent(cookieToken) : "";
@@ -59,7 +74,14 @@ export async function authFetch(path: string, options: RequestInit = {}) {
     ) {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
+      localStorage.removeItem("client_token");
+      localStorage.removeItem("client_user");
+      localStorage.removeItem("business_token");
+      localStorage.removeItem("business_user");
+      localStorage.removeItem("admin_token");
       document.cookie = "triangle_token=; path=/; max-age=0";
+      document.cookie = "triangle_client_token=; path=/; max-age=0";
+      document.cookie = "triangle_business_token=; path=/; max-age=0";
       document.cookie = "triangle_super_admin=; path=/; max-age=0";
       document.cookie = "triangle_subscription_status=; path=/; max-age=0";
       const pathname = window.location.pathname;

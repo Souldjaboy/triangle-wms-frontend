@@ -29,6 +29,17 @@ const protectedRoutes = [
   "/parametres",
 ];
 
+const protectedClientRoutes = [
+  "/client/dashboard",
+  "/client/orders",
+  "/client/profile",
+  "/client/laboratoire/rendez-vous",
+  "/client/laboratoire/resultats",
+  "/marketplace/cart",
+  "/marketplace/checkout",
+  "/marketplace/orders",
+];
+
 const moduleRouteMap: Record<string, string> = {
   "/assistant": "ia",
   "/produits": "produits",
@@ -76,16 +87,28 @@ function readModulesCookie(value?: string) {
 export function middleware(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
 
+  const isClientProtected = protectedClientRoutes.some(
+    (route) => pathname === route || pathname.startsWith(route + "/")
+  );
+
   const isProtected = protectedRoutes.some(
     (route) => pathname === route || pathname.startsWith(route + "/")
   );
 
-  if (!isProtected) return NextResponse.next();
+  if (!isProtected && !isClientProtected) return NextResponse.next();
 
-  const token = req.cookies.get("triangle_token")?.value;
+  const token = isClientProtected
+    ? req.cookies.get("triangle_client_token")?.value ||
+      req.cookies.get("triangle_business_token")?.value ||
+      req.cookies.get("triangle_token")?.value
+    : req.cookies.get("triangle_business_token")?.value ||
+      req.cookies.get("triangle_token")?.value;
 
   if (!token) {
-    return NextResponse.redirect(new URL("/login", req.url));
+    const redirectUrl = isClientProtected ? "/client/login" : "/login";
+    const redirect = new URL(redirectUrl, req.url);
+    redirect.searchParams.set("redirect", pathname);
+    return NextResponse.redirect(redirect);
   }
 
   const payload = readJwtPayload(token);
@@ -112,6 +135,16 @@ export function middleware(req: NextRequest) {
     "inactive",
     "inactif"
   ].includes(subscriptionStatus);
+
+  if (isClientProtected) {
+    if (isCustomer) return NextResponse.next();
+
+    if (pathname.startsWith("/client/")) {
+      return NextResponse.redirect(new URL("/dashboard", req.url));
+    }
+
+    return NextResponse.next();
+  }
 
   if (pathname.startsWith("/super-admin")) {
     if (isSuperAdminCookie !== "true" && !tokenSaysSuperAdmin) {
@@ -190,5 +223,13 @@ export const config = {
     "/pointage/:path*",
     "/parametres-pointage/:path*",
     "/parametres/:path*",
+    "/client/dashboard/:path*",
+    "/client/orders/:path*",
+    "/client/profile/:path*",
+    "/client/laboratoire/rendez-vous/:path*",
+    "/client/laboratoire/resultats/:path*",
+    "/marketplace/cart/:path*",
+    "/marketplace/checkout/:path*",
+    "/marketplace/orders/:path*",
   ],
 };

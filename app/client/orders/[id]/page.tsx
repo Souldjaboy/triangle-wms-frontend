@@ -6,6 +6,24 @@ import { useEffect, useState } from "react";
 import { authFetch } from "../../../lib/api";
 import { formatFCFA } from "../../../lib/format";
 
+const statusLabels: Record<string, string> = {
+  pending: "En attente",
+  pending_payment: "En attente",
+  accepted: "Acceptée",
+  paid: "Paiement confirmé",
+  preparing: "En préparation",
+  ready: "Prête",
+  shipped: "Expédiée",
+  delivered: "Livrée",
+  cancelled: "Annulée",
+  canceled: "Annulée",
+  rejected: "Refusée",
+};
+
+function labelStatus(status: any) {
+  return statusLabels[String(status || "").toLowerCase()] || status || "En attente";
+}
+
 export default function ClientOrderDetailPage() {
   const params = useParams<{ id: string }>();
   const [data, setData] = useState<any>(null);
@@ -41,7 +59,7 @@ export default function ClientOrderDetailPage() {
       {message && <div className="mt-4 rounded-xl bg-yellow-50 p-4 font-bold">{message}</div>}
       <div className="mt-5 rounded-2xl bg-white p-6 shadow">
         <h1 className="text-4xl font-black">{data.order.order_number}</h1>
-        <p className="mt-2 text-gray-500">Statut : {data.order.status} - Paiement : {data.order.payment_status}</p>
+        <p className="mt-2 text-gray-500">Statut : {labelStatus(data.order.status)} - Paiement : {labelStatus(data.order.payment_status)}</p>
         <p className="mt-4 text-3xl font-black text-green-700">{formatFCFA(data.order.total_amount)}</p>
         <div className="mt-5 grid gap-3 rounded-2xl bg-gray-50 p-4 md:grid-cols-2">
           <p><strong>Vendeur :</strong> {data.order.vendor_name || "-"}</p>

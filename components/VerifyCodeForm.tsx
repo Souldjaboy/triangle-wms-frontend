@@ -59,15 +59,47 @@ export default function VerifyCodeForm({ targetType }: Props) {
 
       setMessage(data.message || "Vérification réussie.");
       if (data.token && data.user) {
+        const role = String(data.user.role || "").toLowerCase();
+        const isCustomer = role === "customer";
+        const isSuperAdmin =
+          data.user?.is_super_admin === true ||
+          data.user?.is_super_admin === "true" ||
+          data.user?.is_super_admin === 1 ||
+          role === "super_admin";
+
+        if (isCustomer) {
+          localStorage.removeItem("business_token");
+          localStorage.removeItem("business_user");
+          localStorage.removeItem("admin_token");
+          localStorage.setItem("client_token", data.token);
+          localStorage.setItem("client_user", JSON.stringify(data.user));
+          document.cookie = "triangle_business_token=; path=/; max-age=0";
+          document.cookie = `triangle_client_token=${encodeURIComponent(data.token)}; path=/; max-age=86400; SameSite=Lax`;
+        } else {
+          localStorage.removeItem("client_token");
+          localStorage.removeItem("client_user");
+          localStorage.setItem("business_token", data.token);
+          localStorage.setItem("business_user", JSON.stringify(data.user));
+          if (isSuperAdmin) localStorage.setItem("admin_token", data.token);
+          else localStorage.removeItem("admin_token");
+          document.cookie = "triangle_client_token=; path=/; max-age=0";
+          document.cookie = `triangle_business_token=${encodeURIComponent(data.token)}; path=/; max-age=86400; SameSite=Lax`;
+        }
         localStorage.setItem("triangle_token", data.token);
         localStorage.setItem("triangle_user", JSON.stringify(data.user));
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
-        document.cookie = `triangle_token=${data.token}; path=/; max-age=86400; SameSite=Lax`;
-        document.cookie = `triangle_role=${data.user.role || ""}; path=/; max-age=86400; SameSite=Lax`;
-        document.cookie = `triangle_subscription_status=${data.user.subscription_status || ""}; path=/; max-age=86400; SameSite=Lax`;
+        document.cookie = `triangle_token=${encodeURIComponent(data.token)}; path=/; max-age=86400; SameSite=Lax`;
+        document.cookie = `triangle_role=${encodeURIComponent(data.user.role || "")}; path=/; max-age=86400; SameSite=Lax`;
+        document.cookie = `triangle_super_admin=${isSuperAdmin ? "true" : "false"}; path=/; max-age=86400; SameSite=Lax`;
+        document.cookie = `triangle_subscription_status=${encodeURIComponent(data.user.subscription_status || "")}; path=/; max-age=86400; SameSite=Lax`;
       }
-      setTimeout(() => router.push(data.redirect || (data.token ? "/dashboard" : "/login")), 1200);
+      const verifiedRole = String(data.user?.role || "").toLowerCase();
+      const redirect =
+        verifiedRole === "customer"
+          ? "/client/dashboard"
+          : data.redirect || (data.token ? "/dashboard" : "/login");
+      setTimeout(() => router.push(redirect), 1200);
     } catch (err) {
       console.error(err);
       setError("Erreur serveur.");
