@@ -21,12 +21,39 @@ export default function DashboardBackButton() {
   if (!pathname || hiddenPathnames.includes(pathname)) return null;
 
   const goHome = () => {
+    const readJson = (key: string) => {
+      try {
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : null;
+      } catch {
+        return null;
+      }
+    };
+
+    const businessToken = localStorage.getItem("business_token") || localStorage.getItem("admin_token");
+    const clientToken = localStorage.getItem("client_token");
+    const legacyToken = localStorage.getItem("token");
     let user: any = null;
+
+    if (businessToken) user = readJson("business_user") || readJson("user");
+    else if (clientToken) user = readJson("client_user") || readJson("user");
+    else if (legacyToken) user = readJson("user");
+
+    if (!businessToken && !clientToken && !legacyToken) {
+      router.push("/");
+      return;
+    }
+
+    if (!user) {
+      router.push("/login?message=Session%20introuvable");
+      return;
+    }
+
     try {
-      const raw = localStorage.getItem("client_user") || localStorage.getItem("user");
-      user = raw ? JSON.parse(raw) : null;
+      const raw = localStorage.getItem("triangle_user");
+      if (!user && raw) user = JSON.parse(raw);
     } catch {
-      user = null;
+      // Ignore ancienne donnée invalide.
     }
 
     const role = String(user?.role || "").toLowerCase();
@@ -38,8 +65,8 @@ export default function DashboardBackButton() {
 
     if (role === "customer") router.push("/client/dashboard");
     else if (isSuperAdmin) router.push("/super-admin");
-    else if (localStorage.getItem("business_token") || localStorage.getItem("token")) router.push("/dashboard");
-    else router.push("/");
+    else if (businessToken || legacyToken) router.push("/dashboard");
+    else router.push("/login?message=Rôle%20inconnu");
   };
 
   return (

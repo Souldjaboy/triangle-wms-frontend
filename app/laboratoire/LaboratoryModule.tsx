@@ -27,7 +27,18 @@ export default function LaboratoryModule({ mode = "dashboard" }: { mode?: string
   const [documents, setDocuments] = useState<any[]>([]);
   const [message, setMessage] = useState("");
   const [patientForm, setPatientForm] = useState({ full_name: "", phone: "", email: "", gender: "", age: "", address: "" });
-  const [analysisForm, setAnalysisForm] = useState({ name: "", description: "", price: "", result_delay: "" });
+  const emptyAnalysisForm = {
+    name: "",
+    description: "",
+    price: "",
+    result_delay: "",
+    estimated_duration: "",
+    is_available: true,
+    home_sampling_available: false,
+    on_site_available: true,
+    teleconsultation_available: false,
+  };
+  const [analysisForm, setAnalysisForm] = useState(emptyAnalysisForm);
   const [editingAnalysisId, setEditingAnalysisId] = useState<number | null>(null);
   const [caseForm, setCaseForm] = useState({ patient_id: "", analysis_ids: [] as string[] });
   const [resultDrafts, setResultDrafts] = useState<Record<number, { summary: string; email: string }>>({});
@@ -76,7 +87,7 @@ export default function LaboratoryModule({ mode = "dashboard" }: { mode?: string
     });
     const data = await response.json().catch(() => ({}));
     setMessage(response.ok ? (editingAnalysisId ? "Analyse modifiée." : "Analyse ajoutée.") : data.error || "Erreur sauvegarde analyse.");
-    setAnalysisForm({ name: "", description: "", price: "", result_delay: "" });
+    setAnalysisForm(emptyAnalysisForm);
     setEditingAnalysisId(null);
     await loadAll();
   };
@@ -97,6 +108,11 @@ export default function LaboratoryModule({ mode = "dashboard" }: { mode?: string
       description: analysis.description || "",
       price: String(analysis.price || ""),
       result_delay: analysis.result_delay || "",
+      estimated_duration: analysis.estimated_duration || "",
+      is_available: analysis.is_available !== false,
+      home_sampling_available: Boolean(analysis.home_sampling_available),
+      on_site_available: analysis.on_site_available !== false,
+      teleconsultation_available: Boolean(analysis.teleconsultation_available),
     });
   };
 
@@ -257,6 +273,12 @@ export default function LaboratoryModule({ mode = "dashboard" }: { mode?: string
             <input className="rounded-xl border p-3" placeholder="Nom analyse" value={analysisForm.name} onChange={(e) => setAnalysisForm({ ...analysisForm, name: e.target.value })} />
             <input className="rounded-xl border p-3" placeholder="Prix" value={analysisForm.price} onChange={(e) => setAnalysisForm({ ...analysisForm, price: e.target.value })} />
             <input className="rounded-xl border p-3" placeholder="Délai résultat" value={analysisForm.result_delay} onChange={(e) => setAnalysisForm({ ...analysisForm, result_delay: e.target.value })} />
+            <input className="rounded-xl border p-3" placeholder="Durée estimée" value={analysisForm.estimated_duration} onChange={(e) => setAnalysisForm({ ...analysisForm, estimated_duration: e.target.value })} />
+            <textarea className="rounded-xl border p-3 md:col-span-2" placeholder="Description" value={analysisForm.description} onChange={(e) => setAnalysisForm({ ...analysisForm, description: e.target.value })} />
+            <label className="flex items-center gap-2 rounded-xl border p-3 font-bold"><input type="checkbox" checked={analysisForm.is_available} onChange={(e) => setAnalysisForm({ ...analysisForm, is_available: e.target.checked })} /> Analyse active</label>
+            <label className="flex items-center gap-2 rounded-xl border p-3 font-bold"><input type="checkbox" checked={analysisForm.on_site_available} onChange={(e) => setAnalysisForm({ ...analysisForm, on_site_available: e.target.checked })} /> Sur place</label>
+            <label className="flex items-center gap-2 rounded-xl border p-3 font-bold"><input type="checkbox" checked={analysisForm.home_sampling_available} onChange={(e) => setAnalysisForm({ ...analysisForm, home_sampling_available: e.target.checked })} /> Domicile</label>
+            <label className="flex items-center gap-2 rounded-xl border p-3 font-bold"><input type="checkbox" checked={analysisForm.teleconsultation_available} onChange={(e) => setAnalysisForm({ ...analysisForm, teleconsultation_available: e.target.checked })} /> Téléconsultation</label>
             <button onClick={saveAnalysis} className="rounded-xl bg-yellow-500 font-black text-black">
               {editingAnalysisId ? "Modifier" : "Ajouter"}
             </button>
@@ -264,7 +286,7 @@ export default function LaboratoryModule({ mode = "dashboard" }: { mode?: string
               <button
                 onClick={() => {
                   setEditingAnalysisId(null);
-                  setAnalysisForm({ name: "", description: "", price: "", result_delay: "" });
+                  setAnalysisForm(emptyAnalysisForm);
                 }}
                 className="rounded-xl bg-gray-100 px-4 py-3 font-bold text-black"
               >
@@ -272,7 +294,7 @@ export default function LaboratoryModule({ mode = "dashboard" }: { mode?: string
               </button>
             )}
           </div>
-          <Table rows={analyses} columns={["name", "price", "result_delay", "is_available"]} action={(row) => (
+          <Table rows={analyses} columns={["name", "price", "result_delay", "estimated_duration", "is_available", "home_sampling_available", "on_site_available", "teleconsultation_available"]} action={(row) => (
             <div className="flex flex-wrap gap-2">
               <button onClick={() => editAnalysis(row)} className="rounded-lg bg-yellow-500 px-3 py-2 font-bold text-black">Modifier</button>
               <button onClick={() => updateAnalysis(row, { is_available: !row.is_available })} className="rounded-lg bg-black px-3 py-2 text-white">Activer/Désactiver</button>
@@ -295,7 +317,7 @@ export default function LaboratoryModule({ mode = "dashboard" }: { mode?: string
       )}
 
       {mode === "appointments" && (
-        <Table rows={appointments} columns={["patient_name", "patient_phone", "analysis_name", "requested_date", "requested_time", "proposed_time", "status", "lab_response"]} action={(row) => {
+        <Table rows={appointments} columns={["patient_name", "patient_phone", "analysis_name", "total_amount", "service_type", "requested_date", "requested_time", "proposed_time", "status", "lab_response"]} action={(row) => {
           const normalizedStatus = String(row.status || "").toLowerCase();
           const finalStatus = ["confirmé", "refusé", "terminé"].includes(normalizedStatus);
           return (
@@ -374,7 +396,7 @@ function Table({ rows, columns, action }: { rows: any[]; columns: string[]; acti
         <thead><tr>{columns.map((col) => <th key={col} className="border-b p-3">{col}</th>)}{action && <th className="border-b p-3">Actions</th>}</tr></thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={row.id}>{columns.map((col) => <td key={col} className="border-b p-3">{col.includes("amount") || col === "price" ? formatFCFA(row[col]) : String(row[col] ?? "-")}</td>)}{action && <td className="border-b p-3">{action(row)}</td>}</tr>
+            <tr key={row.id}>{columns.map((col) => <td key={col} className="border-b p-3">{col.includes("amount") || col === "price" ? formatFCFA(row[col]) : typeof row[col] === "boolean" ? (row[col] ? "Oui" : "Non") : String(row[col] ?? "-")}</td>)}{action && <td className="border-b p-3">{action(row)}</td>}</tr>
           ))}
         </tbody>
       </table>

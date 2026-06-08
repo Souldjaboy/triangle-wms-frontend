@@ -13,9 +13,11 @@ export default function ClientLaboratoireRendezVousPage() {
     patient_phone: "",
     patient_email: "",
     analysis_id: "",
+    analysis_ids: [] as string[],
     analysis_name: "",
     requested_date: "",
     requested_time: "",
+    service_type: "sur_place",
     home_sampling: false,
     home_address: "",
     message: "",
@@ -47,6 +49,7 @@ export default function ClientLaboratoireRendezVousPage() {
             setForm((current) => ({
               ...current,
               analysis_id: String(selected[0].id),
+              analysis_ids: selected.map((analysis: any) => String(analysis.id)),
               analysis_name: selected.map((analysis: any) => analysis.name).join(", "),
             }));
           }
@@ -67,12 +70,18 @@ export default function ClientLaboratoireRendezVousPage() {
       setMessage("Laboratoire introuvable. Revenez à la fiche laboratoire puis réessayez.");
       return;
     }
+    if (form.analysis_ids.length === 0) {
+      setMessage("Veuillez choisir au moins une analyse.");
+      return;
+    }
     const response = await authFetch("/laboratory/appointments", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ...form,
+        analysis_ids: form.analysis_ids.map(Number),
         analysis_id: form.analysis_id ? Number(form.analysis_id) : null,
+        total_amount: selectedTotal,
       }),
     });
     const data = await response.json().catch(() => ({}));
@@ -81,7 +90,7 @@ export default function ClientLaboratoireRendezVousPage() {
   };
 
   const selectedTotal = analyses
-    .filter((analysis) => form.analysis_name.split(", ").includes(analysis.name))
+    .filter((analysis) => form.analysis_ids.includes(String(analysis.id)))
     .reduce((sum, analysis) => sum + Number(analysis.price || 0), 0);
 
   return (
@@ -92,26 +101,57 @@ export default function ClientLaboratoireRendezVousPage() {
         <input className="rounded-xl border p-4" placeholder="Nom complet patient" value={form.patient_name} onChange={(e) => setForm({ ...form, patient_name: e.target.value })} required />
         <input className="rounded-xl border p-4" placeholder="Téléphone patient" value={form.patient_phone} onChange={(e) => setForm({ ...form, patient_phone: e.target.value })} required />
         <input className="rounded-xl border p-4" placeholder="Email patient" value={form.patient_email} onChange={(e) => setForm({ ...form, patient_email: e.target.value })} />
-        <select
-          className="rounded-xl border p-4"
-          value={form.analysis_id}
-          onChange={(e) => {
-            const analysis = analyses.find((item) => String(item.id) === e.target.value);
-            setForm({ ...form, analysis_id: e.target.value, analysis_name: analysis?.name || form.analysis_name });
-          }}
-        >
-          <option value="">Choisir une analyse principale</option>
-          {analyses.map((analysis) => (
-            <option key={analysis.id} value={analysis.id}>{analysis.name} - {formatFCFA(analysis.price)}</option>
-          ))}
+        <div className="rounded-xl border p-4">
+          <p className="mb-3 font-black">Analyses à demander</p>
+          <div className="grid gap-3">
+            {analyses.map((analysis) => {
+              const id = String(analysis.id);
+              const checked = form.analysis_ids.includes(id);
+              return (
+                <label key={analysis.id} className="flex cursor-pointer gap-3 rounded-xl bg-gray-50 p-3">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={checked}
+                    onChange={(event) => {
+                      const nextIds = event.target.checked
+                        ? [...form.analysis_ids, id]
+                        : form.analysis_ids.filter((item) => item !== id);
+                      const selected = analyses.filter((item) => nextIds.includes(String(item.id)));
+                      setForm({
+                        ...form,
+                        analysis_ids: nextIds,
+                        analysis_id: nextIds[0] || "",
+                        analysis_name: selected.map((item) => item.name).join(", "),
+                      });
+                    }}
+                  />
+                  <span className="flex-1">
+                    <span className="block font-black">{analysis.name}</span>
+                    <span className="block text-sm text-gray-500">{analysis.description || "Analyse laboratoire"}</span>
+                    <span className="mt-1 block font-bold text-green-700">{formatFCFA(analysis.price)} {analysis.result_delay ? `- ${analysis.result_delay}` : ""}</span>
+                    <span className="mt-1 block text-xs font-bold text-gray-500">
+                      {analysis.on_site_available !== false ? "Sur place" : ""}
+                      {analysis.home_sampling_available ? " · Domicile" : ""}
+                      {analysis.teleconsultation_available ? " · Téléconsultation" : ""}
+                    </span>
+                  </span>
+                </label>
+              );
+            })}
+            {analyses.length === 0 && <p className="font-bold text-gray-500">Aucune analyse active pour ce laboratoire.</p>}
+          </div>
+        </div>
+        <select className="rounded-xl border p-4" value={form.service_type} onChange={(e) => setForm({ ...form, service_type: e.target.value, home_sampling: e.target.value === "domicile" })}>
+          <option value="sur_place">Sur place</option>
+          <option value="domicile">Prélèvement à domicile</option>
+          <option value="teleconsultation">Téléconsultation</option>
         </select>
-        <textarea className="rounded-xl border p-4" placeholder="Analyses demandées" value={form.analysis_name} onChange={(e) => setForm({ ...form, analysis_name: e.target.value })} />
         <div className="grid gap-3 md:grid-cols-2">
           <input type="date" className="rounded-xl border p-4" value={form.requested_date} onChange={(e) => setForm({ ...form, requested_date: e.target.value })} />
           <input type="time" className="rounded-xl border p-4" value={form.requested_time} onChange={(e) => setForm({ ...form, requested_time: e.target.value })} />
         </div>
-        <label className="flex items-center gap-2 font-bold"><input type="checkbox" checked={form.home_sampling} onChange={(e) => setForm({ ...form, home_sampling: e.target.checked })} /> Prélèvement à domicile</label>
-        {form.home_sampling && <input className="rounded-xl border p-4" placeholder="Adresse de prélèvement" value={form.home_address} onChange={(e) => setForm({ ...form, home_address: e.target.value })} />}
+        {form.service_type === "domicile" && <input className="rounded-xl border p-4" placeholder="Adresse de prélèvement" value={form.home_address} onChange={(e) => setForm({ ...form, home_address: e.target.value })} />}
         <textarea className="rounded-xl border p-4" placeholder="Message ou précision médicale" value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} />
         {selectedTotal > 0 && <p className="rounded-xl bg-green-50 p-4 font-black text-green-800">Prix indicatif : {formatFCFA(selectedTotal)}</p>}
         <button className="rounded-xl bg-yellow-500 py-4 font-black text-black">Envoyer la demande</button>
@@ -126,6 +166,7 @@ export default function ClientLaboratoireRendezVousPage() {
                 <div>
                   <p className="font-black">{appointment.lab_name || "Laboratoire"}</p>
                   <p className="text-sm text-gray-500">{appointment.analysis_name || "Analyse"} - {appointment.requested_date || "-"} {appointment.requested_time || ""}</p>
+                  <p className="text-sm font-bold text-green-700">Total : {formatFCFA(appointment.total_amount || 0)} · Service : {appointment.service_type || "sur_place"}</p>
                   {appointment.proposed_time && <p className="text-sm font-bold text-blue-700">Horaire proposé : {appointment.proposed_time}</p>}
                   {appointment.lab_response && <p className="text-sm text-gray-600">Message : {appointment.lab_response}</p>}
                 </div>
