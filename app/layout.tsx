@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    title: "Triangle WMS",
+    title: "Triangle WMS Pro",
     statusBarStyle: "black-translucent",
   },
   icons: {
@@ -30,7 +30,10 @@ export const metadata: Metadata = {
       { url: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" },
       { url: "/icons/icon-512x512.png", sizes: "512x512", type: "image/png" },
     ],
-    apple: [{ url: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" }],
+    apple: [
+      { url: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512x512.png", sizes: "512x512", type: "image/png" },
+    ],
   },
   openGraph: {
     title: "Triangle WMS Pro | Gestion d’entreprise au Mali et en Afrique",
@@ -67,13 +70,16 @@ export const metadata: Metadata = {
   },
   other: {
     "mobile-web-app-capable": "yes",
-    "apple-mobile-web-app-title": "Triangle WMS",
+    "apple-mobile-web-app-title": "Triangle WMS Pro",
     "apple-mobile-web-app-status-bar-style": "black-translucent",
   },
 };
 
 export const viewport: Viewport = {
   themeColor: "#f5b400",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
 };
 
 const organizationJsonLd = compactObject({
@@ -149,6 +155,7 @@ export default function RootLayout({
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#f5b400" />
         <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+        <link rel="apple-touch-icon" sizes="512x512" href="/icons/icon-512x512.png" />
       </head>
       <body className="min-h-full flex flex-col">
         <script

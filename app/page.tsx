@@ -21,6 +21,7 @@ import {
 
 const publicActions = [
   { href: "/marketplace", title: "Marketplace", description: "Voir les produits et services publiés.", primary: true },
+  { href: "/installer-application", title: "Installer l’application", description: "Android, iPhone, iPad, Windows et Mac." },
   { href: "/solutions", title: "Solutions", description: "Stock, caisse, logistique et marketplace." },
   { href: "/client/register", title: "Créer un compte client", description: "Acheter comme particulier." },
   { href: "/client/login", title: "Connexion client", description: "Accéder au panier et aux commandes." },

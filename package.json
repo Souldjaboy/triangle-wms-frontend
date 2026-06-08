@@ -8,9 +8,16 @@
     "build": "next build --webpack",
     "build:local": "NEXT_TEST_WASM_DIR=$PWD/node_modules/@next/swc-wasm-nodejs ./node-local node_modules/next/dist/bin/next build --webpack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "cap:sync": "capacitor sync",
+    "cap:android": "capacitor add android && capacitor sync android",
+    "cap:ios": "capacitor add ios && capacitor sync ios"
   },
   "dependencies": {
+    "@capacitor/android": "^8.4.0",
+    "@capacitor/cli": "^8.4.0",
+    "@capacitor/core": "^8.4.0",
+    "@capacitor/ios": "^8.4.0",
     "html5-qrcode": "^2.3.8",
     "lucide-react": "^1.16.0",
     "next": "16.2.6",

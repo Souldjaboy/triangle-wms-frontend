@@ -1,9 +1,40 @@
-const CACHE_NAME = "triangle-wms-pro-v1";
+const CACHE_NAME = "triangle-wms-pro-v2";
 const APP_SHELL = [
   "/manifest.json",
   "/icons/icon-192x192.png",
-  "/icons/icon-512x512.png"
+  "/icons/icon-512x512.png",
+  "/icons/maskable-icon-512x512.png",
+  "/icons/triangle-wms-icon.svg"
 ];
+
+const PRIVATE_PATH_PREFIXES = [
+  "/api",
+  "/dashboard",
+  "/super-admin",
+  "/produits",
+  "/stocks",
+  "/pos",
+  "/comptabilite",
+  "/laboratoire",
+  "/documents",
+  "/badges",
+  "/utilisateurs",
+  "/notifications",
+  "/marketplace/cart",
+  "/marketplace/checkout",
+  "/marketplace/orders",
+  "/client/dashboard",
+  "/client/orders",
+  "/client/profile"
+];
+
+function isPrivateRequest(request, url) {
+  if (request.method !== "GET") return true;
+  if (request.headers.get("authorization")) return true;
+  if (url.searchParams.has("token")) return true;
+  if (url.pathname.includes("/_next/data/")) return true;
+  return PRIVATE_PATH_PREFIXES.some((path) => url.pathname === path || url.pathname.startsWith(`${path}/`));
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -33,12 +64,7 @@ self.addEventListener("fetch", (event) => {
   const request = event.request;
   const url = new URL(request.url);
 
-  if (
-    request.method !== "GET" ||
-    url.pathname.startsWith("/api") ||
-    url.pathname.includes("/_next/data/") ||
-    request.headers.get("authorization")
-  ) {
+  if (url.origin !== self.location.origin || isPrivateRequest(request, url)) {
     return;
   }
 
@@ -84,6 +110,7 @@ self.addEventListener("fetch", (event) => {
       return fetch(request).then((response) => {
         if (
           response.ok &&
+          response.type === "basic" &&
           ["style", "script", "image", "font"].includes(request.destination)
         ) {
           const copy = response.clone();

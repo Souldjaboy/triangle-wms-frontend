@@ -57,7 +57,7 @@ export default function InstallPWAButton() {
       onClick={install}
       className="rounded-xl bg-yellow-500 px-5 py-3 font-bold text-black shadow hover:bg-yellow-400"
     >
-      Installer Triangle WMS
+      Installer l’application
     </button>
   );
 }
