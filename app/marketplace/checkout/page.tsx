@@ -23,6 +23,14 @@ export default function MarketplaceCheckoutPage() {
   });
   const [message, setMessage] = useState("");
 
+  const getOrdersPath = () => {
+    if (typeof window === "undefined") return "/client/orders";
+    const businessUser = localStorage.getItem("business_user");
+    const user = localStorage.getItem("user");
+    const parsedUser = JSON.parse(businessUser || user || "{}");
+    return String(parsedUser?.role || "").toLowerCase() === "customer" ? "/client/orders" : "/marketplace/orders";
+  };
+
   useEffect(() => {
     if (!getAuthToken()) {
       window.location.href = "/client/login?redirect=/marketplace/checkout";
@@ -42,7 +50,7 @@ export default function MarketplaceCheckoutPage() {
       return;
     }
     setMessage("Commande envoyée avec succès.");
-    setTimeout(() => router.push("/client/orders"), 700);
+    setTimeout(() => router.push(getOrdersPath()), 700);
   };
 
   return (

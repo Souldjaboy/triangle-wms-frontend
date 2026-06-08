@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { authFetch } from "../../lib/api";
 import { formatFCFA } from "../../lib/format";
@@ -31,7 +32,9 @@ function statusLabel(value: string) {
 }
 
 export default function ClientOrdersPage() {
+  const pathname = usePathname();
   const [orders, setOrders] = useState<any[]>([]);
+  const isBusinessOrdersPage = pathname.startsWith("/marketplace/orders");
 
   useEffect(() => {
     authFetch("/marketplace/orders/my")
@@ -44,14 +47,14 @@ export default function ClientOrdersPage() {
     <div className="min-h-screen bg-gray-100 p-4 text-black md:p-8">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-black">Mes commandes</h1>
+          <h1 className="text-4xl font-black">{isBusinessOrdersPage ? "Commandes envoyées" : "Mes commandes"}</h1>
           <p className="text-gray-500">Historique des commandes.</p>
         </div>
         <Link href="/marketplace" className="rounded-xl bg-black px-5 py-3 font-bold text-white">Marketplace</Link>
       </div>
       <div className="space-y-4">
         {orders.map((order) => (
-          <Link key={order.id} href={`/client/orders/${order.id}`} className="block rounded-2xl bg-white p-5 shadow">
+          <Link key={order.id} href={`${isBusinessOrdersPage ? "/marketplace/orders" : "/client/orders"}/${order.id}`} className="block rounded-2xl bg-white p-5 shadow">
             <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="text-xl font-black">{order.order_number}</p>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { authFetch } from "../../../lib/api";
 import { formatFCFA } from "../../../lib/format";
@@ -15,9 +15,13 @@ const statusLabels: Record<string, string> = {
   ready: "Prête",
   shipped: "Expédiée",
   delivered: "Livrée",
+  closed: "Clôturée",
+  completed: "Clôturée",
   cancelled: "Annulée",
   canceled: "Annulée",
   rejected: "Refusée",
+  refused: "Refusée",
+  received: "Clôturée",
 };
 
 function labelStatus(status: any) {
@@ -26,8 +30,10 @@ function labelStatus(status: any) {
 
 export default function ClientOrderDetailPage() {
   const params = useParams<{ id: string }>();
+  const pathname = usePathname();
   const [data, setData] = useState<any>(null);
   const [message, setMessage] = useState("");
+  const ordersPath = pathname.startsWith("/marketplace/orders") ? "/marketplace/orders" : "/client/orders";
 
   const load = () => {
     authFetch(`/marketplace/orders/${params.id}`)
@@ -55,7 +61,7 @@ export default function ClientOrderDetailPage() {
 
   return (
     <div className="min-h-screen bg-gray-100 p-4 text-black md:p-8">
-      <Link href="/client/orders" className="font-bold text-gray-600">Retour commandes</Link>
+      <Link href={ordersPath} className="font-bold text-gray-600">Retour commandes</Link>
       {message && <div className="mt-4 rounded-xl bg-yellow-50 p-4 font-bold">{message}</div>}
       <div className="mt-5 rounded-2xl bg-white p-6 shadow">
         <h1 className="text-4xl font-black">{data.order.order_number}</h1>
