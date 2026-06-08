@@ -201,7 +201,7 @@ export default function LoginPage() {
 
           <button
             type="button"
-            onClick={() => setError("La réinitialisation du mot de passe sera disponible prochainement. Contactez votre administrateur.")}
+            onClick={() => router.push("/mot-de-passe-oublie?type=enterprise")}
             className="mt-4 w-full text-center text-sm font-bold text-gray-600 hover:text-black"
           >
             Mot de passe oublié

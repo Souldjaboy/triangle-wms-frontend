@@ -78,6 +78,7 @@ export default function ClientLoginPage() {
         </button>
         <div className="mt-4 flex justify-between text-sm font-bold">
           <Link href="/client/register">Créer un compte client</Link>
+          <Link href="/mot-de-passe-oublie?type=client">Mot de passe oublié</Link>
           <Link href="/login">Connexion entreprise</Link>
         </div>
       </form>
