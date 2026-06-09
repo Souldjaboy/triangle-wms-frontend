@@ -21,7 +21,16 @@ export type ProductModule =
   | "rh"
   | "pointage"
   | "documents"
-  | "rapports";
+  | "rapports"
+  | "utilisateurs"
+  | "badges"
+  | "notifications"
+  | "chat"
+  | "demandes"
+  | "logistique"
+  | "reservations"
+  | "profil_patient"
+  | "profils_vendeurs";
 
 type ProductTheme = {
   primary: string;
@@ -75,6 +84,15 @@ const baseModules: Record<ProductModule, boolean> = {
   pointage: false,
   documents: false,
   rapports: false,
+  utilisateurs: false,
+  badges: false,
+  notifications: false,
+  chat: false,
+  demandes: false,
+  logistique: false,
+  reservations: false,
+  profil_patient: false,
+  profils_vendeurs: false,
 };
 
 const configs: Record<AppProduct, ProductConfig> = {
@@ -106,6 +124,12 @@ const configs: Record<AppProduct, ProductConfig> = {
       rapports: true,
       ia: true,
       crm: true,
+      utilisateurs: true,
+      badges: true,
+      notifications: true,
+      chat: true,
+      demandes: true,
+      logistique: true,
     },
     disabledRoutePrefixes: ["/marketplace", "/client", "/vendor", "/register"],
     allowedRoutePrefixes: [],
@@ -144,9 +168,12 @@ const configs: Record<AppProduct, ProductConfig> = {
       paiements: true,
       ia: true,
       crm: true,
-      pos: true,
       documents: true,
       rapports: true,
+      notifications: true,
+      chat: true,
+      reservations: true,
+      profils_vendeurs: true,
     },
     disabledRoutePrefixes: [],
     allowedRoutePrefixes: [],
@@ -186,6 +213,9 @@ const configs: Record<AppProduct, ProductConfig> = {
       rapports: true,
       paiements: true,
       ia: true,
+      notifications: true,
+      profil_patient: true,
+      reservations: true,
     },
     disabledRoutePrefixes: [
       "/marketplace/business",
@@ -207,6 +237,7 @@ const configs: Record<AppProduct, ProductConfig> = {
       "/client/login",
       "/client/register",
       "/client/profile",
+      "/notifications",
       "/laboratoire",
       "/client/laboratoires",
       "/client/laboratoire",
@@ -241,6 +272,12 @@ const routeModuleRules: Array<{ prefixes: string[]; module: ProductModule }> = [
   { prefixes: ["/rapports"], module: "rapports" },
   { prefixes: ["/assistant"], module: "ia" },
   { prefixes: ["/partenaires"], module: "crm" },
+  { prefixes: ["/utilisateurs"], module: "utilisateurs" },
+  { prefixes: ["/badges"], module: "badges" },
+  { prefixes: ["/notifications", "/alertes"], module: "notifications" },
+  { prefixes: ["/chat"], module: "chat" },
+  { prefixes: ["/demandes"], module: "demandes" },
+  { prefixes: ["/activites"], module: "logistique" },
 ];
 
 export function isRouteAvailable(pathname: string) {

@@ -208,6 +208,12 @@ export default function DashboardPage() {
     rapports: "rapports",
     crm: "crm",
     partenaires: "crm",
+    utilisateurs: "utilisateurs",
+    badges: "badges",
+    notifications: "notifications",
+    alertes: "notifications",
+    chat: "chat",
+    activites: "logistique",
   };
   const moduleEnabled = (key: string) => {
     const productModule = productModuleByDashboardKey[key];
@@ -280,19 +286,23 @@ export default function DashboardPage() {
   )}
 
 
-  <Link href="/chat">
-    <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
-      <MessageCircle size={20} />
-      Chat interne
-    </li>
-  </Link>
+  {moduleEnabled("chat") && (
+    <Link href="/chat">
+      <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+        <MessageCircle size={20} />
+        Chat interne
+      </li>
+    </Link>
+  )}
 
-  <Link href="/notifications">
-    <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
-      <Bell size={20} />
-      Notifications
-    </li>
-  </Link>
+  {moduleEnabled("notifications") && (
+    <Link href="/notifications">
+      <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+        <Bell size={20} />
+        Notifications
+      </li>
+    </Link>
+  )}
 
   {moduleEnabled("produits") && (
     <Link href="/produits">
@@ -447,7 +457,7 @@ export default function DashboardPage() {
     </>
   )}
 
-  {(canManageWarehouse || isReadOnlyRole) && (
+  {(canManageWarehouse || isReadOnlyRole) && moduleEnabled("alertes") && (
     <Link href="/alertes">
       <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
         <TriangleAlert size={20} />
