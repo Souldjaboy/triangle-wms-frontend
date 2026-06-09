@@ -60,6 +60,29 @@ export default function PublicHomePage() {
         ? "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=1800&q=80"
         : "https://images.unsplash.com/photo-1553413077-190dd305871c?auto=format&fit=crop&w=1800&q=80";
 
+  if (productConfig.privateLanding) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-gray-100 p-4 text-black">
+        <section className="w-full max-w-xl rounded-3xl bg-white p-8 text-center shadow-2xl">
+          <img src={productConfig.logoUrl} alt={productConfig.name} className="mx-auto h-24 w-24 rounded-2xl object-contain" />
+          <p className="mt-6 text-sm font-black uppercase tracking-wide text-yellow-700">{productConfig.name}</p>
+          <h1 className="mt-3 text-3xl font-black">Accès privé sécurisé</h1>
+          <p className="mt-3 text-gray-600">
+            Cette plateforme est réservée aux utilisateurs autorisés. Connectez-vous pour accéder aux modules de votre organisation.
+          </p>
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <Link href="/login" className="rounded-xl bg-yellow-500 px-5 py-3 font-black text-black">
+              Connexion
+            </Link>
+            <Link href="/installer-application" className="rounded-xl bg-black px-5 py-3 font-black text-white">
+              Installer l’application
+            </Link>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
   const submitSearch = (event: React.FormEvent) => {
     event.preventDefault();
     const params = new URLSearchParams();

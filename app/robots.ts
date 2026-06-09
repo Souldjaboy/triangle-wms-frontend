@@ -1,7 +1,20 @@
 import type { MetadataRoute } from "next";
+import { productConfig } from "./lib/product-config";
 import { absoluteUrl, siteUrl } from "./lib/seo";
 
 export default function robots(): MetadataRoute.Robots {
+  if (!productConfig.publicIndexing) {
+    return {
+      rules: [
+        {
+          userAgent: "*",
+          disallow: "/",
+        },
+      ],
+      host: siteUrl,
+    };
+  }
+
   return {
     rules: [
       {

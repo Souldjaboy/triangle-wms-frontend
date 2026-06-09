@@ -46,9 +46,14 @@ type ProductConfig = {
   shortName: string;
   slogan: string;
   usage: string;
+  domains: string[];
   siteUrl: string;
   logoText: string;
   logoUrl: string;
+  faviconUrl: string;
+  appleTouchIconUrl: string;
+  startUrl: string;
+  bundleId: string;
   theme: ProductTheme;
   modules: Record<ProductModule, boolean>;
   disabledRoutePrefixes: string[];
@@ -56,6 +61,8 @@ type ProductConfig = {
   publicHomeActions: string[];
   marketplaceEnabled: boolean;
   saasPublicEnabled: boolean;
+  publicIndexing: boolean;
+  privateLanding: boolean;
 };
 
 const requestedProduct = String(process.env.NEXT_PUBLIC_APP_PRODUCT || "triangle").toLowerCase();
@@ -102,9 +109,14 @@ const configs: Record<AppProduct, ProductConfig> = {
     shortName: "Triangle WMS",
     slogan: "Gestion interne Triangle Logistics",
     usage: "gestion interne Triangle Logistics",
+    domains: ["trianglewmspro.com", "www.trianglewmspro.com"],
     siteUrl: process.env.NEXT_PUBLIC_SITE_URL || "https://trianglewmspro.com",
     logoText: "Triangle WMS Pro",
-    logoUrl: "/icons/icon-512x512.png",
+    logoUrl: "/brands/triangle-logo.svg",
+    faviconUrl: "/brands/triangle-favicon.svg",
+    appleTouchIconUrl: "/brands/triangle-logo.svg",
+    startUrl: "/login",
+    bundleId: "com.triangle.wmspro",
     theme: {
       primary: "#050505",
       accent: "#f5b400",
@@ -136,6 +148,8 @@ const configs: Record<AppProduct, ProductConfig> = {
     publicHomeActions: ["/login", "/installer-application", "/solutions", "/contact"],
     marketplaceEnabled: false,
     saasPublicEnabled: false,
+    publicIndexing: false,
+    privateLanding: true,
   },
   malilink: {
     product: "malilink",
@@ -143,9 +157,14 @@ const configs: Record<AppProduct, ProductConfig> = {
     shortName: "MaliLink",
     slogan: "Marketplace et solutions numériques pour les entreprises africaines.",
     usage: "marketplace publique SaaS et marketplace multi-vendeurs",
+    domains: ["malilinkglobal.com", "www.malilinkglobal.com", "malilink.trianglewmspro.com"],
     siteUrl: process.env.NEXT_PUBLIC_SITE_URL || "https://malilinkglobal.com",
     logoText: "MaliLink Global",
-    logoUrl: "/icons/icon-512x512.png",
+    logoUrl: "/brands/malilink-logo.svg",
+    faviconUrl: "/brands/malilink-favicon.svg",
+    appleTouchIconUrl: "/brands/malilink-logo.svg",
+    startUrl: "/",
+    bundleId: "com.malilink.global",
     theme: {
       primary: "#07152f",
       accent: "#f5b400",
@@ -189,6 +208,8 @@ const configs: Record<AppProduct, ProductConfig> = {
     ],
     marketplaceEnabled: true,
     saasPublicEnabled: true,
+    publicIndexing: true,
+    privateLanding: false,
   },
   hafiya: {
     product: "hafiya",
@@ -196,9 +217,14 @@ const configs: Record<AppProduct, ProductConfig> = {
     shortName: "HAFIYA",
     slogan: "Laboratoire, analyses, rendez-vous et résultats en ligne",
     usage: "gestion laboratoire, analyses, rendez-vous, patients, résultats et documents",
+    domains: ["hafiyalab.com", "www.hafiyalab.com", "afia.trianglewmspro.com"],
     siteUrl: process.env.NEXT_PUBLIC_SITE_URL || "https://hafiyalab.com",
     logoText: "HAFIYA Laboratoire",
-    logoUrl: "/icons/icon-512x512.png",
+    logoUrl: "/brands/hafiya-logo.svg",
+    faviconUrl: "/brands/hafiya-favicon.svg",
+    appleTouchIconUrl: "/brands/hafiya-logo.svg",
+    startUrl: "/login",
+    bundleId: "com.hafiya.lab",
     theme: {
       primary: "#0f7a55",
       accent: "#22c55e",
@@ -250,10 +276,46 @@ const configs: Record<AppProduct, ProductConfig> = {
     publicHomeActions: ["/client/laboratoires", "/resultats-laboratoire", "/login", "/installer-application", "/contact"],
     marketplaceEnabled: false,
     saasPublicEnabled: false,
+    publicIndexing: false,
+    privateLanding: true,
   },
 };
 
 export const productConfig = configs[appProduct];
+
+export const tenantBranding = Object.fromEntries(
+  Object.entries(configs).map(([key, config]) => [
+    key,
+    {
+      appName: config.name,
+      shortName: config.shortName,
+      logo: config.logoUrl,
+      favicon: config.faviconUrl,
+      appleTouchIcon: config.appleTouchIconUrl,
+      themeColor: config.theme.themeColor,
+      backgroundColor: config.theme.background,
+      startUrl: config.startUrl,
+    },
+  ])
+) as Record<AppProduct, {
+  appName: string;
+  shortName: string;
+  logo: string;
+  favicon: string;
+  appleTouchIcon: string;
+  themeColor: string;
+  backgroundColor: string;
+  startUrl: string;
+}>;
+
+export function resolveProductFromHostname(hostname = ""): AppProduct {
+  const cleanHost = hostname.toLowerCase().replace(/^www\./, "");
+  return (
+    (Object.entries(configs).find(([, config]) =>
+      config.domains.some((domain) => cleanHost === domain.replace(/^www\./, ""))
+    )?.[0] as AppProduct | undefined) || appProduct
+  );
+}
 
 const routeModuleRules: Array<{ prefixes: string[]; module: ProductModule }> = [
   { prefixes: ["/marketplace", "/client/orders", "/client/dashboard", "/marketplace/cart"], module: "marketplace" },

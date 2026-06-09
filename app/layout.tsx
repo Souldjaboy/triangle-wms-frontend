@@ -29,12 +29,11 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" },
-      { url: "/icons/icon-512x512.png", sizes: "512x512", type: "image/png" },
+      { url: productConfig.faviconUrl, sizes: "any", type: "image/svg+xml" },
+      { url: productConfig.logoUrl, sizes: "any", type: "image/svg+xml" },
     ],
     apple: [
-      { url: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" },
-      { url: "/icons/icon-512x512.png", sizes: "512x512", type: "image/png" },
+      { url: productConfig.appleTouchIconUrl, sizes: "512x512", type: "image/svg+xml" },
     ],
   },
   openGraph: {
@@ -46,7 +45,7 @@ export const metadata: Metadata = {
     type: "website",
     images: [
       {
-        url: "/icons/icon-512x512.png",
+        url: productConfig.logoUrl,
         width: 512,
         height: 512,
         alt: `Logo ${productConfig.name}`,
@@ -57,14 +56,14 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: productConfig.name,
     description: defaultSeoDescription,
-    images: ["/icons/icon-512x512.png"],
+    images: [productConfig.logoUrl],
   },
   robots: {
-    index: true,
-    follow: true,
+    index: productConfig.publicIndexing,
+    follow: productConfig.publicIndexing,
     googleBot: {
-      index: true,
-      follow: true,
+      index: productConfig.publicIndexing,
+      follow: productConfig.publicIndexing,
       "max-image-preview": "large",
       "max-snippet": -1,
       "max-video-preview": -1,
@@ -156,8 +155,8 @@ export default function RootLayout({
       <head>
         <link rel="manifest" href="/manifest.webmanifest" />
         <meta name="theme-color" content={productConfig.theme.themeColor} />
-        <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
-        <link rel="apple-touch-icon" sizes="512x512" href="/icons/icon-512x512.png" />
+        <link rel="icon" href={productConfig.faviconUrl} type="image/svg+xml" />
+        <link rel="apple-touch-icon" href={productConfig.appleTouchIconUrl} />
       </head>
       <body className="min-h-full flex flex-col">
         <script

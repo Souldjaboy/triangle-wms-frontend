@@ -112,7 +112,7 @@ export default function LoginPage() {
           <div className="relative">
             <div className="flex items-center gap-4">
               <img
-                src="/icons/triangle-wms-icon.svg"
+                src={productConfig.logoUrl}
                 alt={productConfig.name}
                 className="h-16 w-16 rounded-2xl bg-yellow-500 p-3"
               />

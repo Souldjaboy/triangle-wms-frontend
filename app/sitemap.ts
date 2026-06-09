@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { productConfig } from "./lib/product-config";
 import { absoluteUrl } from "./lib/seo";
 
 const publicRoutes = [
@@ -19,6 +20,8 @@ const publicRoutes = [
 ];
 
 export default function sitemap(): MetadataRoute.Sitemap {
+  if (!productConfig.publicIndexing) return [];
+
   const now = new Date();
   return publicRoutes.map((route) => ({
     url: absoluteUrl(route.path),

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="HAFIYA Laboratoire">
+  <rect width="512" height="512" rx="112" fill="#0f7a55"/>
+  <circle cx="256" cy="224" r="128" fill="#ffffff"/>
+  <path d="M256 122v204M154 224h204" stroke="#0f7a55" stroke-width="48" stroke-linecap="round"/>
+  <path d="M168 360c50 42 126 42 176 0" stroke="#22c55e" stroke-width="34" stroke-linecap="round" fill="none"/>
+  <text x="256" y="438" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="42" font-weight="800" fill="#ffffff">HAFIYA</text>
+</svg>

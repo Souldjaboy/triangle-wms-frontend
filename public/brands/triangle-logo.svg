@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Triangle WMS Pro">
+  <rect width="512" height="512" rx="112" fill="#050505"/>
+  <path d="M256 92 430 392H82L256 92Z" fill="#f5b400"/>
+  <path d="M256 170 362 352H150L256 170Z" fill="#050505"/>
+  <text x="256" y="430" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="44" font-weight="800" fill="#ffffff">WMS</text>
+</svg>

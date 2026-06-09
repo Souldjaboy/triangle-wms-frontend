@@ -4,12 +4,12 @@ Ce document explique comment utiliser Triangle WMS Pro comme PWA installable et 
 
 ## État actuel
 
-- PWA web installable via `public/manifest.json`.
+- PWA web installable via `app/manifest.ts`, généré en `/manifest.webmanifest`.
 - Service worker public dans `public/sw.js`.
 - Icônes PWA 192x192, 512x512 et maskable.
 - Page publique d’aide : `/installer-application`.
 - Configuration Capacitor : `capacitor.config.ts`.
-- Application native préparée comme wrapper HTTPS vers `https://trianglewmspro.com`.
+- Application native préparée comme wrapper HTTPS vers le domaine défini par `NEXT_PUBLIC_SITE_URL`.
 
 ## Installation PWA
 
@@ -56,9 +56,9 @@ Capacitor est installé pour préparer Android et iOS.
 
 Configuration :
 
-- appId : `com.trianglewmspro.app`
-- appName : `Triangle WMS Pro`
-- URL mobile : `https://trianglewmspro.com`
+- Triangle : `com.triangle.wmspro`, `Triangle WMS Pro`, `https://trianglewmspro.com`
+- MaliLink : `com.malilink.global`, `MaliLink Global`, `https://malilinkglobal.com`
+- HAFIYA : `com.hafiya.lab`, `HAFIYA Laboratoire`, `https://hafiyalab.com`
 - HTTPS obligatoire.
 
 Cette approche garde le site Next.js dynamique, sans casser les routes serveur, le marketplace, les connexions client/entreprise/super admin et les APIs.

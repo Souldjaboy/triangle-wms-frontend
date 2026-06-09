@@ -64,6 +64,45 @@ const moduleRouteMap: Record<string, string> = {
   "/partenaires": "partenaires",
 };
 
+function productFromRequest(req: NextRequest) {
+  const host = req.nextUrl.hostname.toLowerCase().replace(/^www\./, "");
+  if (host === "malilinkglobal.com" || host === "malilink.trianglewmspro.com") return "malilink";
+  if (host === "hafiyalab.com" || host === "afia.trianglewmspro.com") return "hafiya";
+  return process.env.NEXT_PUBLIC_APP_PRODUCT || "triangle";
+}
+
+function isPublicRouteBlockedForProduct(pathname: string, product: string) {
+  if (product === "malilink") return false;
+
+  if (product === "hafiya") {
+    return [
+      "/marketplace",
+      "/vendor",
+      "/restaurant",
+      "/immobilier",
+      "/automobile",
+      "/pos",
+      "/register",
+      "/solutions",
+      "/services",
+      "/a-propos",
+    ].some((route) => pathname === route || pathname.startsWith(route + "/"));
+  }
+
+  return [
+    "/marketplace",
+    "/client",
+    "/vendor",
+    "/restaurant",
+    "/immobilier",
+    "/automobile",
+    "/register",
+    "/solutions",
+    "/services",
+    "/a-propos",
+  ].some((route) => pathname === route || pathname.startsWith(route + "/"));
+}
+
 function readJwtPayload(token: string) {
   try {
     const payload = token.split(".")[1];
@@ -86,6 +125,15 @@ function readModulesCookie(value?: string) {
 
 export function middleware(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
+  const product = productFromRequest(req);
+
+  if (pathname === "/" && product !== "malilink") {
+    return NextResponse.redirect(new URL("/login", req.url));
+  }
+
+  if (isPublicRouteBlockedForProduct(pathname, product)) {
+    return NextResponse.redirect(new URL("/login?module=indisponible", req.url));
+  }
 
   const isClientProtected = protectedClientRoutes.some(
     (route) => pathname === route || pathname.startsWith(route + "/")
@@ -231,5 +279,16 @@ export const config = {
     "/marketplace/cart/:path*",
     "/marketplace/checkout/:path*",
     "/marketplace/orders/:path*",
+    "/",
+    "/register/:path*",
+    "/marketplace/:path*",
+    "/client/:path*",
+    "/vendor/:path*",
+    "/restaurant/:path*",
+    "/immobilier/:path*",
+    "/automobile/:path*",
+    "/solutions/:path*",
+    "/services/:path*",
+    "/a-propos/:path*",
   ],
 };

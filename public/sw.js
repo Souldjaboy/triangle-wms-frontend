@@ -1,10 +1,9 @@
-const CACHE_NAME = "triangle-wms-pro-v2";
+const CACHE_NAME = "multi-tenant-app-v3";
 const APP_SHELL = [
-  "/manifest.json",
-  "/icons/icon-192x192.png",
-  "/icons/icon-512x512.png",
-  "/icons/maskable-icon-512x512.png",
-  "/icons/triangle-wms-icon.svg"
+  "/manifest.webmanifest",
+  "/brands/triangle-logo.svg",
+  "/brands/malilink-logo.svg",
+  "/brands/hafiya-logo.svg"
 ];
 
 const PRIVATE_PATH_PREFIXES = [
@@ -77,7 +76,7 @@ self.addEventListener("fetch", (event) => {
             <head>
               <meta charset="utf-8" />
               <meta name="viewport" content="width=device-width, initial-scale=1" />
-              <title>Triangle WMS Pro</title>
+              <title>Application hors connexion</title>
               <style>
                 body{font-family:Arial,sans-serif;background:#f3f4f6;margin:0;min-height:100vh;display:grid;place-items:center;color:#111827}
                 main{max-width:520px;background:white;border-radius:18px;padding:28px;box-shadow:0 18px 50px rgba(0,0,0,.12);text-align:center}
@@ -87,8 +86,8 @@ self.addEventListener("fetch", (event) => {
             </head>
             <body>
               <main>
-                <h1>Triangle WMS Pro</h1>
-                <p>Connexion Internet requise pour synchroniser Triangle WMS Pro.</p>
+                <h1>Application hors connexion</h1>
+                <p>Connexion Internet requise pour synchroniser cette application.</p>
               </main>
             </body>
           </html>`,

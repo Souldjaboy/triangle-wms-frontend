@@ -155,6 +155,7 @@ export default function DashboardPage() {
     { name: "Stock total", value: stats.total_stock || 0 },
     { name: "Entrepôts", value: stats.total_entrepots || 0 },
     { name: "Emplacements", value: stats.total_emplacements || 0 },
+    { name: "Commandes", value: stats.total_commandes || stats.total_orders || 0 },
     { name: "Utilisateurs", value: stats.total_utilisateurs || 0 },
     { name: "Inventaires", value: stats.total_inventaires || 0 },
   ];
@@ -607,6 +608,7 @@ export default function DashboardPage() {
           <StatCard title="Stock total" value={stats.total_stock || 0} color="text-yellow-600" />
           <StatCard title="Entrepôts" value={stats.total_entrepots} color="text-green-500" />
           <StatCard title="Emplacements" value={stats.total_emplacements} color="text-purple-500" />
+          <StatCard title="Commandes" value={stats.total_commandes || stats.total_orders || 0} color="text-indigo-600" />
         </div>
 
         <div className="grid grid-cols-4 gap-6 mb-8">
