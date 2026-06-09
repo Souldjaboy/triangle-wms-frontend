@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiUrl } from "../lib/api";
+import { productConfig } from "../lib/product-config";
 import InstallPWAButton from "../../components/InstallPWAButton";
 import WhatsAppSupportButton from "../../components/WhatsAppSupportButton";
 import SocialAuthButtons from "../../components/SocialAuthButtons";
@@ -112,11 +113,11 @@ export default function LoginPage() {
             <div className="flex items-center gap-4">
               <img
                 src="/icons/triangle-wms-icon.svg"
-                alt="Triangle WMS Pro"
+                alt={productConfig.name}
                 className="h-16 w-16 rounded-2xl bg-yellow-500 p-3"
               />
               <div>
-                <h1 className="text-4xl font-bold">Triangle WMS Pro</h1>
+                <h1 className="text-4xl font-bold">{productConfig.name}</h1>
                 <p className="text-sm font-bold uppercase tracking-wide text-yellow-400">
                   ERP / WMS intelligent
                 </p>
@@ -124,7 +125,7 @@ export default function LoginPage() {
             </div>
 
             <h2 className="mt-10 text-3xl font-bold leading-tight md:text-5xl">
-              Gérez votre entreprise depuis une seule plateforme intelligente.
+              {productConfig.slogan}
             </h2>
 
             <p className="mt-5 text-lg text-gray-300">

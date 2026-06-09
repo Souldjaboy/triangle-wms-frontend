@@ -2,27 +2,29 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import DashboardBackButton from "../components/DashboardBackButton";
 import PWARegister from "../components/PWARegister";
+import ProductAvailabilityGuard from "../components/ProductAvailabilityGuard";
+import { productConfig } from "./lib/product-config";
 import { absoluteUrl, compactObject, defaultSeoDescription, seoBusiness, seoKeywords, siteUrl } from "./lib/seo";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "Triangle WMS Pro | Gestion de stock, caisse POS et marketplace au Mali",
-    template: "%s | Triangle WMS Pro",
+    default: `${productConfig.name} | ${productConfig.slogan}`,
+    template: `%s | ${productConfig.name}`,
   },
   description: defaultSeoDescription,
   keywords: seoKeywords,
-  applicationName: "Triangle WMS Pro",
+  applicationName: productConfig.name,
   authors: [{ name: seoBusiness.companyName }],
   creator: seoBusiness.companyName,
   publisher: seoBusiness.companyName,
   alternates: {
     canonical: "/",
   },
-  manifest: "/manifest.json",
+  manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
-    title: "Triangle WMS Pro",
+    title: productConfig.shortName,
     statusBarStyle: "black-translucent",
   },
   icons: {
@@ -36,10 +38,10 @@ export const metadata: Metadata = {
     ],
   },
   openGraph: {
-    title: "Triangle WMS Pro | Gestion d’entreprise au Mali et en Afrique",
+    title: `${productConfig.name} | ${productConfig.slogan}`,
     description: defaultSeoDescription,
     url: siteUrl,
-    siteName: "Triangle WMS Pro",
+    siteName: productConfig.name,
     locale: "fr_ML",
     type: "website",
     images: [
@@ -47,13 +49,13 @@ export const metadata: Metadata = {
         url: "/icons/icon-512x512.png",
         width: 512,
         height: 512,
-        alt: "Logo Triangle WMS Pro",
+        alt: `Logo ${productConfig.name}`,
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Triangle WMS Pro",
+    title: productConfig.name,
     description: defaultSeoDescription,
     images: ["/icons/icon-512x512.png"],
   },
@@ -70,13 +72,13 @@ export const metadata: Metadata = {
   },
   other: {
     "mobile-web-app-capable": "yes",
-    "apple-mobile-web-app-title": "Triangle WMS Pro",
+    "apple-mobile-web-app-title": productConfig.shortName,
     "apple-mobile-web-app-status-bar-style": "black-translucent",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#f5b400",
+  themeColor: productConfig.theme.themeColor,
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
@@ -150,10 +152,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="fr" className="h-full antialiased">
+    <html lang="fr" className="h-full antialiased" data-product={productConfig.product}>
       <head>
-        <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#f5b400" />
+        <link rel="manifest" href="/manifest.webmanifest" />
+        <meta name="theme-color" content={productConfig.theme.themeColor} />
         <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
         <link rel="apple-touch-icon" sizes="512x512" href="/icons/icon-512x512.png" />
       </head>
@@ -164,7 +166,7 @@ export default function RootLayout({
         />
         <PWARegister />
         <DashboardBackButton />
-        {children}
+        <ProductAvailabilityGuard>{children}</ProductAvailabilityGuard>
       </body>
     </html>
   );

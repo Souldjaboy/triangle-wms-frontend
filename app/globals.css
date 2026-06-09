@@ -3,6 +3,18 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --product-primary: #050505;
+  --product-accent: #f5b400;
+}
+
+html[data-product="malilink"] {
+  --product-primary: #07152f;
+  --product-accent: #f5b400;
+}
+
+html[data-product="hafiya"] {
+  --product-primary: #0f7a55;
+  --product-accent: #22c55e;
 }
 
 @theme inline {

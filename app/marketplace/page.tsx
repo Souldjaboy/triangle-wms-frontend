@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { apiUrl, authFetch, getAuthToken } from "../lib/api";
 import { formatFCFA } from "../lib/format";
+import { productConfig } from "../lib/product-config";
 import MarketplaceHeader from "./MarketplaceHeader";
 import {
   Apple,
@@ -148,10 +149,12 @@ export default function MarketplacePage() {
       <section className="bg-black px-4 py-8 text-white md:px-8">
         <div className="mx-auto flex max-w-7xl flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="font-bold text-yellow-400">Triangle WMS Pro</p>
-            <h1 className="mt-2 text-4xl font-black md:text-5xl">Marketplace Mali</h1>
+            <p className="font-bold text-yellow-400">{productConfig.name}</p>
+            <h1 className="mt-2 text-4xl font-black md:text-5xl">
+              {productConfig.product === "malilink" ? "Marketplace MaliLink Global" : "Marketplace Mali"}
+            </h1>
             <p className="mt-3 max-w-2xl text-white/70">
-              Produits, services, restaurants, hôtels, automobiles, immobilier et laboratoires publiés par les entreprises Triangle.
+              Produits, services, restaurants, hôtels, automobiles, immobilier et laboratoires publiés volontairement par les entreprises.
             </p>
           </div>
           <MarketplaceHeader />

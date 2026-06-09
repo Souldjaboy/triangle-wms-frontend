@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiUrl } from "../../lib/api";
+import { productConfig } from "../../lib/product-config";
 
 export default function ClientLoginPage() {
   const router = useRouter();
@@ -59,7 +60,7 @@ export default function ClientLoginPage() {
           className="absolute inset-0 h-full w-full object-cover opacity-55"
         />
         <div className="relative flex h-full flex-col justify-end p-12 text-white">
-          <p className="font-black text-yellow-400">Triangle Marketplace</p>
+          <p className="font-black text-yellow-400">{productConfig.name}</p>
           <h1 className="mt-3 text-5xl font-black">Acheter simplement, suivre clairement.</h1>
           <p className="mt-4 max-w-md text-white/75">Connectez-vous pour retrouver votre panier, vos commandes et vos reçus.</p>
         </div>

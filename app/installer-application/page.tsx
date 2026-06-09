@@ -4,6 +4,9 @@ import Link from "next/link";
 import { Laptop, MessageCircle, MonitorDown, Smartphone, TabletSmartphone } from "lucide-react";
 import InstallPWAButton from "../../components/InstallPWAButton";
 import WhatsAppSupportButton from "../../components/WhatsAppSupportButton";
+import { productConfig } from "../lib/product-config";
+
+const productHost = productConfig.siteUrl.replace(/^https?:\/\//, "");
 
 const steps = [
   {
@@ -11,10 +14,10 @@ const steps = [
     icon: Smartphone,
     action: "Installer sur Android",
     items: [
-      "Ouvrez trianglewmspro.com avec Chrome.",
+      `Ouvrez ${productHost} avec Chrome.`,
       "Appuyez sur le menu ⋮ en haut à droite.",
       "Choisissez Ajouter à l’écran d’accueil ou Installer l’application.",
-      "Ouvrez Triangle WMS Pro depuis l’icône ajoutée sur le téléphone.",
+      `Ouvrez ${productConfig.name} depuis l’icône ajoutée sur le téléphone.`,
     ],
   },
   {
@@ -22,10 +25,10 @@ const steps = [
     icon: Smartphone,
     action: "Installer sur iPhone",
     items: [
-      "Ouvrez trianglewmspro.com avec Safari.",
+      `Ouvrez ${productHost} avec Safari.`,
       "Appuyez sur le bouton Partager.",
       "Choisissez Sur l’écran d’accueil.",
-      "Validez Ajouter, puis ouvrez Triangle WMS Pro depuis l’icône.",
+      `Validez Ajouter, puis ouvrez ${productConfig.name} depuis l’icône.`,
     ],
   },
   {
@@ -46,7 +49,7 @@ const steps = [
     items: [
       "Ouvrez le site avec Chrome, Edge ou Brave.",
       "Cliquez sur l’icône Installer dans la barre d’adresse si elle apparaît.",
-      "Sinon ouvrez le menu du navigateur puis Installer Triangle WMS Pro.",
+      `Sinon ouvrez le menu du navigateur puis Installer ${productConfig.name}.`,
       "L’application apparaît ensuite dans vos applications Windows ou Mac.",
     ],
   },
@@ -59,12 +62,12 @@ export default function InstallerApplicationPage() {
     <main className="min-h-screen bg-gray-100 text-black">
       <section className="bg-black px-4 py-12 text-white md:px-8">
         <div className="mx-auto max-w-6xl">
-          <p className="font-black text-yellow-400">Application Triangle WMS Pro</p>
+          <p className="font-black text-yellow-400">Application {productConfig.name}</p>
           <h1 className="mt-3 max-w-4xl text-4xl font-black md:text-6xl">
-            Installez Triangle WMS Pro sur téléphone, tablette ou ordinateur.
+            Installez {productConfig.name} sur téléphone, tablette ou ordinateur.
           </h1>
           <p className="mt-5 max-w-2xl text-lg text-white/75">
-            Utilisez Triangle WMS Pro comme une application pour gérer vos stocks, ventes, commandes, réservations, pointage et marketplace avec une interface rapide.
+            Utilisez {productConfig.name} comme une application rapide, adaptée à votre téléphone, tablette et ordinateur.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <InstallPWAButton />

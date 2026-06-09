@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiUrl } from "../../lib/api";
+import { productConfig } from "../../lib/product-config";
 
 export default function ClientRegisterPage() {
   const router = useRouter();
@@ -65,7 +66,7 @@ export default function ClientRegisterPage() {
       <section className="flex items-center justify-center p-4">
       <form onSubmit={submit} className="w-full max-w-xl rounded-3xl bg-white p-6 shadow-2xl">
         <h1 className="text-3xl font-black">Créer un compte client</h1>
-        <p className="mt-2 text-gray-500">Compte particulier pour commander sur Triangle Marketplace.</p>
+        <p className="mt-2 text-gray-500">Compte particulier pour commander sur {productConfig.name}.</p>
         {message && <div className="mt-4 rounded-xl bg-red-50 p-3 font-bold text-red-700">{message}</div>}
         <div className="mt-5 grid gap-3">
           <input required className="rounded-xl border p-3" placeholder="Nom complet" value={form.fullname} onChange={(e) => setForm({ ...form, fullname: e.target.value })} />

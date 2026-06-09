@@ -34,6 +34,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { authFetch } from "../lib/api";
+import { isProductModuleEnabled, productConfig, type ProductModule } from "../lib/product-config";
 import InstallPWAButton from "../../components/InstallPWAButton";
 import TrialBanner from "../../components/TrialBanner";
 import WhatsAppSupportButton from "../../components/WhatsAppSupportButton";
@@ -187,11 +188,36 @@ export default function DashboardPage() {
   const canViewAccounting = isAdminLike || isDirectionRole || isAccountingRole;
   const canUsePos = isAdminLike || role === "caissier" || role === "vendeur" || role === "direction";
   const modules = userData?.modules || {};
-  const moduleEnabled = (key: string) => modules[key] !== false || isSuperAdmin;
+  const productModuleByDashboardKey: Record<string, ProductModule> = {
+    ia: "ia",
+    marketplace: "marketplace",
+    automobile: "automobile",
+    immobilier: "immobilier",
+    hotel: "immobilier",
+    restaurant: "restaurants",
+    laboratoire: "laboratoire",
+    pos: "pos",
+    comptabilite: "comptabilite",
+    stock: "stock",
+    produits: "stock",
+    inventaire: "stock",
+    entrepots: "entrepots",
+    emplacements: "entrepots",
+    pointage: "pointage",
+    documents: "documents",
+    rapports: "rapports",
+    crm: "crm",
+    partenaires: "crm",
+  };
+  const moduleEnabled = (key: string) => {
+    const productModule = productModuleByDashboardKey[key];
+    if (productModule && !isProductModuleEnabled(productModule)) return false;
+    return modules[key] !== false || isSuperAdmin;
+  };
   const displayCompanyName =
     companyIdentity?.company_name ||
     (isSuperAdmin && !userData?.company_id ? "Plateforme globale" : userData?.company_name) ||
-    "Triangle WMS Pro";
+    productConfig.name;
   const displayLogoUrl = companyIdentity?.logo_url || "";
   const displayPlanName =
     companyIdentity?.plan_name ||
@@ -215,7 +241,7 @@ export default function DashboardPage() {
           )}
           <div>
             <h1 className="text-lg font-bold text-yellow-500 leading-tight">{displayCompanyName}</h1>
-            <p className="text-xs text-gray-400">Triangle WMS Pro</p>
+            <p className="text-xs text-gray-400">{productConfig.name}</p>
           </div>
         </div>
 

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiUrl } from "../lib/api";
 import { formatFCFA } from "../lib/format";
+import { productConfig } from "../lib/product-config";
 import WhatsAppSupportButton from "../../components/WhatsAppSupportButton";
 import SocialAuthButtons from "../../components/SocialAuthButtons";
 
@@ -310,7 +311,7 @@ export default function RegisterPage() {
           <div className="mb-8 flex flex-col gap-5 rounded-2xl bg-black p-6 text-white md:flex-row md:items-center">
             <img
               src="/icons/triangle-wms-icon.svg"
-              alt="Triangle WMS Pro"
+              alt={productConfig.name}
               className="h-20 w-20 rounded-2xl bg-yellow-500 p-3"
             />
             <div>
@@ -321,7 +322,7 @@ export default function RegisterPage() {
                 Créez votre entreprise en quelques minutes.
               </h1>
               <p className="mt-3 max-w-3xl text-gray-300">
-                Triangle WMS Pro vous aide à gérer stocks, ventes, achats, utilisateurs,
+                {productConfig.name} vous aide à gérer stocks, ventes, achats, utilisateurs,
                 paiements et opérations quotidiennes depuis une plateforme moderne.
               </p>
             </div>

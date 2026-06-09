@@ -18,6 +18,7 @@ import {
   Warehouse,
   Wrench,
 } from "lucide-react";
+import { productConfig } from "./lib/product-config";
 
 const publicActions = [
   { href: "/marketplace", title: "Marketplace", description: "Voir les produits et services publiés.", primary: true },
@@ -27,6 +28,9 @@ const publicActions = [
   { href: "/client/login", title: "Connexion client", description: "Accéder au panier et aux commandes." },
   { href: "/login", title: "Connexion entreprise", description: "Accéder à Triangle WMS Pro." },
   { href: "/register", title: "Créer une entreprise", description: "Démarrer un espace WMS SaaS." },
+  { href: "/client/laboratoires", title: "Laboratoires", description: "Trouver un laboratoire et prendre rendez-vous.", primary: true },
+  { href: "/resultats-laboratoire", title: "Résultats laboratoire", description: "Consulter un résultat avec un code sécurisé." },
+  { href: "/contact", title: "Contact", description: "Parler avec l’équipe." },
 ];
 
 const categories = [
@@ -47,29 +51,45 @@ const categories = [
 export default function PublicHomePage() {
   const router = useRouter();
   const [query, setQuery] = useState("");
+  const visibleActions = publicActions.filter((action) => productConfig.publicHomeActions.includes(action.href));
+  const showMarketplaceContent = productConfig.marketplaceEnabled || productConfig.product === "malilink";
+  const heroImage =
+    productConfig.product === "hafiya"
+      ? "https://images.unsplash.com/photo-1582807103971-b5b7c089af8f?auto=format&fit=crop&w=1800&q=80"
+      : productConfig.product === "malilink"
+        ? "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=1800&q=80"
+        : "https://images.unsplash.com/photo-1553413077-190dd305871c?auto=format&fit=crop&w=1800&q=80";
 
   const submitSearch = (event: React.FormEvent) => {
     event.preventDefault();
     const params = new URLSearchParams();
     if (query.trim()) params.set("q", query.trim());
-    router.push(`/marketplace${params.toString() ? `?${params.toString()}` : ""}`);
+    if (productConfig.product === "hafiya") {
+      router.push(`/client/laboratoires${params.toString() ? `?${params.toString()}` : ""}`);
+      return;
+    }
+    router.push(`${productConfig.marketplaceEnabled ? "/marketplace" : "/login"}${params.toString() && productConfig.marketplaceEnabled ? `?${params.toString()}` : ""}`);
   };
 
   return (
     <main className="min-h-screen bg-gray-100 text-black">
       <section className="relative overflow-hidden bg-black px-4 py-12 text-white md:px-8">
         <img
-          src="https://images.unsplash.com/photo-1553413077-190dd305871c?auto=format&fit=crop&w=1800&q=80"
-          alt="Entrepôt moderne Triangle WMS Pro"
+          src={heroImage}
+          alt={productConfig.name}
           className="absolute inset-0 h-full w-full object-cover opacity-35"
         />
         <div className="relative mx-auto max-w-6xl">
-          <p className="text-sm font-black uppercase tracking-wide text-yellow-400">Triangle WMS Pro</p>
+          <p className="text-sm font-black uppercase tracking-wide text-yellow-400">{productConfig.name}</p>
           <h1 className="mt-3 max-w-4xl text-4xl font-black md:text-6xl">
-            Logiciel de gestion de stock, caisse POS et marketplace au Mali.
+            {productConfig.product === "malilink"
+              ? "Marketplace multi-vendeurs et SaaS pour entreprises africaines."
+              : productConfig.product === "hafiya"
+                ? "Laboratoire, analyses, rendez-vous et résultats en ligne."
+                : "Gestion interne des stocks, caisses, documents et opérations Triangle."}
           </h1>
           <p className="mt-5 max-w-2xl text-lg text-white/80">
-            Triangle WMS Pro aide les entreprises à Bamako, au Mali et en Afrique à gérer stocks, entrepôts, ventes, caisse, documents, logistique et publication marketplace.
+            {productConfig.slogan}
           </p>
           <form onSubmit={submitSearch} className="mt-8 flex max-w-2xl gap-3 rounded-2xl bg-white p-2 text-black shadow-2xl">
             <Search className="ml-3 mt-3 text-gray-400" />
@@ -86,7 +106,7 @@ export default function PublicHomePage() {
         </div>
 
         <div className="relative mx-auto mt-10 grid max-w-6xl gap-4 md:grid-cols-3 xl:grid-cols-6">
-          {publicActions.map((action) => (
+          {visibleActions.map((action) => (
             <Link
               key={action.href}
               href={action.href}
@@ -102,7 +122,7 @@ export default function PublicHomePage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-6xl px-4 py-10 md:px-8">
+      {showMarketplaceContent && <section className="mx-auto max-w-6xl px-4 py-10 md:px-8">
         <div className="mb-6 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
           <div>
             <h2 className="text-3xl font-black">Catégories populaires</h2>
@@ -129,29 +149,41 @@ export default function PublicHomePage() {
             );
           })}
         </div>
-      </section>
+      </section>}
 
       <section className="mx-auto grid max-w-6xl gap-5 px-4 pb-12 md:grid-cols-3 md:px-8">
         <article className="rounded-2xl bg-white p-6 shadow">
-          <h2 className="text-2xl font-black">Gestion de stock et entrepôt</h2>
+          <h2 className="text-2xl font-black">
+            {productConfig.product === "malilink" ? "Marketplace multi-vendeurs" : productConfig.product === "hafiya" ? "Analyses et rendez-vous" : "Gestion de stock et entrepôt"}
+          </h2>
           <p className="mt-3 text-sm leading-6 text-gray-600">
-            Suivez vos produits, stocks, emplacements, mouvements, inventaires, QR codes et alertes de rupture dans une application simple.
+            {productConfig.product === "malilink"
+              ? "Connectez vendeurs, clients, commandes, paiements et services dans une même application."
+              : productConfig.product === "hafiya"
+                ? "Publiez vos analyses, recevez les demandes de rendez-vous et gérez les résultats."
+                : "Suivez vos produits, stocks, emplacements, mouvements, inventaires, QR codes et alertes de rupture dans une application simple."}
           </p>
           <Link href="/solutions" className="mt-5 inline-block font-black text-yellow-700">Découvrir les solutions</Link>
         </article>
         <article className="rounded-2xl bg-white p-6 shadow">
-          <h2 className="text-2xl font-black">Caisse POS et ventes</h2>
+          <h2 className="text-2xl font-black">{productConfig.product === "hafiya" ? "Résultats sécurisés" : "Caisse POS et ventes"}</h2>
           <p className="mt-3 text-sm leading-6 text-gray-600">
-            Encaissez, imprimez les reçus, suivez les caisses et connectez les ventes au stock pour boutiques, pharmacies et restaurants.
+            {productConfig.product === "hafiya"
+              ? "Les patients peuvent consulter leurs résultats avec un code sécurisé, sans accéder aux données internes."
+              : "Encaissez, imprimez les reçus, suivez les caisses et connectez les ventes au stock pour boutiques, pharmacies et restaurants."}
           </p>
           <Link href="/services" className="mt-5 inline-block font-black text-yellow-700">Voir les services</Link>
         </article>
         <article className="rounded-2xl bg-white p-6 shadow">
-          <h2 className="text-2xl font-black">Marketplace entreprise</h2>
+          <h2 className="text-2xl font-black">{productConfig.product === "triangle" ? "Usage interne" : "Marketplace entreprise"}</h2>
           <p className="mt-3 text-sm leading-6 text-gray-600">
-            Publiez volontairement vos produits et services pour vendre aux clients ou aux autres entreprises, sans exposer vos données internes.
+            {productConfig.product === "triangle"
+              ? "Triangle WMS Pro reste centré sur les opérations internes Triangle Logistics et masque les modules publics."
+              : "Publiez volontairement vos produits et services pour vendre aux clients ou aux autres entreprises, sans exposer vos données internes."}
           </p>
-          <Link href="/marketplace" className="mt-5 inline-block font-black text-yellow-700">Ouvrir la marketplace</Link>
+          <Link href={productConfig.marketplaceEnabled ? "/marketplace" : "/login"} className="mt-5 inline-block font-black text-yellow-700">
+            {productConfig.marketplaceEnabled ? "Ouvrir la marketplace" : "Accéder à l’espace"}
+          </Link>
         </article>
       </section>
     </main>
