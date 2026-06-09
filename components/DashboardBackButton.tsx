@@ -2,6 +2,7 @@
 
 import { Home } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
+import { productConfig } from "../app/lib/product-config";
 
 const hiddenPathnames = [
   "/",
@@ -63,9 +64,21 @@ export default function DashboardBackButton() {
       user?.is_super_admin === 1 ||
       role === "super_admin";
 
+    if (productConfig.product === "triangle") {
+      router.push(isSuperAdmin ? "/super-admin" : "/dashboard");
+      return;
+    }
+
+    if (productConfig.product === "hafiya") {
+      if (role === "customer") router.push("/client/laboratoires");
+      else if (businessToken || legacyToken || isSuperAdmin) router.push("/laboratoire");
+      else router.push("/login?message=Rôle%20inconnu");
+      return;
+    }
+
     if (role === "customer") router.push("/client/dashboard");
     else if (isSuperAdmin) router.push("/super-admin");
-    else if (businessToken || legacyToken) router.push("/dashboard");
+    else if (businessToken || legacyToken) router.push("/marketplace/business");
     else router.push("/login?message=Rôle%20inconnu");
   };
 

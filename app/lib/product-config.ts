@@ -117,8 +117,8 @@ const configs: Record<AppProduct, ProductConfig> = {
     product: "malilink",
     name: "MaliLink Global",
     shortName: "MaliLink",
-    slogan: "Marketplace multi-vendeurs et SaaS pour entreprises africaines",
-    usage: "marketplace multi-vendeurs et SaaS pour entreprises africaines",
+    slogan: "Marketplace et solutions numériques pour les entreprises africaines.",
+    usage: "marketplace publique SaaS et marketplace multi-vendeurs",
     siteUrl: process.env.NEXT_PUBLIC_SITE_URL || "https://malilinkglobal.com",
     logoText: "MaliLink Global",
     logoUrl: "/icons/icon-512x512.png",
@@ -169,7 +169,7 @@ const configs: Record<AppProduct, ProductConfig> = {
     shortName: "HAFIYA",
     slogan: "Laboratoire, analyses, rendez-vous et résultats en ligne",
     usage: "gestion laboratoire, analyses, rendez-vous, patients, résultats et documents",
-    siteUrl: process.env.NEXT_PUBLIC_SITE_URL || "https://hafiya.example.com",
+    siteUrl: process.env.NEXT_PUBLIC_SITE_URL || "https://hafiyalab.com",
     logoText: "HAFIYA Laboratoire",
     logoUrl: "/icons/icon-512x512.png",
     theme: {
@@ -204,6 +204,9 @@ const configs: Record<AppProduct, ProductConfig> = {
     allowedRoutePrefixes: [
       "/",
       "/login",
+      "/client/login",
+      "/client/register",
+      "/client/profile",
       "/laboratoire",
       "/client/laboratoires",
       "/client/laboratoire",
@@ -265,3 +268,6 @@ export function isProductModuleEnabled(module: ProductModule) {
   return productConfig.modules[module] !== false;
 }
 
+export function isModuleEnabled(moduleName: string) {
+  return productConfig.modules[moduleName as ProductModule] !== false;
+}
