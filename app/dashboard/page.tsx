@@ -435,6 +435,41 @@ export default function DashboardPage() {
     </Link>
   )}
 
+  {canViewAccounting && (
+    <>
+      <Link href="/factures">
+        <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+          <FileText size={20} />
+          Factures
+        </li>
+      </Link>
+      <Link href="/camions">
+        <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+          <Car size={20} />
+          Camions
+        </li>
+      </Link>
+      <Link href="/comptabilite/clotures">
+        <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+          <Calculator size={20} />
+          Clôtures mensuelles
+        </li>
+      </Link>
+      <Link href="/import">
+        <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+          <ClipboardList size={20} />
+          Centre d&apos;importation
+        </li>
+      </Link>
+      <Link href="/import/historique">
+        <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+          <ClipboardCheck size={20} />
+          Historique des imports
+        </li>
+      </Link>
+    </>
+  )}
+
   {canViewDirectionModules && (moduleEnabled("documents") || moduleEnabled("rapports")) && (
     <>
       {moduleEnabled("documents") && (
