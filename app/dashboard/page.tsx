@@ -435,6 +435,13 @@ export default function DashboardPage() {
     </Link>
   )}
 
+  <Link href="/mes-demandes">
+    <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+      <FileText size={20} />
+      Mes demandes
+    </li>
+  </Link>
+
   {(canViewDirectionModules || canViewAccounting) && (
     <>
       <Link href="/direction">
