@@ -34,6 +34,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { authFetch } from "../lib/api";
+import { usePermissions } from "../lib/permissions";
 import { isProductModuleEnabled, productConfig, type ProductModule } from "../lib/product-config";
 import InstallPWAButton from "../../components/InstallPWAButton";
 import TrialBanner from "../../components/TrialBanner";
@@ -54,6 +55,7 @@ import {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { can } = usePermissions();
 
   const [userData, setUserData] = useState<any>(null);
   const [stats, setStats] = useState<any>(null);
@@ -173,21 +175,16 @@ export default function DashboardPage() {
     userData?.is_super_admin === "true" ||
     userData?.is_super_admin === 1 ||
     role === "super_admin";
-  const isAdminLike =
-    isSuperAdmin ||
-    role === "admin" ||
-    role === "super_admin";
-  const isWarehouseManager =
-    role === "responsable_entrepot" ||
-    role === "chef_entrepot" ||
-    role === "responsable d'entrepôt";
-  const isReadOnlyRole = role === "direction" || role === "client";
-  const isDirectionRole = role === "direction" || role === "directeur";
-  const isAccountingRole = role === "comptable";
-  const canManageWarehouse = isAdminLike || isWarehouseManager;
-  const canViewDirectionModules = isAdminLike || isDirectionRole;
-  const canViewAccounting = isAdminLike || isDirectionRole || isAccountingRole;
-  const canUsePos = isAdminLike || role === "caissier" || role === "vendeur" || role === "direction";
+  // Les rôles ne pilotent plus les actions métier : la matrice user_permissions fait foi.
+  const isAdminLike = isSuperAdmin || can("utilisateur", "view") || can("parametres", "view");
+  const isWarehouseManager = can("stock", "create") || can("stock", "validate");
+  const isReadOnlyRole = !can("stock", "create");
+  const isDirectionRole = can("direction", "view") || can("finance.direction", "view");
+  const isAccountingRole = can("comptabilite", "view") || can("finance.disbursement", "view");
+  const canManageWarehouse = can("stock", "create") || can("entrepot", "create");
+  const canViewDirectionModules = isDirectionRole;
+  const canViewAccounting = isAccountingRole;
+  const canUsePos = can("pos", "view");
   const modules = userData?.modules || {};
   const productModuleByDashboardKey: Record<string, ProductModule> = {
     ia: "ia",
@@ -219,7 +216,8 @@ export default function DashboardPage() {
   const moduleEnabled = (key: string) => {
     const productModule = productModuleByDashboardKey[key];
     if (productModule && !isProductModuleEnabled(productModule)) return false;
-    return modules[key] !== false || isSuperAdmin;
+    if (isSuperAdmin) return true;
+    return can(key, "view");
   };
   const displayCompanyName =
     companyIdentity?.company_name ||
@@ -459,12 +457,14 @@ export default function DashboardPage() {
     </>
   )}
 
-  <Link href="/demandes-stock">
-    <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
-      <ClipboardList size={20} />
-      Demandes stock
-    </li>
-  </Link>
+  {moduleEnabled("stock") && (
+    <Link href="/demandes-stock">
+      <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+        <ClipboardList size={20} />
+        Demandes stock
+      </li>
+    </Link>
+  )}
 
   {canViewAccounting && (
     <>
@@ -501,7 +501,7 @@ export default function DashboardPage() {
     </>
   )}
 
-  {canViewDirectionModules && (moduleEnabled("documents") || moduleEnabled("rapports")) && (
+  {(moduleEnabled("documents") || moduleEnabled("rapports")) && (
     <>
       {moduleEnabled("documents") && (
         <Link href="/documents">

@@ -2,9 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { formatFCFA } from "../lib/format";
+import ProductSearchSelect, { type ProductHit } from "../components/ProductSearchSelect";
+import { usePermissions } from "../lib/permissions";
 
 export default function StocksPage() {
+  const { can, loading: permissionsLoading } = usePermissions();
   const [products, setProducts] = useState<any[]>([]);
+  const [selectedProduct, setSelectedProduct] = useState<ProductHit | null>(null);
   const [warehouses, setWarehouses] = useState<any[]>([]);
   const [movements, setMovements] = useState<any[]>([]);
   const [partners, setPartners] = useState<any[]>([]);
@@ -51,13 +55,16 @@ export default function StocksPage() {
     setMovements(Array.isArray(data) ? data : []);
   };
 
+  // Aperçu limité : le catalogue complet n'est plus chargé dans /stocks.
+  // La sélection réelle passe par ProductSearchSelect -> /products/search.
   const fetchProducts = async () => {
-    const response = await fetch("/api/products", {
+    const response = await fetch("/api/products/search?q=&limit=50&offset=0", {
       headers: authHeaders(),
+      cache: "no-store",
     });
 
-    const data = await response.json();
-    setProducts(Array.isArray(data) ? data : []);
+    const data = await response.json().catch(() => ({}));
+    setProducts(Array.isArray(data.items) ? data.items : []);
   };
 
   const fetchWarehouses = async () => {
@@ -90,7 +97,8 @@ export default function StocksPage() {
       const user = JSON.parse(savedUser);
       setCurrentUser(user);
       setUserRole(user.role);
-      setIsReadOnly(user.role === "direction" || user.role === "client");
+      // Le rôle ne décide plus du mode lecture seule : user_permissions fait foi.
+      setIsReadOnly(false);
 
       if (
         user.role === "admin" ||
@@ -216,6 +224,18 @@ export default function StocksPage() {
     });
   };
 
+  const handleProductSearchSelect = (product: ProductHit | null) => {
+    setSelectedProduct(product);
+    setFormData((current) => ({
+      ...current,
+      product_reference: product?.reference || "",
+      product_name: product?.name || "",
+      current_stock: String(product?.stock ?? ""),
+      source_warehouse: product?.warehouse || current.source_warehouse || "",
+      location_code: product?.location_code || "",
+    }));
+  };
+
   const handleSubmit = async (e: any) => {
     e.preventDefault();
     setMessage("");
@@ -258,6 +278,7 @@ export default function StocksPage() {
 
     setMessageType("success");
     setMessage(`Demande ${selectedType} créée avec succès.`);
+    setSelectedProduct(null);
 
     setFormData({
       type: selectedType,
@@ -384,6 +405,25 @@ export default function StocksPage() {
     return "text-yellow-600";
   };
 
+  const canViewStock = can("stock", "view");
+  const canCreateStock = can("stock", "create");
+  const canValidateStock = can("stock", "validate");
+  const canPublishMarketplace = can("marketplace", "create");
+
+  if (permissionsLoading) {
+    return <div className="min-h-screen bg-gray-100 p-8 text-black">Chargement des permissions...</div>;
+  }
+
+  if (!canViewStock) {
+    return (
+      <div className="min-h-screen bg-gray-100 p-8 text-black">
+        <div className="rounded-2xl bg-red-50 p-6 font-bold text-red-700">
+          Accès refusé : permission Stock / Voir requise.
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-100 p-8">
       <h1 className="text-4xl font-bold text-black">
@@ -424,35 +464,25 @@ export default function StocksPage() {
         ))}
       </div>
 
-      {isReadOnly && (
+      {!canCreateStock && (
         <div className="bg-blue-100 text-blue-700 p-4 rounded-xl mb-6 font-bold">
           Vous avez un accès lecture seule.
         </div>
       )}
 
-      {!isReadOnly && (
+      {canCreateStock && (
       <form
         onSubmit={handleSubmit}
         className="bg-white p-6 rounded-2xl shadow mb-10 grid grid-cols-1 md:grid-cols-3 gap-4"
       >
-        <select
-          name="product_reference"
-          value={formData.product_reference}
-          onChange={(e) => handleProductSelect(e.target.value)}
-          className="border p-3 rounded-xl text-black"
-          required
-        >
-          <option value="">Choisir produit</option>
-
-          {products.map((product: any) => (
-            <option key={product.id} value={product.reference}>
-              {product.reference} - {product.name} | Stock : {product.stock} |{" "}
-              {product.location_code ||
-                product.emplacement_code ||
-                "Aucun emplacement"}
-            </option>
-          ))}
-        </select>
+        <div className="md:col-span-3">
+          <label className="mb-2 block text-sm font-bold text-gray-600">Rechercher un produit</label>
+          <ProductSearchSelect
+            value={selectedProduct}
+            onSelect={handleProductSearchSelect}
+            placeholder="Nom, référence, SKU ou code-barres..."
+          />
+        </div>
 
         <input
           type="text"
@@ -603,6 +633,12 @@ export default function StocksPage() {
         >
           Créer demande {selectedType}
         </button>
+        <a
+          href={`/demandes-stock?type=${encodeURIComponent(selectedType)}`}
+          className="rounded-xl border border-yellow-500 p-3 text-center font-bold text-black"
+        >
+          + Opération multi-produits
+        </a>
       </form>
       )}
 
@@ -636,7 +672,7 @@ export default function StocksPage() {
         </div>
       </div>
 
-      {isAdmin && (
+      {canPublishMarketplace && (
         <div className="mb-8 rounded-2xl bg-white p-6 shadow">
           <h2 className="mb-4 text-2xl font-bold text-black">Publication Marketplace depuis le stock</h2>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -674,7 +710,7 @@ export default function StocksPage() {
               <th>Observation / Emplacement</th>
               <th>Utilisateur</th>
               <th>Statut</th>
-              {isAdmin && <th>Validation</th>}
+              {canValidateStock && <th>Validation</th>}
             </tr>
           </thead>
 
@@ -726,7 +762,7 @@ export default function StocksPage() {
                   {movement.status}
                 </td>
 
-                {isAdmin && (
+                {canValidateStock && (
                   <td className="space-x-2">
                     {movement.status === "En attente" ? (
                       <>

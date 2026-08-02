@@ -171,7 +171,7 @@ export default function UtilisateursPage() {
     modules.forEach((module) => {
       map[module.module_key] = {
         module_key: module.module_key,
-        can_view: true,
+        can_view: false,
         can_create: false,
         can_edit: false,
         can_delete: false,
@@ -209,7 +209,10 @@ export default function UtilisateursPage() {
     });
     const data = await response.json().catch(() => ({}));
     setMessageType(response.ok ? "success" : "error");
-    setMessage(response.ok ? "Permissions utilisateur enregistrées." : data.error || "Erreur permissions utilisateur.");
+    setMessage(response.ok ? "Permissions utilisateur enregistrées et effectives." : data.error || "Erreur permissions utilisateur.");
+    if (response.ok) {
+      window.dispatchEvent(new Event("triangle-permissions-updated"));
+    }
   };
 
   const resetPassword = async (user: any) => {
