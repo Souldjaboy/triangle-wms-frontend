@@ -435,6 +435,23 @@ export default function DashboardPage() {
     </Link>
   )}
 
+  {(canViewDirectionModules || canViewAccounting) && (
+    <>
+      <Link href="/direction">
+        <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+          <ShieldCheck size={20} />
+          Direction
+        </li>
+      </Link>
+      <Link href="/decaissements">
+        <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+          <Calculator size={20} />
+          Décaissements
+        </li>
+      </Link>
+    </>
+  )}
+
   <Link href="/demandes-stock">
     <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
       <ClipboardList size={20} />
