@@ -435,6 +435,13 @@ export default function DashboardPage() {
     </Link>
   )}
 
+  <Link href="/demandes-stock">
+    <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+      <ClipboardList size={20} />
+      Demandes stock
+    </li>
+  </Link>
+
   {canViewAccounting && (
     <>
       <Link href="/factures">
