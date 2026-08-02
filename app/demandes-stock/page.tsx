@@ -236,9 +236,12 @@ export default function DemandesStockPage() {
                 </table>
               </div>
               {detail.document && (
-                <p className="mt-4 rounded-xl bg-gray-50 p-3 text-sm text-gray-700">
-                  Bon <b>{detail.document.doc_number}</b> — statut {detail.document.status} · {detail.document.print_count} impression(s)
-                </p>
+                <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl bg-gray-50 p-3 text-sm text-gray-700">
+                  <span>Bon <b>{detail.document.doc_number}</b> — statut {detail.document.status} · {detail.document.print_count} impression(s)</span>
+                  <Link href={`/bons/reception/${detail.document.id}`} className="rounded-lg bg-slate-900 px-3 py-1 text-xs font-bold text-white">
+                    Ouvrir le bon A4
+                  </Link>
+                </div>
               )}
             </div>
           </div>
