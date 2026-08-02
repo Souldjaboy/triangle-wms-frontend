@@ -17,6 +17,7 @@ type Req = {
   payment_method: string | null; status: string;
   approved_by_name: string | null; approved_at: string | null; approval_comment: string | null;
   disbursed_by_name: string | null; disbursed_at: string | null; disbursement_comment: string | null;
+  voucher_number: string | null;
 };
 type Refund = { id: number; amount: string };
 type Company = { company_name?: string; logo_url?: string; address?: string; phone?: string };
@@ -38,9 +39,8 @@ export default function BonDecaissementPage() {
     if (r.ok) {
       const d = await r.json();
       setReq(d.request); setRefunds(d.refunds || []);
-      // Le n° de bon (BD-AAMMJJ-NNN) est stocké dans le commentaire de décaissement.
-      const m = String(d.request?.disbursement_comment || "").match(/BD-\d{6}-\d{3}/);
-      setVoucher(m ? m[0] : "");
+      // Source de vérité : colonne voucher_number (plus d'extraction par regex).
+      setVoucher(d.request?.voucher_number || "");
     }
     const c = await authFetch("/company-settings/current");
     if (c.ok) setCompany(await c.json());

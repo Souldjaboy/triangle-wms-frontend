@@ -34,7 +34,14 @@ type Req = {
 };
 type Company = { company_name?: string; logo_url?: string; address?: string; phone?: string };
 
-const fmtDate = (d: string | null) => (d ? new Date(d).toLocaleDateString("fr-FR", { timeZone: "UTC" }) : "");
+/* Une date « AAAA-MM-JJ » est affichée telle quelle (aucune conversion de
+   fuseau) ; un horodatage complet passe par la locale. */
+const fmtDate = (d: string | null) => {
+  if (!d) return "";
+  const m = String(d).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+  return new Date(d).toLocaleDateString("fr-FR");
+};
 const money = (v: string | number | null) =>
   v == null || v === "" ? "" : Number(v).toLocaleString("fr-FR");
 
