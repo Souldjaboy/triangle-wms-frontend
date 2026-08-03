@@ -232,14 +232,6 @@ export function middleware(req: NextRequest) {
     }
   }
 
-  if (pathname.startsWith("/documents") || pathname.startsWith("/rapports")) {
-    if (!isAdmin && !isDirection) {
-      return NextResponse.redirect(
-        new URL("/dashboard?access=direction", req.url)
-      );
-    }
-  }
-
   return NextResponse.next();
 }
 
