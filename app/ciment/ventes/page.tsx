@@ -71,6 +71,13 @@ export default function CementSalesPage(){
                   {r.status==="BROUILLON" && can("cement","validate") && (
                     <button onClick={()=>validate(r.id)} className="rounded bg-green-600 px-3 py-2 text-white">Valider</button>
                   )}
+                  {/* Documents créés par la validation : on les ouvre, on ne les régénère pas. */}
+                  {r.invoice_id && (
+                    <Link href={`/ciment/factures/${r.invoice_id}`} className="ml-2 rounded bg-slate-900 px-3 py-2 text-xs font-bold text-white">Voir facture</Link>
+                  )}
+                  {r.delivery_id && (
+                    <Link href={`/ciment/livraisons/${r.delivery_id}`} className="ml-2 rounded border border-slate-900 px-3 py-2 text-xs font-bold text-slate-900">Voir BL</Link>
+                  )}
                 </td>
               </tr>
             ))}
