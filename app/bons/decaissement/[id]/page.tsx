@@ -25,7 +25,26 @@ type Company = { company_name?: string; logo_url?: string; address?: string; pho
 
 const fcfa = (v: string | number | null) => (v == null || v === "" ? "—" : Number(v).toLocaleString("fr-FR") + " FCFA");
 const fdate = (d: string | null) => (d ? new Date(d).toLocaleDateString("fr-FR") : "");
-const ftime = (d: string | null) => (d ? new Date(d).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : "");
+/* Le mode de paiement est stocké en clé technique (« especes ») : on l'affiche
+   lisiblement sans figer une liste fermée. */
+const PAY_LABELS: Record<string, string> = {
+  especes: "Espèces", cheque: "Chèque", virement: "Virement",
+  virement_bancaire: "Virement bancaire", mobile: "Mobile money",
+  mobile_money: "Mobile Money", orange_money: "Orange Money", carte: "Carte bancaire",
+};
+const payLabel = (v: string | null) =>
+  !v ? "—" : PAY_LABELS[v] || v.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+
+/* Bloc officiel : intitulé, nom, puis espace libre pour tampon et signature. */
+function SignBlock({ title, name }: { title: string; name: string | null }) {
+  return (
+    <div>
+      <p className="mb-2 border-b border-black pb-1 font-black">{title}</p>
+      <p>Nom : <span className="font-semibold">{name || "____________________"}</span></p>
+      <div className="h-24" />
+    </div>
+  );
+}
 
 export default function BonDecaissementPage() {
   const params = useParams();
@@ -52,6 +71,8 @@ export default function BonDecaissementPage() {
 
   const notDisbursed = !Number(req.amount_disbursed);
   const totalRefunded = refunds.reduce((s, r) => s + Number(r.amount), 0);
+  // Bénéficiaire figé à la demande (jamais le demandeur par défaut si renseigné).
+  const beneficiary = req.beneficiary_name || req.requester_name || "—";
 
   return (
     <div className="min-h-screen bg-gray-200 py-6 print:bg-white print:py-0">
@@ -93,10 +114,10 @@ export default function BonDecaissementPage() {
 
         <section className="mt-4 grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
           <p><span className="font-bold">Demandeur :</span> {req.requester_name || "—"}</p>
-          <p><span className="font-bold">Bénéficiaire :</span> {req.beneficiary_name || req.requester_name || "—"}</p>
+          <p><span className="font-bold">Bénéficiaire :</span> {beneficiary}</p>
           <p className="col-span-2"><span className="font-bold">Motif :</span> {req.reason}</p>
           <p><span className="font-bold">Catégorie :</span> {req.category || "—"}</p>
-          <p><span className="font-bold">Mode de paiement :</span> {req.payment_method || "—"}</p>
+          <p><span className="font-bold">Mode de paiement :</span> {payLabel(req.payment_method)}</p>
         </section>
 
         <table className="mt-4 w-full border-collapse text-sm">
@@ -130,30 +151,13 @@ export default function BonDecaissementPage() {
           </section>
         )}
 
-        {/* Signatures — insécables, sur la dernière page */}
-        <section className="signature-zone mt-10 grid grid-cols-2 gap-10 text-sm">
-          <div>
-            <p className="mb-2 border-b border-black pb-1 font-black">REÇU PAR (bénéficiaire)</p>
-            <p className="mb-2">Nom : <span className="font-semibold">{req.beneficiary_name || req.requester_name || "____________________"}</span></p>
-            <p className="mb-2">Date : ____________________</p>
-            <p className="mt-6">Signature :</p>
-            <div className="mt-8 border-b border-black" />
-          </div>
-          <div>
-            <p className="mb-2 border-b border-black pb-1 font-black">REMIS PAR (comptable)</p>
-            <p className="mb-2">Nom : <span className="font-semibold">{req.disbursed_by_name || "____________________"}</span></p>
-            <p className="mb-2">Date : <span className="font-semibold">{fdate(req.disbursed_at) || "____________________"}</span></p>
-            <p className="mt-6">Signature :</p>
-            <div className="mt-8 border-b border-black" />
-          </div>
-        </section>
-
-        <section className="signature-zone mt-8 w-1/2 text-sm">
-          <p className="mb-2 border-b border-black pb-1 font-black">VALIDÉ PAR LA DIRECTION</p>
-          <p className="mb-2">Nom : <span className="font-semibold">{req.approved_by_name || "____________________"}</span></p>
-          <p className="mb-2">Date : <span className="font-semibold">{fdate(req.approved_at) || "____________________"}</span></p>
-          <p className="mt-6">Signature :</p>
-          <div className="mt-8 border-b border-black" />
+        {/* Blocs officiels : intitulé + nom, puis espace libre pour tampon et
+            signature manuscrite. Ni « Date : » ni « Signature : » — les trois
+            blocs tiennent sur une ligne pour rester sur une seule page A4. */}
+        <section className="signature-zone mt-10 grid grid-cols-3 gap-8 text-sm">
+          <SignBlock title="REÇU PAR (bénéficiaire)" name={beneficiary} />
+          <SignBlock title="REMIS PAR (comptable)" name={req.disbursed_by_name} />
+          <SignBlock title="VALIDÉ PAR LA DIRECTION" name={req.approved_by_name} />
         </section>
       </div>
 

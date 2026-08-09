@@ -53,7 +53,7 @@ export default function DecaissementsPage() {
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [refunds, setRefunds] = useState<Refund[]>([]);
   const [amounts, setAmounts] = useState<Amounts | null>(null);
-  const [form, setForm] = useState({ amount_disbursed: "", account_label: "Caisse", payment_method: "especes", beneficiary: "", payment_reference: "", justification: "" });
+  const [form, setForm] = useState({ amount_disbursed: "", account_label: "Caisse", payment_method: "especes", payment_reference: "", justification: "" });
   const [rec, setRec] = useState({ amount: "", label: "" });
   const [file, setFile] = useState<File | null>(null);
 
@@ -66,7 +66,7 @@ export default function DecaissementsPage() {
 
   const openDetail = useCallback(async (r: Req) => {
     setDetail(r); setMsg("");
-    setForm((f) => ({ ...f, amount_disbursed: String(Number(r.amount)), beneficiary: r.beneficiary_name || r.requester_name || "" }));
+    setForm((f) => ({ ...f, amount_disbursed: String(Number(r.amount)) }));
     const res = await authFetch(`/disbursements/${r.id}/details`);
     if (res.ok) { const d = await res.json(); setReceipts(d.receipts || []); setRefunds(d.refunds || []); setAmounts(d.amounts); setDetail(d.request); }
   }, []);
@@ -249,7 +249,14 @@ export default function DecaissementsPage() {
                   <select className="rounded-lg border border-gray-300 p-2 text-gray-900" value={form.payment_method} onChange={(e) => setForm({ ...form, payment_method: e.target.value })}>
                     <option value="especes">Espèces</option><option value="virement">Virement</option><option value="cheque">Chèque</option><option value="mobile">Mobile money</option>
                   </select>
-                  <input className="rounded-lg border border-gray-300 p-2 text-gray-900" placeholder="Bénéficiaire" value={form.beneficiary} onChange={(e) => setForm({ ...form, beneficiary: e.target.value })} />
+                  {/* Bénéficiaire figé à la demande et validé par la Direction :
+                      lecture seule. Le backend ignore déjà toute autre valeur —
+                      un champ modifiable laissait croire au comptable qu'il
+                      pouvait le changer. */}
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-2">
+                    <span className="block text-xs text-gray-500">Bénéficiaire</span>
+                    <span className="font-semibold text-gray-900">{detail.beneficiary_name || detail.requester_name || "—"}</span>
+                  </div>
                   <input className="rounded-lg border border-gray-300 p-2 text-gray-900" placeholder="Référence paiement" value={form.payment_reference} onChange={(e) => setForm({ ...form, payment_reference: e.target.value })} />
                   <input className="rounded-lg border border-gray-300 p-2 text-gray-900" placeholder="Observation / justification d'écart" value={form.justification} onChange={(e) => setForm({ ...form, justification: e.target.value })} />
                 </div>
