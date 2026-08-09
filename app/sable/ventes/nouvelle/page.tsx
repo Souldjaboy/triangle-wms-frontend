@@ -18,7 +18,8 @@ export default function NewSandSalePage() {
     sand_product_id:"",
     destination:"Bamako",
     quantity_m3:10,
-    unit_price:17000,
+    reference_qty:10,
+    reference_price:170000,
     transport_price:0,
     transport_mode:"PAR_OPERATION",
     discount:0,
@@ -61,17 +62,19 @@ export default function NewSandSalePage() {
     if (tariff) {
       setForm(f=>({
         ...f,
-        unit_price:
-          Number(tariff.price) /
-          Number(tariff.quantity_reference || 1),
+        reference_qty:Number(tariff.quantity_reference || 10),
+        reference_price:Number(tariff.price),
         transport_price:Number(tariff.transport_price || 0)
       }));
     }
   },[form.destination,form.sand_product_id,prices]);
 
-  const subtotal =
-    Number(form.quantity_m3 || 0) *
-    Number(form.unit_price || 0);
+  /* Le prix au m³ est DÉRIVÉ du palier — il n'est plus saisissable.
+     Auparavant le champ « Prix/m³ » était libre : un utilisateur y saisissait
+     le prix du palier (170 000) et la vente partait à 10 × 170 000. */
+  const refQty = Number(form.reference_qty || 10) || 10;
+  const unitPriceM3 = refQty > 0 ? Number(form.reference_price || 0) / refQty : 0;
+  const subtotal = Number(form.quantity_m3 || 0) * unitPriceM3;
 
   const transport =
     form.transport_mode === "PAR_M3"
@@ -104,7 +107,8 @@ export default function NewSandSalePage() {
         customer_id:Number(form.customer_id),
         sand_product_id:Number(form.sand_product_id),
         quantity_m3:Number(form.quantity_m3),
-        unit_price:Number(form.unit_price),
+        unit_price:unitPriceM3,
+        price_reference_qty:refQty,
         transport_price:Number(form.transport_price),
         discount:Number(form.discount),
         tax_amount:Number(form.tax_amount),
@@ -174,13 +178,18 @@ export default function NewSandSalePage() {
             placeholder="Quantité m³"
           />
 
-          <input
-            type="number"
-            className="rounded border p-3"
-            value={form.unit_price}
-            onChange={e=>setForm({...form,unit_price:Number(e.target.value)})}
-            placeholder="Prix/m³"
-          />
+          <div>
+            <input
+              type="number"
+              className="w-full rounded border p-3"
+              value={form.reference_price}
+              onChange={e=>setForm({...form,reference_price:Number(e.target.value)})}
+              placeholder={`Prix ${refQty} m³`}
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Prix {refQty} m³ — soit {unitPriceM3.toLocaleString("fr-FR")} FCFA/m³
+            </p>
+          </div>
 
           <input
             type="number"
