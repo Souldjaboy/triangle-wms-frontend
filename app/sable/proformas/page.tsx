@@ -20,6 +20,7 @@ export default function SandProformasPage() {
     <main className="min-h-screen bg-gray-100 p-6 text-black">
       <div className="mx-auto max-w-7xl">
         <Link href="/sable" className="font-bold">← Retour</Link>
+        <Link href="/sable/proformas/nouvelle" className="ml-4 rounded-lg bg-yellow-500 px-4 py-2 font-black text-black">+ Nouvelle proforma</Link>
         <h1 className="mt-4 text-3xl font-black">Proformas sable</h1>
 
         <div className="mt-6 rounded-2xl bg-white p-5 shadow">

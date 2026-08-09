@@ -1,285 +1,171 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { authFetch } from "../../../lib/api";
+import { usePermissions } from "../../../lib/permissions";
 import PrintableCompanyHeader from "../../../components/PrintableCompanyHeader";
 import { amountInWordsFCFA } from "../../../lib/number-to-french";
 
-const money = (v: any) =>
-  new Intl.NumberFormat("fr-FR").format(Number(v || 0)) + " FCFA";
+/**
+ * P4-C — PROFORMA SABLE, page A4 imprimable.
+ *
+ * Même présentation commerciale que la facture : ni statut financier, ni
+ * montant payé, ni reste, ni signature client. Le bouton « Valider » n'apparaît
+ * qu'avec la permission sand.validate — miroir exact du backend.
+ */
 
-export default function SandProformaPrintPage() {
+type Line = { id: number; description: string; quantity: string; unit: string | null; unit_price: string; line_total: string };
+type Proforma = {
+  id: number; proforma_number: string; proforma_date: string | null;
+  valid_until: string | null; destination: string | null; status: string;
+  customer_name: string | null; customer_address: string | null;
+  subtotal: string; discount: string; tax_amount: string; total_amount: string;
+  notes: string | null;
+};
+type Pricing = { quantity_reference: number; reference_price: number | null; label: string };
+type Company = Record<string, unknown>;
+
+const fdate = (d: string | null) => {
+  if (!d) return "";
+  const m = String(d).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : String(d);
+};
+const money = (v: string | number | null) =>
+  v == null || v === "" ? "0" : Number(v).toLocaleString("fr-FR");
+const qty = (v: string | number | null) =>
+  Number(v || 0).toLocaleString("fr-FR", { maximumFractionDigits: 2 });
+
+export default function ProformaSablePage() {
   const params = useParams();
-  const id = params?.id;
+  const id = String(params?.id || "");
+  const search = useSearchParams();
+  const { can } = usePermissions();
+  const [doc, setDoc] = useState<Proforma | null>(null);
+  const [lines, setLines] = useState<Line[]>([]);
+  const [pricing, setPricing] = useState<Pricing | null>(null);
+  const [company, setCompany] = useState<Company>({});
+  const [error, setError] = useState("");
+  const [msg, setMsg] = useState("");
 
-  const [doc, setDoc] = useState<any>(null);
-  const [company, setCompany] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const load = useCallback(async () => {
+    const r = await authFetch(`/sand/proformas/${id}`);
+    if (r.ok) { const d = await r.json(); setDoc(d.proforma); setLines(d.lines || []); setPricing(d.pricing); }
+    else setError(r.status === 404 ? "Proforma introuvable." : "Erreur de chargement.");
+    const c = await authFetch("/company-settings/current");
+    if (c.ok) setCompany(await c.json());
+  }, [id]);
+  useEffect(() => { if (id) load(); }, [id, load]);
 
   useEffect(() => {
-    async function load() {
-      try {
+    if (!doc || search?.get("print") !== "1") return;
+    const t = setTimeout(() => window.print(), 300);
+    return () => clearTimeout(t);
+  }, [doc, search]);
 
-        const [proformaRes, companyRes] =
-          await Promise.all([
-            authFetch("/sand/proformas"),
-            authFetch("/company-settings/current"),
-          ]);
+  const validate = async () => {
+    const r = await authFetch(`/sand/proformas/${id}/validate`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
+    });
+    const d = await r.json().catch(() => ({}));
+    setMsg(r.ok ? "✅ Proforma validée." : d?.error || "Erreur.");
+    await load();
+  };
 
-        const rows =
-          await proformaRes.json().catch(() => []);
+  if (error) return <div className="p-8 font-semibold text-red-700">{error}</div>;
+  if (!doc) return <div className="p-8 text-gray-600">Chargement de la proforma…</div>;
 
-        const companyData =
-          await companyRes.json().catch(() => ({}));
-
-        const p = Array.isArray(rows)
-          ? rows.find(
-              (x: any) =>
-                String(x.id) === String(id)
-            )
-          : null;
-
-        setDoc(p || null);
-        setCompany(companyData || {});
-
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    load();
-  }, [id]);
-
-  if (loading) {
-    return (
-      <div className="p-10 font-bold">
-        Chargement de la proforma...
-      </div>
-    );
-  }
-
-  if (!doc) {
-    return (
-      <div className="p-10 font-bold text-red-600">
-        Proforma introuvable.
-      </div>
-    );
-  }
-
-  const companyName =
-    company?.company_name ||
-    company?.name ||
-    "Entreprise";
+  const total = Number(doc.total_amount || 0);
+  const totalQty = lines.reduce((s, l) => s + Number(l.quantity || 0), 0);
 
   return (
-    <main className="min-h-screen bg-gray-100 p-4 text-black print:bg-white print:p-0">
-
-      <div className="mx-auto max-w-4xl">
-
-        <div className="mb-4 flex justify-between print:hidden">
-
-          <Link
-            href="/sable/proformas"
-            className="font-bold"
-          >
-            ← Retour
-          </Link>
-
-          <button
-            onClick={() => window.print()}
-            className="rounded-xl bg-black px-5 py-3 font-bold text-white"
-          >
-            Imprimer la proforma
-          </button>
-
-        </div>
-
-
-        <section className="bg-white p-8 shadow print:p-4 print:shadow-none">
-
-          <PrintableCompanyHeader
-            company={company}
-            documentTitle="FACTURE PROFORMA"
-            documentNumber={doc.proforma_number}
-            documentDate={
-              doc.proforma_date
-                ? new Date(
-                    doc.proforma_date
-                  ).toLocaleDateString("fr-FR")
-                : ""
-            }
-          />
-
-
-          <section className="mt-8 grid grid-cols-2 gap-8">
-
-            <div>
-
-              <div className="text-xs font-bold uppercase text-gray-500">
-                Client
-              </div>
-
-              <div className="mt-1 text-lg font-bold">
-                {doc.customer_name || "-"}
-              </div>
-
-              <div>
-                {doc.customer_phone || ""}
-              </div>
-
-              <div>
-                {doc.customer_address || ""}
-              </div>
-
-            </div>
-
-
-            <div className="text-right">
-
-              <div>
-                <b>Destination :</b>{" "}
-                {doc.destination || "-"}
-              </div>
-
-              {doc.valid_until && (
-                <div>
-                  <b>Valable jusqu'au :</b>{" "}
-                  {new Date(
-                    doc.valid_until
-                  ).toLocaleDateString("fr-FR")}
-                </div>
-              )}
-
-            </div>
-
-          </section>
-
-
-          <table className="mt-10 w-full border-collapse">
-
-            <thead>
-
-              <tr className="border-y-2 border-black bg-gray-100">
-
-                <th className="p-3 text-left">
-                  Désignation
-                </th>
-
-                <th className="p-3 text-right">
-                  Quantité m³
-                </th>
-
-                <th className="p-3 text-right">
-                  Prix unitaire
-                </th>
-
-                <th className="p-3 text-right">
-                  Montant
-                </th>
-
-              </tr>
-
-            </thead>
-
-
-            <tbody>
-
-              <tr className="border-b">
-
-                <td className="p-3">
-                  Vente de sable
-                  {doc.destination
-                    ? ` - ${doc.destination}`
-                    : ""}
-                </td>
-
-                <td className="p-3 text-right">
-                  {doc.quantity_m3
-                    ? `${doc.quantity_m3} m³`
-                    : "-"}
-                </td>
-
-                <td className="p-3 text-right">
-                  {doc.unit_price
-                    ? money(doc.unit_price)
-                    : "-"}
-                </td>
-
-                <td className="p-3 text-right font-bold">
-                  {money(doc.total_amount)}
-                </td>
-
-              </tr>
-
-            </tbody>
-
-          </table>
-
-
-          <div className="mt-8 ml-auto max-w-sm">
-
-            <div className="flex justify-between border-t-2 border-black pt-4 text-xl font-black">
-
-              <span>
-                Total Proforma
-              </span>
-
-              <span>
-                {money(doc.total_amount)}
-              </span>
-
-            </div>
-
-          </div>
-
-
-          {/* MONTANT EN LETTRES */}
-
-          <section className="mt-10 rounded-lg border-2 border-black p-4">
-
-            <p className="font-bold">
-              Arrêtée la présente facture proforma à la somme de :
-            </p>
-
-            <p className="mt-2 text-lg font-black">
-              {amountInWordsFCFA(
-                Number(doc.total_amount || 0)
-              )}
-            </p>
-
-          </section>
-
-
-          {doc.notes && (
-
-            <div className="mt-8">
-
-              <b>Observation :</b>{" "}
-              {doc.notes}
-
-            </div>
-
+    <div className="min-h-screen bg-gray-200 py-6 print:bg-white print:py-0">
+      <div className="mx-auto mb-4 flex max-w-[210mm] flex-wrap items-center justify-between gap-2 px-4 print:hidden">
+        <Link href="/sable/proformas" className="font-bold text-blue-700">← Proformas sable</Link>
+        <div className="flex items-center gap-2">
+          {msg && <span className="text-sm font-semibold text-blue-700">{msg}</span>}
+          {doc.status === "BROUILLON" && can("sand", "validate") && (
+            <button onClick={validate} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white">
+              Valider la proforma
+            </button>
           )}
-
-
-          <footer className="mt-16 grid grid-cols-2 gap-12">
-
-            <div className="border-t border-black pt-2 text-center">
-              Bon pour accord client
-            </div>
-
-            <div className="border-t border-black pt-2 text-center font-bold">
-              {companyName}
-            </div>
-
-          </footer>
-
-        </section>
-
+          <button onClick={() => window.print()} className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white">
+            Imprimer
+          </button>
+        </div>
       </div>
 
-    </main>
+      <div className="doc-sheet mx-auto w-[210mm] min-h-[297mm] bg-white p-[14mm] text-black shadow print:w-auto print:min-h-0 print:p-0 print:shadow-none">
+        <PrintableCompanyHeader
+          company={{ ...company, email: undefined }}
+          documentTitle="Facture proforma"
+          documentNumber={`N° ${doc.proforma_number}`}
+          documentDate={fdate(doc.proforma_date) ? `Date : ${fdate(doc.proforma_date)}` : undefined}
+        />
+
+        <section className="mt-5 grid grid-cols-2 gap-x-8 gap-y-1 text-sm">
+          <p><span className="font-bold">Client :</span> {doc.customer_name || "—"}</p>
+          <p><span className="font-bold">Site :</span> {doc.destination || "—"}</p>
+          {doc.customer_address && <p><span className="font-bold">Adresse :</span> {doc.customer_address}</p>}
+          {doc.valid_until && <p><span className="font-bold">Valable jusqu&apos;au :</span> {fdate(doc.valid_until)}</p>}
+        </section>
+
+        <table className="mt-6 w-full border-collapse text-sm">
+          <thead>
+            <tr className="border-y-2 border-black">
+              <th className="p-2 text-left">Désignation</th>
+              <th className="p-2 text-right w-32">Quantité m³</th>
+              <th className="p-2 text-right w-36">{pricing?.label || "Prix 10 m³"}</th>
+              <th className="p-2 text-right w-40">Montant</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lines.length === 0 ? (
+              <tr className="border-b border-gray-300"><td className="p-2" colSpan={4}>Sable</td></tr>
+            ) : lines.map((l) => (
+              <tr key={l.id} className="border-b border-gray-300">
+                <td className="p-2">{l.description || "Sable"}</td>
+                <td className="p-2 text-right">{qty(l.quantity)} m³</td>
+                {/* Palier commercial, jamais le prix au m³. */}
+                <td className="p-2 text-right">{money(pricing?.reference_price ?? null)}</td>
+                <td className="p-2 text-right">{money(l.line_total)}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="border-y-2 border-black">
+              <td className="p-2 font-black">TOTAL</td>
+              <td className="p-2 text-right font-black">{qty(totalQty)} m³</td>
+              <td />
+              <td className="p-2 text-right text-lg font-black">{money(total)} FCFA</td>
+            </tr>
+          </tfoot>
+        </table>
+
+        <p className="mt-5 text-sm">
+          Arrêtée la présente facture proforma à la somme de :{" "}
+          <span className="font-bold">{amountInWordsFCFA(total)}</span>
+        </p>
+
+        {doc.notes && <p className="mt-4 text-sm"><span className="font-bold">Observation :</span> {doc.notes}</p>}
+
+        <section className="signature-zone mt-12 flex justify-end text-sm">
+          <div className="w-64">
+            <p className="border-b border-black pb-1 text-center font-black">DIRECTION</p>
+            <div className="h-28" />
+          </div>
+        </section>
+      </div>
+
+      <style jsx global>{`
+        @media print {
+          @page { size: A4; margin: 12mm; }
+          body { background: #fff; }
+          .doc-sheet tr { break-inside: avoid; page-break-inside: avoid; }
+          .signature-zone { break-inside: avoid; page-break-inside: avoid; }
+        }
+      `}</style>
+    </div>
   );
 }

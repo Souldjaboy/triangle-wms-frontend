@@ -31,6 +31,7 @@ export default function SandDeliveriesPage() {
                 <th className="p-3">Camion</th>
                 <th className="p-3">Chauffeur</th>
                 <th className="p-3">Livré par</th>
+                <th className="p-3">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -50,6 +51,10 @@ export default function SandDeliveriesPage() {
                   <td className="p-3">{r.truck || "-"}</td>
                   <td className="p-3">{r.driver_name || "-"}</td>
                   <td className="p-3">{r.delivered_by || "-"}</td>
+                  <td className="p-3 whitespace-nowrap">
+                    <Link href={`/sable/livraisons/${r.id}`} className="rounded bg-slate-900 px-3 py-1.5 text-xs font-bold text-white">Ouvrir</Link>
+                    <Link href={`/sable/livraisons/${r.id}?print=1`} className="ml-2 rounded border border-slate-900 px-3 py-1.5 text-xs font-bold text-slate-900">Imprimer</Link>
+                  </td>
                 </tr>
               ))}
             </tbody>

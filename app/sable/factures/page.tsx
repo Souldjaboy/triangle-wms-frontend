@@ -33,6 +33,7 @@ export default function SandInvoicesPage() {
                 <th className="p-3">Payé</th>
                 <th className="p-3">Reste</th>
                 <th className="p-3">Statut</th>
+                <th className="p-3">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -52,6 +53,10 @@ export default function SandInvoicesPage() {
                   <td className="p-3">{money(r.paid_amount)}</td>
                   <td className="p-3 font-bold">{money(r.remaining_amount)}</td>
                   <td className="p-3">{r.status}</td>
+                  <td className="p-3 whitespace-nowrap">
+                    <Link href={`/sable/factures/${r.id}`} className="rounded bg-slate-900 px-3 py-1.5 text-xs font-bold text-white">Ouvrir</Link>
+                    <Link href={`/sable/factures/${r.id}?print=1`} className="ml-2 rounded border border-slate-900 px-3 py-1.5 text-xs font-bold text-slate-900">Imprimer</Link>
+                  </td>
                 </tr>
               ))}
             </tbody>
