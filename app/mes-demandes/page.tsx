@@ -106,9 +106,10 @@ export default function MesDemandesPage() {
     // La pièce initiale est envoyée après création (l'API accepte une URL).
     const body = {
       amount: Number(form.amount), reason: form.reason, category: form.category || null,
+      beneficiary_name: form.beneficiary.trim() || null,
       urgency: form.urgency, payment_method: form.payment_method, submit,
-      // Champs complémentaires regroupés dans la description (schéma existant conservé).
-      description: [form.description, form.beneficiary && `Bénéficiaire : ${form.beneficiary}`,
+      // Champs complémentaires regroupés dans la description.
+      description: [form.description,
         form.service && `Service : ${form.service}`, form.project && `Projet : ${form.project}`,
         form.desired_date && `Souhaitée le ${form.desired_date}`, form.observation]
         .filter(Boolean).join(" · ") || null,

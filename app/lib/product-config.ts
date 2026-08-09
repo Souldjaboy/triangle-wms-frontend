@@ -18,6 +18,8 @@ export type ProductModule =
   | "entrepots"
   | "pos"
   | "comptabilite"
+  | "cement"
+  | "sand"
   | "rh"
   | "pointage"
   | "documents"
@@ -87,6 +89,8 @@ const baseModules: Record<ProductModule, boolean> = {
   entrepots: false,
   pos: false,
   comptabilite: false,
+  cement: false,
+  sand: false,
   rh: false,
   pointage: false,
   documents: false,
@@ -130,6 +134,8 @@ const configs: Record<AppProduct, ProductConfig> = {
       entrepots: true,
       pos: true,
       comptabilite: true,
+      cement: true,
+      sand: true,
       rh: true,
       pointage: true,
       documents: true,
@@ -329,6 +335,8 @@ const routeModuleRules: Array<{ prefixes: string[]; module: ProductModule }> = [
   { prefixes: ["/stocks", "/produits", "/scanner", "/inventaires"], module: "stock" },
   { prefixes: ["/entrepots", "/emplacements"], module: "entrepots" },
   { prefixes: ["/comptabilite"], module: "comptabilite" },
+  { prefixes: ["/ciment"], module: "cement" },
+  { prefixes: ["/sable"], module: "sand" },
   { prefixes: ["/attendance-scan", "/pointage", "/parametres-pointage"], module: "pointage" },
   { prefixes: ["/documents"], module: "documents" },
   { prefixes: ["/rapports"], module: "rapports" },

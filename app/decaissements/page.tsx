@@ -15,6 +15,7 @@ import { usePermissions } from "../lib/permissions";
 
 type Req = {
   id: number; request_number: string; created_at: string; requester_name: string | null;
+  beneficiary_name: string | null;
   reason: string; amount: string; amount_disbursed: string | null; category: string | null;
   status: string; payment_method: string | null; approved_by_name: string | null;
   approved_at: string | null; disbursed_by_name: string | null; disbursed_at: string | null;
@@ -65,7 +66,7 @@ export default function DecaissementsPage() {
 
   const openDetail = useCallback(async (r: Req) => {
     setDetail(r); setMsg("");
-    setForm((f) => ({ ...f, amount_disbursed: String(Number(r.amount)), beneficiary: r.requester_name || "" }));
+    setForm((f) => ({ ...f, amount_disbursed: String(Number(r.amount)), beneficiary: r.beneficiary_name || r.requester_name || "" }));
     const res = await authFetch(`/disbursements/${r.id}/details`);
     if (res.ok) { const d = await res.json(); setReceipts(d.receipts || []); setRefunds(d.refunds || []); setAmounts(d.amounts); setDetail(d.request); }
   }, []);
@@ -194,7 +195,7 @@ export default function DecaissementsPage() {
                   {items.map((r) => (
                     <tr key={r.id} className="border-t border-gray-100">
                       <td className="p-2 font-mono text-xs text-gray-900">{r.request_number}</td>
-                      <td className="p-2 text-gray-700">{r.requester_name || "—"}<span className="block text-xs text-gray-400">{r.reason}</span></td>
+                      <td className="p-2 text-gray-700">{r.beneficiary_name || r.requester_name || "—"}<span className="block text-xs text-gray-400">{r.reason}</span></td>
                       <td className="p-2 font-bold text-gray-900">{fcfa(r.amount)}</td>
                       <td className="p-2 text-gray-700">{fcfa(r.amount_disbursed)}</td>
                       <td className="p-2 text-gray-600">{fdate(r.approved_at)}</td>

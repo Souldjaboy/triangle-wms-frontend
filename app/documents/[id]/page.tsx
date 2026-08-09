@@ -219,8 +219,8 @@ export default function DocumentDetailPage() {
 
         {!isReceipt && (
           <footer className="mt-20 flex justify-between gap-10">
-            <div className="w-5/12 border-t border-black pt-2 text-center">Signature</div>
-            <div className="w-5/12 border-t border-black pt-2 text-center">Cachet</div>
+            <div className="w-5/12 border-t border-black pt-2 text-center font-semibold">Reçu par</div>
+            <div className="w-5/12 border-t border-black pt-2 text-center font-semibold">Livré par</div>
           </footer>
         )}
       </main>

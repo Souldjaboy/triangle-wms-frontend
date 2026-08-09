@@ -13,6 +13,7 @@ import { authFetch } from "../../../lib/api";
 
 type Req = {
   id: number; request_number: string; created_at: string; requester_name: string | null;
+  beneficiary_name: string | null;
   reason: string; category: string | null; amount: string; amount_disbursed: string | null;
   payment_method: string | null; status: string;
   approved_by_name: string | null; approved_at: string | null; approval_comment: string | null;
@@ -92,7 +93,7 @@ export default function BonDecaissementPage() {
 
         <section className="mt-4 grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
           <p><span className="font-bold">Demandeur :</span> {req.requester_name || "—"}</p>
-          <p><span className="font-bold">Bénéficiaire :</span> {req.requester_name || "—"}</p>
+          <p><span className="font-bold">Bénéficiaire :</span> {req.beneficiary_name || req.requester_name || "—"}</p>
           <p className="col-span-2"><span className="font-bold">Motif :</span> {req.reason}</p>
           <p><span className="font-bold">Catégorie :</span> {req.category || "—"}</p>
           <p><span className="font-bold">Mode de paiement :</span> {req.payment_method || "—"}</p>
@@ -121,17 +122,19 @@ export default function BonDecaissementPage() {
           </tbody>
         </table>
 
-        <section className="mt-3 text-sm">
-          <p><span className="font-bold">Validé par :</span> {req.approved_by_name || "—"} {req.approved_at ? `le ${fdate(req.approved_at)}` : ""}</p>
-          <p><span className="font-bold">Décaissé par :</span> {req.disbursed_by_name || "—"} {req.disbursed_at ? `le ${fdate(req.disbursed_at)} à ${ftime(req.disbursed_at)}` : ""}</p>
-          {req.disbursement_comment && <p className="mt-1 text-xs"><span className="font-bold">Observation :</span> {req.disbursement_comment}</p>}
-        </section>
+        {req.disbursement_comment && (
+          <section className="mt-3 text-sm">
+            <p className="text-xs">
+              <span className="font-bold">Observation :</span> {req.disbursement_comment}
+            </p>
+          </section>
+        )}
 
         {/* Signatures — insécables, sur la dernière page */}
         <section className="signature-zone mt-10 grid grid-cols-2 gap-10 text-sm">
           <div>
             <p className="mb-2 border-b border-black pb-1 font-black">REÇU PAR (bénéficiaire)</p>
-            <p className="mb-2">Nom : <span className="font-semibold">{req.requester_name || "____________________"}</span></p>
+            <p className="mb-2">Nom : <span className="font-semibold">{req.beneficiary_name || req.requester_name || "____________________"}</span></p>
             <p className="mb-2">Date : ____________________</p>
             <p className="mt-6">Signature :</p>
             <div className="mt-8 border-b border-black" />

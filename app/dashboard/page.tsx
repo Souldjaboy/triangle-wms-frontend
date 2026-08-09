@@ -27,6 +27,7 @@ import {
   Users,
   ClipboardCheck,
   Settings,
+  Factory,
   LogOut,
 } from "lucide-react";
 
@@ -39,6 +40,8 @@ import { isProductModuleEnabled, productConfig, type ProductModule } from "../li
 import InstallPWAButton from "../../components/InstallPWAButton";
 import TrialBanner from "../../components/TrialBanner";
 import WhatsAppSupportButton from "../../components/WhatsAppSupportButton";
+import CompanySwitcher from "../components/CompanySwitcher";
+import ActiveCompanyTheme from "../components/ActiveCompanyTheme";
 import {
   BarChart,
   Bar,
@@ -54,6 +57,23 @@ import {
 } from "recharts";
 
 export default function DashboardPage() {
+
+  const [activeCompanyId, setActiveCompanyId] = useState<number>(1);
+
+  useEffect(() => {
+    try {
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      const selected =
+        localStorage.getItem("active_company_id") ||
+        String(user.company_id || "1");
+
+      setActiveCompanyId(Number(selected) || 1);
+    } catch {
+      setActiveCompanyId(1);
+    }
+  }, []);
+
+
   const router = useRouter();
   const { can } = usePermissions();
 
@@ -196,6 +216,7 @@ export default function DashboardPage() {
     laboratoire: "laboratoire",
     pos: "pos",
     comptabilite: "comptabilite",
+    cement: "cement",
     stock: "stock",
     produits: "stock",
     inventaire: "stock",
@@ -245,7 +266,7 @@ export default function DashboardPage() {
             </div>
           )}
           <div>
-            <h1 className="text-lg font-bold text-yellow-500 leading-tight">{displayCompanyName}</h1>
+            <h1 className="company-sidebar-name text-lg font-bold leading-tight">{displayCompanyName}</h1>
             <p className="text-xs text-gray-400">{productConfig.name}</p>
           </div>
         </div>
@@ -420,6 +441,24 @@ export default function DashboardPage() {
       <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
         <FlaskConical size={20} />
         Laboratoire
+      </li>
+    </Link>
+  )}
+
+  {activeCompanyId !== 5 && moduleEnabled("cement") && (
+    <Link href="/ciment">
+      <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+        <Factory size={20} />
+        Vente de ciment
+      </li>
+    </Link>
+  )}
+
+  {activeCompanyId === 5 && moduleEnabled("sand") && (
+    <Link href="/sable">
+      <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+        <Factory size={20} />
+        Vente de sable
       </li>
     </Link>
   )}
@@ -616,6 +655,8 @@ export default function DashboardPage() {
     <h1 className="text-4xl font-bold text-black">
       Tableau de bord
     </h1>
+<div className="mt-4"><ActiveCompanyTheme />
+<CompanySwitcher /></div>
     <InstallPWAButton />
   </div>
 
