@@ -110,14 +110,20 @@ export default function LoginPage() {
         <div className="relative bg-black text-white p-8 md:p-12 flex flex-col justify-between overflow-hidden">
           <div className="absolute inset-x-0 bottom-0 h-40 bg-yellow-500/20" />
           <div className="relative">
-            <div className="flex items-center gap-4">
-              <img
-                src={productConfig.logoUrl}
-                alt={productConfig.name}
-                className="h-16 w-16 rounded-2xl bg-yellow-500 p-3"
-              />
+            {/* Logo officiel complet. object-contain + hauteur bornée : le
+                ratio d'origine est préservé à toutes les tailles d'écran, sans
+                étirement. Carte blanche car le logo est fourni sur fond blanc
+                et le panneau est noir — aucune couleur du logo n'est modifiée. */}
+            <div className="flex flex-col items-start gap-4">
+              <div className="w-full max-w-sm rounded-2xl bg-white p-5 sm:max-w-md">
+                <img
+                  src={productConfig.logoUrl}
+                  alt={productConfig.name}
+                  className="mx-auto h-auto max-h-32 w-full object-contain sm:max-h-40"
+                />
+              </div>
               <div>
-                <h1 className="text-4xl font-bold">{productConfig.name}</h1>
+                <h1 className="text-3xl font-bold md:text-4xl">{productConfig.name}</h1>
                 <p className="text-sm font-bold uppercase tracking-wide text-yellow-400">
                   ERP / WMS intelligent
                 </p>

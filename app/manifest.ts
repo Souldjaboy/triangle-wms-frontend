@@ -14,21 +14,28 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: productConfig.theme.themeColor,
     categories: ["business", "productivity", "shopping"],
     lang: "fr",
+    /* Icônes carrées dédiées quand le produit en fournit (Triangle), sinon
+       repli sur le logo comme auparavant — MaliLink et HAFIYA inchangés.
+       La variante maskable dispose d'une marge interne plus large pour ne pas
+       être rognée par les icônes rondes d'Android/iOS. */
     icons: [
       {
-        src: productConfig.logoUrl,
+        src: productConfig.icon192Url || productConfig.logoUrl,
         sizes: "192x192",
-        type: "image/svg+xml",
+        type: productConfig.iconMimeType || "image/svg+xml",
       },
       {
-        src: productConfig.logoUrl,
+        src: productConfig.icon512Url || productConfig.logoUrl,
         sizes: "512x512",
-        type: "image/svg+xml",
+        type: productConfig.iconMimeType || "image/svg+xml",
       },
       {
-        src: productConfig.logoUrl,
+        src:
+          productConfig.maskableIconUrl ||
+          productConfig.icon512Url ||
+          productConfig.logoUrl,
         sizes: "512x512",
-        type: "image/svg+xml",
+        type: productConfig.iconMimeType || "image/svg+xml",
         purpose: "maskable",
       },
     ],

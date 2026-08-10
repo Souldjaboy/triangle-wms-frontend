@@ -1,7 +1,7 @@
-const CACHE_NAME = "multi-tenant-app-v3";
+const CACHE_NAME = "multi-tenant-app-v4";
 const APP_SHELL = [
   "/manifest.webmanifest",
-  "/brands/triangle-logo.svg",
+  "/brands/triangle-logo.png",
   "/brands/malilink-logo.svg",
   "/brands/hafiya-logo.svg"
 ];

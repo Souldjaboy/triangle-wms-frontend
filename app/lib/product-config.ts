@@ -54,6 +54,12 @@ type ProductConfig = {
   logoUrl: string;
   faviconUrl: string;
   appleTouchIconUrl: string;
+  /* Icônes carrées dédiées (PWA, onglet). Optionnelles : un produit qui n'en
+     déclare pas continue d'utiliser logoUrl comme avant. */
+  icon192Url?: string;
+  icon512Url?: string;
+  maskableIconUrl?: string;
+  iconMimeType?: string;
   startUrl: string;
   bundleId: string;
   theme: ProductTheme;
@@ -116,9 +122,13 @@ const configs: Record<AppProduct, ProductConfig> = {
     domains: ["trianglewmspro.com", "www.trianglewmspro.com"],
     siteUrl: process.env.NEXT_PUBLIC_SITE_URL || "https://trianglewmspro.com",
     logoText: "Triangle WMS Pro",
-    logoUrl: "/brands/triangle-logo.svg",
-    faviconUrl: "/brands/triangle-favicon.svg",
-    appleTouchIconUrl: "/brands/triangle-logo.svg",
+    logoUrl: "/brands/triangle-logo.png",
+    faviconUrl: "/icons/triangle/favicon-64.png",
+    appleTouchIconUrl: "/icons/triangle/apple-touch-icon.png",
+    icon192Url: "/icons/triangle/icon-192.png",
+    icon512Url: "/icons/triangle/icon-512.png",
+    maskableIconUrl: "/icons/triangle/maskable-512.png",
+    iconMimeType: "image/png",
     startUrl: "/login",
     bundleId: "com.triangle.wmspro",
     theme: {

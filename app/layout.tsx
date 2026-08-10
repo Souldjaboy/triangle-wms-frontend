@@ -27,13 +27,27 @@ export const metadata: Metadata = {
     title: productConfig.shortName,
     statusBarStyle: "black-translucent",
   },
+  /* Le type MIME suit le produit actif : Triangle sert des PNG, les autres
+     produits conservent leurs SVG. */
   icons: {
     icon: [
-      { url: productConfig.faviconUrl, sizes: "any", type: "image/svg+xml" },
-      { url: productConfig.logoUrl, sizes: "any", type: "image/svg+xml" },
+      {
+        url: productConfig.faviconUrl,
+        sizes: "any",
+        type: productConfig.iconMimeType || "image/svg+xml",
+      },
+      {
+        url: productConfig.icon512Url || productConfig.logoUrl,
+        sizes: "any",
+        type: productConfig.iconMimeType || "image/svg+xml",
+      },
     ],
     apple: [
-      { url: productConfig.appleTouchIconUrl, sizes: "512x512", type: "image/svg+xml" },
+      {
+        url: productConfig.appleTouchIconUrl,
+        sizes: productConfig.icon192Url ? "180x180" : "512x512",
+        type: productConfig.iconMimeType || "image/svg+xml",
+      },
     ],
   },
   openGraph: {
