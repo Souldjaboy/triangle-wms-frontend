@@ -123,11 +123,15 @@ const configs: Record<AppProduct, ProductConfig> = {
     siteUrl: process.env.NEXT_PUBLIC_SITE_URL || "https://trianglewmspro.com",
     logoText: "Triangle WMS Pro",
     logoUrl: "/brands/triangle-logo.png",
-    faviconUrl: "/icons/triangle/favicon-64.png",
-    appleTouchIconUrl: "/icons/triangle/apple-touch-icon.png",
-    icon192Url: "/icons/triangle/icon-192.png",
-    icon512Url: "/icons/triangle/icon-512.png",
-    maskableIconUrl: "/icons/triangle/maskable-512.png",
+    /* URLs VERSIONNÉES : le contenu est identique, mais changer le nom est le
+       seul moyen fiable de sortir les navigateurs et les PWA déjà installées
+       d'un cache d'icône. Toute future modification du logo doit incrémenter
+       ce suffixe plutôt que réécrire un fichier existant. */
+    faviconUrl: "/icons/triangle/favicon-v2.png",
+    appleTouchIconUrl: "/icons/triangle/apple-touch-icon-v2.png",
+    icon192Url: "/icons/triangle/icon-192-v2.png",
+    icon512Url: "/icons/triangle/icon-512-v2.png",
+    maskableIconUrl: "/icons/triangle/maskable-512-v2.png",
     iconMimeType: "image/png",
     startUrl: "/login",
     bundleId: "com.triangle.wmspro",

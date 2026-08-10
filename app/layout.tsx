@@ -167,10 +167,11 @@ export default function RootLayout({
   return (
     <html lang="fr" className="h-full antialiased" data-product={productConfig.product}>
       <head>
-        <link rel="manifest" href="/manifest.webmanifest" />
+        {/* Le manifeste et les icônes sont déclarés UNE SEULE FOIS, par l'export
+            metadata ci-dessus. Les <link> manuels qui se trouvaient ici les
+            dupliquaient dans le <head> et, pire, annonçaient type="image/svg+xml"
+            sur un favicon PNG. */}
         <meta name="theme-color" content={productConfig.theme.themeColor} />
-        <link rel="icon" href={productConfig.faviconUrl} type="image/svg+xml" />
-        <link rel="apple-touch-icon" href={productConfig.appleTouchIconUrl} />
       </head>
       <body className="min-h-full flex flex-col">
         <script

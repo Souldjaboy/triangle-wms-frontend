@@ -1,4 +1,4 @@
-const CACHE_NAME = "multi-tenant-app-v4";
+const CACHE_NAME = "multi-tenant-app-v5";
 const APP_SHELL = [
   "/manifest.webmanifest",
   "/brands/triangle-logo.png",
@@ -98,6 +98,25 @@ self.addEventListener("fetch", (event) => {
           }
         )
       )
+    );
+    return;
+  }
+
+  /* Le manifeste est servi RÉSEAU D'ABORD : la stratégie cache-first le figeait
+     jusqu'au prochain changement de version du cache, si bien qu'une nouvelle
+     icône d'application n'atteignait jamais une PWA déjà installée. Le cache ne
+     sert plus que de repli hors connexion. */
+  if (url.pathname === "/manifest.webmanifest") {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok && response.type === "basic") {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          }
+          return response;
+        })
+        .catch(() => caches.match(request))
     );
     return;
   }
