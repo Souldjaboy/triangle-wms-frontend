@@ -53,6 +53,19 @@ export default function PaiementFactureModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  /* Clé d'idempotence générée UNE SEULE FOIS à l'ouverture du modal.
+     Elle protège les rejeux involontaires — double-clic, retry réseau — sans
+     jamais confondre deux paiements réellement distincts : une clé dérivée de
+     (facture, montant, date, banque) aurait rejeté un second versement
+     légitime du même montant le même jour sur la même banque.
+     Fermer puis rouvrir le modal démonte le composant : nouvelle clé. */
+  const [idempotencyKey] = useState(() => {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID();
+    }
+    return `payment-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  });
+
   const loadBanks = useCallback(async () => {
     const r = await authFetch(`/${module}/payment-destinations`);
     if (r.ok) setBanks((await r.json()).banks || []);
@@ -76,8 +89,8 @@ export default function PaiementFactureModal({
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        // Protège d'un double envoi réseau côté Sable (idempotence serveur).
-        "Idempotency-Key": `enc-${module}-${invoice.id}-${value}-${date}-${bankId || "cash"}`,
+        // Stable pendant toute la vie du modal : les retry ne créent qu'un paiement.
+        "Idempotency-Key": idempotencyKey,
       },
       body: JSON.stringify({
         amount: value,
