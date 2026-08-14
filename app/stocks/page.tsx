@@ -23,6 +23,12 @@ export default function StocksPage() {
   const [messageType, setMessageType] = useState<"success" | "error">("success");
   const [urlPresetApplied, setUrlPresetApplied] = useState(false);
   const [highlightMovementId, setHighlightMovementId] = useState<number | null>(null);
+  /* Indicateurs de réception. La quantité en attente de rangement N'EST JAMAIS
+     ajoutée au stock disponible : ce sont deux grandeurs distinctes. */
+  const [receptionStats, setReceptionStats] = useState<{
+    stock_available: string; receptions_pending: number; receptions_partial: number;
+    quantity_pending: string; lines_to_review: number;
+  } | null>(null);
 
   const [formData, setFormData] = useState({
     type: "Entrée",
@@ -87,11 +93,20 @@ export default function StocksPage() {
     setPartners(Array.isArray(data) ? data : []);
   };
 
+  const fetchReceptionStats = async () => {
+    const response = await fetch("/api/stock/receptions/dashboard", {
+      headers: authHeaders(),
+      cache: "no-store",
+    });
+    if (response.ok) setReceptionStats(await response.json().catch(() => null));
+  };
+
   useEffect(() => {
     fetchMovements();
     fetchProducts();
     fetchWarehouses();
     fetchPartners();
+    fetchReceptionStats();
 
     const savedUser = localStorage.getItem("user");
 
@@ -452,12 +467,58 @@ export default function StocksPage() {
 
       {/* Import d'inventaire : l'analyse ne modifie rien, seule la confirmation
           finale applique quoi que ce soit. */}
-      <div className="mb-6">
+      <div className="mb-6 flex flex-wrap gap-3">
         <Link href="/stocks/import"
           className="inline-block rounded-xl bg-slate-900 px-5 py-3 font-black text-white">
           Importer / Actualiser depuis Excel
         </Link>
+        <Link href="/stocks/receptions"
+          className="inline-block rounded-xl border border-gray-300 bg-white px-5 py-3 font-black text-gray-900">
+          Réceptions conteneur
+        </Link>
+        <Link href="/stocks/entrepots"
+          className="inline-block rounded-xl border border-gray-300 bg-white px-5 py-3 font-black text-gray-900">
+          Entrepôts
+        </Link>
       </div>
+
+      {/* Stock disponible et quantité en attente de rangement sont affichés
+          séparément : une marchandise reçue mais non rangée n'est pas du stock
+          disponible, et n'est jamais additionnée à celui-ci. */}
+      {receptionStats && (
+        <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-2xl bg-white p-6 shadow">
+            <p className="text-gray-500">Stock disponible</p>
+            <h2 className="text-3xl font-bold text-green-600">
+              {Number(receptionStats.stock_available || 0).toLocaleString("fr-FR")}
+            </h2>
+            <p className="mt-1 text-xs text-gray-400">unités rangées et disponibles</p>
+          </div>
+          <div className="rounded-2xl bg-white p-6 shadow">
+            <p className="text-gray-500">Réceptions en attente</p>
+            <h2 className="text-3xl font-bold text-yellow-600">
+              {receptionStats.receptions_pending}
+            </h2>
+            <p className="mt-1 text-xs text-gray-400">
+              dont {receptionStats.receptions_partial} partiellement rangée(s)
+            </p>
+          </div>
+          <div className="rounded-2xl bg-white p-6 shadow">
+            <p className="text-gray-500">En attente de rangement</p>
+            <h2 className="text-3xl font-bold text-yellow-600">
+              {Number(receptionStats.quantity_pending || 0).toLocaleString("fr-FR")}
+            </h2>
+            <p className="mt-1 text-xs text-gray-400">non comptées dans le stock disponible</p>
+          </div>
+          <div className="rounded-2xl bg-white p-6 shadow">
+            <p className="text-gray-500">Lignes à vérifier</p>
+            <h2 className="text-3xl font-bold text-orange-600">
+              {receptionStats.lines_to_review}
+            </h2>
+            <p className="mt-1 text-xs text-gray-400">produit à confirmer avant rangement</p>
+          </div>
+        </div>
+      )}
 
       <div className="flex gap-3 mb-8">
         {["Entrée", "Sortie", "Transfert", "Inventaire"].map((type) => (
