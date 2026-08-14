@@ -24,7 +24,10 @@ type Preview = {
   entries: { product: { name: string }; quantity: number }[];
   exits: { product: { name: string }; quantity: number }[];
   writeOffs: { product: { name: string }; quantity: number }[];
-  transfers: unknown[];
+  transfers: { product: { name: string }; quantity: number; sourceLocation: string | null;
+               destinationLocation: string; binDistribution: string }[];
+  receptions?: { totals: { total: number; matched: number; unmatched: number;
+                           duplicates: number; quantityReceived: number; quantityAddedToStock: number } };
   blockingErrors: { product: { name: string }; failingStep: string; stockAtFailure: number;
                     dbStock: number; in: number; out: number; message: string }[];
   newProducts: { desc: string; unit: string; initialStock: number }[];
@@ -81,6 +84,7 @@ export default function ImportInventairePage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [confirmed, setConfirmed] = useState(false);
+  const [notice, setNotice] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const canApply = can("stock", "validate");
@@ -116,6 +120,22 @@ export default function ImportInventairePage() {
     if (!res.ok) return setError(d?.error || "Échec de l'import.");
     setResult(d);
     setStep(6);
+    await loadHistory();
+  };
+
+  /* Annulation d'un import : mouvements inverses côté serveur, rien n'est
+     supprimé. Confirmation forte car l'opération touche le stock. */
+  const rollback = async (importId: number) => {
+    if (!window.confirm(
+      `Annuler l'import #${importId} ?\n\nDes mouvements INVERSES seront créés pour rétablir le stock. ` +
+      `L'import restera visible dans l'historique avec le statut ROLLED_BACK.`
+    )) return;
+    setBusy(true); setError("");
+    const res = await authFetch(`/inventory-import/${importId}/rollback`, { method: "POST" });
+    const d = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) return setError(d?.error || "Échec de l'annulation.");
+    setNotice(`Import #${importId} annulé — ${d.reversed} mouvement(s) inversé(s).`);
     await loadHistory();
   };
 
@@ -175,6 +195,7 @@ export default function ImportInventairePage() {
         </ol>
 
         {error && <div className="rounded-xl bg-red-50 p-4 font-semibold text-red-800">{error}</div>}
+        {notice && <div className="rounded-xl bg-green-50 p-4 font-semibold text-green-800">{notice}</div>}
 
         {/* ÉTAPE 1 — fichier */}
         {step === 0 && (
@@ -276,8 +297,54 @@ export default function ImportInventairePage() {
                 <Box label="Sorties" value={n(preview.exits.length)} />
                 <Box label="Write-off" value={n(preview.writeOffs.length)} />
                 <Box label="Transferts" value={n(preview.transfers.length)} />
+                <Box label="Réceptions" value={n(preview.receptions?.totals.total)} />
                 <Box label="Nouveaux produits" value={n(preview.newProducts.length)} />
               </div>
+              {preview.receptions && (
+                <>
+                  <h3 className="mt-5 font-black text-gray-900">Réceptions containers</h3>
+                  <p className="text-xs text-gray-500">
+                    Traçabilité uniquement : une réception n&apos;ajoute jamais de stock par-dessus
+                    l&apos;entrée correspondante.
+                  </p>
+                  <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                    <Box label="Rapprochées" value={n(preview.receptions.totals.matched)} tone="text-green-700" />
+                    <Box label="Non rapprochées" value={n(preview.receptions.totals.unmatched)} tone="text-amber-700" />
+                    <Box label="Doublons possibles" value={n(preview.receptions.totals.duplicates)} tone="text-red-700" />
+                    <Box label="Quantité reçue" value={n(preview.receptions.totals.quantityReceived)} />
+                    <Box label="Ajoutée au stock" value={n(preview.receptions.totals.quantityAddedToStock)} tone="text-green-700" />
+                  </div>
+                </>
+              )}
+
+              {preview.transfers.length > 0 && (
+                <>
+                  <h3 className="mt-5 font-black text-gray-900">Transferts internes</h3>
+                  <p className="text-xs text-gray-500">Le stock global de chaque produit reste inchangé.</p>
+                  <div className="mt-2 max-h-56 overflow-auto rounded-xl border border-gray-200">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-100 text-left"><tr>
+                        <th className="p-2">Produit</th><th className="p-2">Source</th>
+                        <th className="p-2">Destination</th><th className="p-2 text-right">Quantité</th>
+                        <th className="p-2">Bins</th></tr></thead>
+                      <tbody>
+                        {preview.transfers.map((tr, i) => (
+                          <tr key={i} className="border-t">
+                            <td className="p-2">{tr.product.name}</td>
+                            <td className="p-2 text-gray-600">{tr.sourceLocation || "—"}</td>
+                            <td className="p-2 text-gray-600">{tr.destinationLocation}</td>
+                            <td className="p-2 text-right">{n(tr.quantity)}</td>
+                            <td className="p-2 text-xs text-gray-500">
+                              {tr.binDistribution === "UNKNOWN" ? "répartition non précisée" : "bin unique"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+
               {preview.preAdjustments.length > 0 && (
                 <>
                   <h3 className="mt-5 font-black text-gray-900">Ajustements préalables</h3>
@@ -500,9 +567,17 @@ export default function ImportInventairePage() {
                     <td className="p-3"><Badge action={String(h.status)} /></td>
                     <td className="p-3 text-right">{n(h.rows_imported)}</td>
                     <td className="p-3">
+                      <div className="flex flex-col gap-2 sm:flex-row">
                       <button onClick={() => downloadReport(Number(h.id))} className="rounded bg-slate-900 px-3 py-1.5 text-xs font-bold text-white">
                         Rapport
                       </button>
+                      {String(h.status) === "COMPLETED" && canApply && (
+                        <button onClick={() => rollback(Number(h.id))} disabled={busy}
+                          className="rounded border border-red-600 px-3 py-1.5 text-xs font-bold text-red-700 disabled:opacity-50">
+                          Annuler cet import
+                        </button>
+                      )}
+                      </div>
                     </td>
                   </tr>
                 ))}
