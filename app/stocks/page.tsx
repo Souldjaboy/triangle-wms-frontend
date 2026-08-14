@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useEffect, useState } from "react";
 import { formatFCFA } from "../lib/format";
 import ProductSearchSelect, { type ProductHit } from "../components/ProductSearchSelect";
@@ -447,6 +449,15 @@ export default function StocksPage() {
           {message}
         </div>
       )}
+
+      {/* Import d'inventaire : l'analyse ne modifie rien, seule la confirmation
+          finale applique quoi que ce soit. */}
+      <div className="mb-6">
+        <Link href="/stocks/import"
+          className="inline-block rounded-xl bg-slate-900 px-5 py-3 font-black text-white">
+          Importer / Actualiser depuis Excel
+        </Link>
+      </div>
 
       <div className="flex gap-3 mb-8">
         {["Entrée", "Sortie", "Transfert", "Inventaire"].map((type) => (
