@@ -25,6 +25,8 @@ type Preview = {
   exits: { product: { name: string }; quantity: number }[];
   writeOffs: { product: { name: string }; quantity: number }[];
   transfers: unknown[];
+  blockingErrors: { product: { name: string }; failingStep: string; stockAtFailure: number;
+                    dbStock: number; in: number; out: number; message: string }[];
   newProducts: { desc: string; unit: string; initialStock: number }[];
   blocked: { desc: string; reason: string; suggestions?: string[] }[];
   toReview: { desc: string; action: string; reason: string | null; dbStock: number | null; suggestions?: string[] }[];
@@ -133,6 +135,10 @@ export default function ImportInventairePage() {
   const t = (preview?.totals || {}) as Record<string, number>;
   const byAction = (preview?.totals?.byAction || {}) as Record<string, number>;
   const protectedCount = (preview?.blocked.length || 0) + (preview?.toReview.length || 0) + (preview?.dbOnly.length || 0);
+  /* Une seule erreur bloquante interdit la confirmation : l'utilisateur doit
+     l'apprendre AVANT de cliquer, pas par un 409 après coup. */
+  const blocking = preview?.blockingErrors || [];
+  const hasBlocking = blocking.length > 0;
 
   const matchRows = useMemo(() => {
     if (!preview) return [];
@@ -337,6 +343,45 @@ export default function ImportInventairePage() {
               </div>
             </div>
 
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Box label="Erreurs bloquantes" value={n(blocking.length)} tone={hasBlocking ? "text-red-700" : "text-green-700"} />
+              <Box label="Cas à vérifier" value={n(preview.toReview.length)} tone="text-amber-700" />
+              <Box label="Produits ambigus" value={n(preview.blocked.length)} tone="text-amber-700" />
+            </div>
+
+            {hasBlocking && (
+              <div className="rounded-2xl border-2 border-red-400 bg-red-50 p-6">
+                <h3 className="text-lg font-black text-red-800">
+                  Import impossible — {blocking.length} produit(s) produiraient un stock négatif
+                </h3>
+                <p className="mt-1 text-sm font-semibold text-red-800">
+                  Corrigez le fichier ou les quantités avant de relancer l&apos;analyse.
+                  La confirmation restera désactivée tant que ces erreurs subsistent.
+                </p>
+                <div className="mt-3 max-h-60 overflow-auto rounded-xl border border-red-200 bg-white">
+                  <table className="w-full text-sm">
+                    <thead className="bg-red-100 text-left"><tr>
+                      <th className="p-2">Produit</th><th className="p-2 text-right">Stock DB</th>
+                      <th className="p-2 text-right">Entrées</th><th className="p-2 text-right">Sorties</th>
+                      <th className="p-2">Étape en échec</th><th className="p-2 text-right">Stock atteint</th>
+                    </tr></thead>
+                    <tbody>
+                      {blocking.map((b, i) => (
+                        <tr key={i} className="border-t">
+                          <td className="p-2 font-semibold">{b.product.name}</td>
+                          <td className="p-2 text-right">{n(b.dbStock)}</td>
+                          <td className="p-2 text-right">{n(b.in)}</td>
+                          <td className="p-2 text-right">{n(b.out)}</td>
+                          <td className="p-2">{b.failingStep.replace(/_/g, " ")}</td>
+                          <td className="p-2 text-right font-black text-red-700">{n(b.stockAtFailure)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
             {/* Cas protégés : dire explicitement qu'ils ne seront PAS modifiés. */}
             <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 p-6">
               <h3 className="font-black text-amber-900">À vérifier avant validation — {protectedCount} cas protégés</h3>
@@ -358,7 +403,10 @@ export default function ImportInventairePage() {
             </div>
             <div className="flex gap-2">
               <button onClick={() => setStep(3)} className="rounded-xl border border-gray-300 px-4 py-2 font-bold text-gray-700">← Retour</button>
-              <button onClick={() => setStep(5)} className="rounded-xl bg-slate-900 px-5 py-2 font-bold text-white">Confirmation →</button>
+              <button onClick={() => setStep(5)} disabled={hasBlocking}
+                className="rounded-xl bg-slate-900 px-5 py-2 font-bold text-white disabled:opacity-40">
+                {hasBlocking ? "Confirmation bloquée" : "Confirmation →"}
+              </button>
             </div>
           </section>
         )}
@@ -372,6 +420,11 @@ export default function ImportInventairePage() {
               En cas d&apos;erreur, tout est annulé. Le stock passera de{" "}
               <b>{n(t.dbStock)}</b> à <b>{n(t.stockAfter)}</b>.
             </p>
+            {hasBlocking && (
+              <p className="mt-3 rounded-xl bg-red-50 p-3 font-semibold text-red-800">
+                {blocking.length} erreur(s) bloquante(s) : l&apos;import ne peut pas être appliqué.
+              </p>
+            )}
             {!canApply && (
               <p className="mt-3 rounded-xl bg-red-50 p-3 font-semibold text-red-800">
                 Vous n&apos;avez pas la permission de valider un import.
@@ -383,7 +436,7 @@ export default function ImportInventairePage() {
             </label>
             <div className="mt-4 flex gap-2">
               <button onClick={() => setStep(4)} disabled={busy} className="rounded-xl border border-gray-300 px-4 py-2 font-bold text-gray-700 disabled:opacity-50">← Retour</button>
-              <button onClick={execute} disabled={!confirmed || busy || !canApply}
+              <button onClick={execute} disabled={!confirmed || busy || !canApply || hasBlocking}
                 className="rounded-xl bg-emerald-600 px-6 py-3 font-black text-white disabled:opacity-50">
                 {busy ? "Import en cours…" : "Appliquer la mise à jour"}
               </button>
