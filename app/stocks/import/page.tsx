@@ -23,7 +23,9 @@ type Preview = {
   preAdjustments: { product: { id: number | null; name: string }; stockBefore: number; counted: number; delta: number; out?: number }[];
   entries: { product: { name: string }; quantity: number }[];
   exits: { product: { name: string }; quantity: number }[];
-  writeOffs: { product: { name: string }; quantity: number }[];
+  writeOffs: { product: { name: string }; product_name: string; product_id: number | null;
+               quantity: number; excelRow: number; known: boolean;
+               alreadyExisting: boolean; dbStock: number | null }[];
   transfers: { product: { name: string }; quantity: number; sourceLocation: string | null;
                destinationLocation: string; binDistribution: string }[];
   receptions?: { totals: { total: number; matched: number; unmatched: number;
@@ -446,6 +448,38 @@ export default function ImportInventairePage() {
                     </tbody>
                   </table>
                 </div>
+              </div>
+            )}
+
+            {preview.writeOffs.length > 0 && (
+              <div className="rounded-2xl bg-white p-6 shadow">
+                <h3 className="font-black text-gray-900">
+                  Nouveaux write-off — {preview.writeOffs.length}
+                </h3>
+                <p className="text-xs text-gray-500">
+                  Seule la seconde liste de la feuille WRITE OFF est lue : l&apos;historique déjà
+                  enregistré ne peut pas être recréé.
+                </p>
+                <ul className="mt-3 space-y-2 text-sm">
+                  {preview.writeOffs.map((w, i) => (
+                    <li key={i} className="flex flex-wrap items-center gap-2 border-b pb-2">
+                      <b className="text-gray-900">{w.product_name}</b>
+                      <span className="text-gray-700">— quantité {n(w.quantity)}</span>
+                      <span className="text-xs text-gray-400">ligne Excel {w.excelRow}</span>
+                      {w.dbStock != null && <span className="text-xs text-gray-500">stock actuel {n(w.dbStock)}</span>}
+                      {!w.known && (
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-900">
+                          produit inconnu en base
+                        </span>
+                      )}
+                      {w.alreadyExisting && (
+                        <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-800">
+                          déjà cassé par le passé — nouveau rebut autorisé
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
 
