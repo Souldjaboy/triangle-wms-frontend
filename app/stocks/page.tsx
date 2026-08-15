@@ -480,6 +480,10 @@ export default function StocksPage() {
           className="inline-block rounded-xl border border-gray-300 bg-white px-5 py-3 font-black text-gray-900">
           Entrepôts
         </Link>
+        <Link href="/stocks/repartition"
+          className="inline-block rounded-xl border border-gray-300 bg-white px-5 py-3 font-black text-gray-900">
+          Répartition par emplacement
+        </Link>
       </div>
 
       {/* Stock disponible et quantité en attente de rangement sont affichés
