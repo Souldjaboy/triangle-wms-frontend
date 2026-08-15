@@ -71,8 +71,14 @@ export default function BonReceptionPage() {
           <p><span className="font-bold">Statut :</span> {r.status_label}</p>
           <p><span className="font-bold">Entrepôts desservis :</span> {r.warehouses || "—"}</p>
           <p><span className="font-bold">Réceptionné par :</span> {r.created_by_name || "—"}</p>
-          <p><span className="font-bold">Origine :</span> {r.source || "—"}</p>
+          {/* La provenance est indiquée, mais le document est le MÊME que la
+              réception vienne d'une saisie manuelle ou d'un import Excel. */}
+          <p><span className="font-bold">Origine :</span> {r.source_label || r.source || "—"}</p>
+          {r.supplier_name && <p><span className="font-bold">Fournisseur :</span> {r.supplier_name}</p>}
+          {r.supplier_reference && <p><span className="font-bold">BL fournisseur :</span> {r.supplier_reference}</p>}
+          {r.carrier && <p><span className="font-bold">Transporteur :</span> {r.carrier}</p>}
           {r.source_file && <p><span className="font-bold">Fichier source :</span> {r.source_file}</p>}
+          {r.notes && <p className="col-span-2"><span className="font-bold">Notes :</span> {r.notes}</p>}
         </section>
 
         <table className="mt-5 w-full border-collapse text-[11px]">

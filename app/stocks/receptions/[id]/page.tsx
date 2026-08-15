@@ -1,12 +1,13 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { authFetch, apiUrl, authHeaders } from "../../../lib/api";
 import { usePermissions } from "../../../lib/permissions";
+import ProductSearchSelect, { type ProductHit } from "../../../components/ProductSearchSelect";
 import {
-  ReceptionDetail, ReceptionLine, Suggestion, Putaway,
+  ReceptionDetail, ReceptionLine, Suggestion, Putaway, WAREHOUSE_CODES,
   n, fdate, fdatetime, STATUS_TONE, MATCH_TONE, MATCH_LABEL, buildLocationCode,
 } from "../shared";
 
@@ -25,10 +26,14 @@ type Filter = "ALL" | "TO_REVIEW" | "MATCHED" | "READY" | "DONE";
 
 export default function ReceptionDetailPage() {
   const params = useParams();
+  const search = useSearchParams();
   const id = String(params?.id || "");
   const { can } = usePermissions();
   const canMatch = can("stock", "create");
   const canPutaway = can("stock", "validate");
+  const [editHeader, setEditHeader] = useState(false);
+  const [editLine, setEditLine] = useState<number | null>(null);
+  const [addingLine, setAddingLine] = useState(false);
 
   const [data, setData] = useState<ReceptionDetail | null>(null);
   const [putaways, setPutaways] = useState<Putaway[]>([]);
@@ -96,7 +101,39 @@ export default function ReceptionDetailPage() {
 
   const afterWrite = async (message: string) => {
     setNotice(message); setError(""); setSelected(new Set()); setOpenLine(null);
+    setEditHeader(false); setEditLine(null); setAddingLine(false);
     await load();
+  };
+
+  /* Message d'arrivée depuis la saisie manuelle : on rappelle explicitement que
+     rien n'a bougé côté stock. */
+  useEffect(() => {
+    if (search?.get("created") !== "1") return;
+    setNotice(search.get("merged") === "1"
+      ? "Les lignes ont rejoint la réception existante de ce conteneur — un conteneur ne donne jamais deux réceptions. Aucun stock modifié."
+      : "Réception enregistrée. Aucun stock modifié : la marchandise est en attente de mise en stock.");
+  }, [search]);
+
+  const cancelReception = async () => {
+    const reason = window.prompt(
+      "Annuler cette réception ?\n\nElle restera visible avec le statut « Annulée » — rien n'est supprimé.\n\nMotif (facultatif) :"
+    );
+    if (reason === null) return;
+    const r = await authFetch(`/stock/receptions/${id}/cancel`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason: reason || null }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) return setError(d?.error || "Échec de l'annulation.");
+    await afterWrite("Réception annulée. Aucun stock n'a été modifié.");
+  };
+
+  const removeLine = async (line: ReceptionLine) => {
+    if (!window.confirm(`Supprimer la ligne ${line.line_no} « ${line.received_label} » ?`)) return;
+    const r = await authFetch(`/stock/receptions/${id}/lines/${line.id}`, { method: "DELETE" });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) return setError(d?.error || "Échec de la suppression.");
+    await afterWrite(`Ligne ${line.line_no} supprimée. Aucun stock modifié.`);
   };
 
   const downloadCsv = async () => {
@@ -115,6 +152,8 @@ export default function ReceptionDetailPage() {
 
   const r = data.reception;
   const t = data.totals;
+  const cancelled = r.status === "CANCELLED";
+  const nothingPutaway = Number(t.putaway) <= 0;
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
@@ -129,7 +168,15 @@ export default function ReceptionDetailPage() {
               reçu le <span className="font-bold">{fdate(r.reception_date)}</span> ·
               entrepôts <span className="font-bold">{r.warehouses || "—"}</span>
               {r.created_by_name ? <> · saisi par <span className="font-bold">{r.created_by_name}</span></> : null}
+              {r.source_label ? <> · <span className="font-bold">{r.source_label}</span></> : null}
             </p>
+            {(r.supplier_name || r.supplier_reference || r.carrier) && (
+              <p className="text-sm text-gray-600">
+                {r.supplier_name && <>Fournisseur <span className="font-bold">{r.supplier_name}</span> · </>}
+                {r.supplier_reference && <>BL <span className="font-bold">{r.supplier_reference}</span> · </>}
+                {r.carrier && <>Transporteur <span className="font-bold">{r.carrier}</span></>}
+              </p>
+            )}
           </div>
           <div className="flex flex-wrap gap-2">
             <span className={`self-center rounded-full px-3 py-1 text-xs font-bold ${STATUS_TONE[r.status] || "bg-gray-100 text-gray-700"}`}>
@@ -146,14 +193,38 @@ export default function ReceptionDetailPage() {
                 Bons de mise en stock
               </Link>
             )}
+            {canMatch && !cancelled && (
+              <button onClick={() => setEditHeader((v) => !v)}
+                      className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-bold text-gray-800">
+                {editHeader ? "Fermer" : "Corriger l'en-tête"}
+              </button>
+            )}
+            {canPutaway && !cancelled && nothingPutaway && (
+              <button onClick={cancelReception}
+                      className="rounded-lg border border-red-300 bg-white px-3 py-2 text-sm font-bold text-red-700">
+                Annuler la réception
+              </button>
+            )}
           </div>
         </div>
+
+        {cancelled && (
+          <p className="mt-4 rounded-xl bg-gray-200 p-3 text-sm font-semibold text-gray-800">
+            Réception annulée{r.cancel_reason ? ` — ${r.cancel_reason}` : ""}. Elle reste conservée
+            pour l&apos;historique ; aucune mise en stock n&apos;a été effectuée et aucun stock n&apos;a été modifié.
+          </p>
+        )}
 
         {error && <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-800">{error}</p>}
         {notice && (
           <p className="mt-4 rounded-xl bg-green-50 p-3 text-sm font-semibold text-green-900">
             {notice} <button onClick={() => setNotice("")} className="underline">fermer</button>
           </p>
+        )}
+
+        {editHeader && canMatch && !cancelled && (
+          <HeaderForm reception={r} lockedIdentity={!nothingPutaway} receptionId={id}
+                      onDone={afterWrite} onError={setError} onClose={() => setEditHeader(false)} />
         )}
 
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -192,6 +263,11 @@ export default function ReceptionDetailPage() {
             <button onClick={toggleAllVisible} className="text-sm font-bold text-blue-700">
               Sélectionner les lignes prêtes affichées
             </button>
+            {canMatch && !cancelled && (
+              <button onClick={() => setAddingLine((v) => !v)} className="text-sm font-bold text-indigo-700">
+                {addingLine ? "Fermer l'ajout" : "+ Ajouter un produit"}
+              </button>
+            )}
             {selectedLines.length > 0 && canPutaway && (
               <button onClick={() => setPutawayTarget(selectedLines)}
                       className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white">
@@ -199,6 +275,11 @@ export default function ReceptionDetailPage() {
               </button>
             )}
           </div>
+
+          {addingLine && canMatch && !cancelled && (
+            <AddLineForm receptionId={id} onDone={afterWrite} onError={setError}
+                         onClose={() => setAddingLine(false)} />
+          )}
 
           {/* ---------- LIGNES ---------- */}
           <div className="mt-3 overflow-x-auto">
@@ -246,12 +327,22 @@ export default function ReceptionDetailPage() {
                       </td>
                       <td className="p-2">
                         <div className="flex justify-end gap-2 whitespace-nowrap text-xs font-bold">
-                          {canMatch && (
+                          {canMatch && !cancelled && (
                             <button onClick={() => setOpenLine(openLine === l.id ? null : l.id)} className="text-blue-700">
                               {openLine === l.id ? "Fermer" : l.product_id ? "Changer" : "Associer"}
                             </button>
                           )}
-                          {canPutaway && isReady(l) && (
+                          {/* Une ligne déjà rangée n'est plus corrigible ni supprimable :
+                              le mouvement de stock passé ne lui correspondrait plus. */}
+                          {canMatch && !cancelled && Number(l.quantity_putaway) <= 0 && (
+                            <>
+                              <button onClick={() => setEditLine(editLine === l.id ? null : l.id)} className="text-gray-700">
+                                {editLine === l.id ? "Fermer" : "Corriger"}
+                              </button>
+                              <button onClick={() => removeLine(l)} className="text-red-700">Supprimer</button>
+                            </>
+                          )}
+                          {canPutaway && !cancelled && isReady(l) && (
                             <button onClick={() => setPutawayTarget([l])} className="text-slate-900">Ranger</button>
                           )}
                         </div>
@@ -263,6 +354,14 @@ export default function ReceptionDetailPage() {
                           <MatchPanel line={l} receptionId={id}
                                       onDone={afterWrite} onError={setError}
                                       onClose={() => setOpenLine(null)} />
+                        </td>
+                      </tr>
+                    )}
+                    {editLine === l.id && (
+                      <tr>
+                        <td colSpan={11} className="bg-gray-50 p-0">
+                          <LineForm line={l} receptionId={id} onDone={afterWrite}
+                                    onError={setError} onClose={() => setEditLine(null)} />
                         </td>
                       </tr>
                     )}
@@ -314,6 +413,254 @@ export default function ReceptionDetailPage() {
                       onError={setError} />
       )}
     </div>
+  );
+}
+
+/* ========================= CORRECTION AVANT MISE EN STOCK ========================= */
+
+const INPUT = "mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm";
+
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="text-xs font-bold text-gray-700">{label}</span>
+      {hint && <span className="ml-1 text-xs font-normal text-gray-400">({hint})</span>}
+      {children}
+    </label>
+  );
+}
+
+/**
+ * En-tête corrigible. Conteneur et date se figent dès qu'une ligne est rangée :
+ * ils figurent sur des bons de mise en stock déjà émis. Fournisseur, BL,
+ * transporteur et notes restent corrigibles — ils n'ont aucun effet sur le stock.
+ */
+function HeaderForm({ reception, lockedIdentity, receptionId, onDone, onError, onClose }: {
+  reception: ReceptionDetail["reception"]; lockedIdentity: boolean; receptionId: string;
+  onDone: (m: string) => void; onError: (m: string) => void; onClose: () => void;
+}) {
+  const [form, setForm] = useState({
+    containerNumber: reception.container_number || "",
+    receptionDate: (reception.reception_date || "").slice(0, 10),
+    supplierName: reception.supplier_name || "",
+    supplierReference: reception.supplier_reference || "",
+    carrier: reception.carrier || "",
+    notes: reception.notes || "",
+  });
+  const [busy, setBusy] = useState(false);
+
+  const save = async () => {
+    setBusy(true);
+    const patch: Record<string, string> = {
+      supplierName: form.supplierName, supplierReference: form.supplierReference,
+      carrier: form.carrier, notes: form.notes,
+    };
+    if (!lockedIdentity) {
+      patch.containerNumber = form.containerNumber;
+      patch.receptionDate = form.receptionDate;
+    }
+    const r = await authFetch(`/stock/receptions/${receptionId}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch),
+    });
+    const d = await r.json().catch(() => ({}));
+    setBusy(false);
+    if (!r.ok) return onError(d?.error || "Échec de la correction.");
+    onDone("En-tête corrigé. Aucun stock modifié.");
+  };
+
+  return (
+    <section className="mt-4 rounded-2xl border border-blue-200 bg-blue-50 p-4">
+      <h2 className="text-lg font-black text-gray-900">Corriger l&apos;en-tête</h2>
+      {lockedIdentity && (
+        <p className="mt-1 rounded-lg bg-white p-2 text-xs text-gray-700">
+          Une partie de cette réception est déjà rangée : le conteneur et la date sont
+          <span className="font-bold"> figés</span>, car ils figurent sur des bons de mise en stock
+          déjà émis. Les autres champs restent corrigibles.
+        </p>
+      )}
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <Field label="Numéro de conteneur">
+          <input value={form.containerNumber} disabled={lockedIdentity}
+                 onChange={(e) => setForm({ ...form, containerNumber: e.target.value.toUpperCase() })}
+                 className={`${INPUT} disabled:bg-gray-100 disabled:text-gray-500`} />
+        </Field>
+        <Field label="Date de réception">
+          <input type="date" value={form.receptionDate} disabled={lockedIdentity}
+                 onChange={(e) => setForm({ ...form, receptionDate: e.target.value })}
+                 className={`${INPUT} disabled:bg-gray-100 disabled:text-gray-500`} />
+        </Field>
+        <Field label="Fournisseur">
+          <input value={form.supplierName} onChange={(e) => setForm({ ...form, supplierName: e.target.value })} className={INPUT} />
+        </Field>
+        <Field label="Référence / BL fournisseur">
+          <input value={form.supplierReference} onChange={(e) => setForm({ ...form, supplierReference: e.target.value })} className={INPUT} />
+        </Field>
+        <Field label="Transporteur">
+          <input value={form.carrier} onChange={(e) => setForm({ ...form, carrier: e.target.value })} className={INPUT} />
+        </Field>
+        <Field label="Notes">
+          <input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className={INPUT} />
+        </Field>
+      </div>
+      <div className="mt-3 flex flex-wrap justify-end gap-2">
+        <button onClick={onClose} className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-bold text-gray-700">
+          Annuler
+        </button>
+        <button onClick={save} disabled={busy}
+                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white disabled:opacity-40">
+          {busy ? "Enregistrement…" : "Enregistrer les corrections"}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+/** Correction d'une ligne non rangée. Le serveur refuse toute ligne déjà rangée. */
+function LineForm({ line, receptionId, onDone, onError, onClose }: {
+  line: ReceptionLine; receptionId: string;
+  onDone: (m: string) => void; onError: (m: string) => void; onClose: () => void;
+}) {
+  const [form, setForm] = useState({
+    label: line.received_label, quantity: String(Number(line.quantity_received)),
+    unit: line.unit || "EACH", warehouseCode: line.warehouse_code || WAREHOUSE_CODES[0],
+    notes: "",
+  });
+  const [busy, setBusy] = useState(false);
+
+  const save = async () => {
+    if (!(Number(form.quantity) > 0)) return onError("Quantité invalide.");
+    setBusy(true);
+    const r = await authFetch(`/stock/receptions/${receptionId}/lines/${line.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        label: form.label, quantity: Number(form.quantity),
+        unit: form.unit, warehouseCode: form.warehouseCode,
+        ...(form.notes ? { notes: form.notes } : {}),
+      }),
+    });
+    const d = await r.json().catch(() => ({}));
+    setBusy(false);
+    if (!r.ok) return onError(d?.error || "Échec de la correction.");
+    onDone(`Ligne ${line.line_no} corrigée. Aucun stock modifié.`);
+  };
+
+  return (
+    <div className="border-l-4 border-gray-400 p-4">
+      <p className="text-sm font-bold text-gray-900">Corriger la ligne {line.line_no}</p>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Field label="Désignation reçue">
+          <input value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} className={INPUT} />
+        </Field>
+        <Field label="Quantité reçue">
+          <input type="number" min={1} value={form.quantity}
+                 onChange={(e) => setForm({ ...form, quantity: e.target.value })} className={INPUT} />
+        </Field>
+        <Field label="Unité">
+          <input value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} className={INPUT} />
+        </Field>
+        <Field label="Entrepôt destination">
+          <select value={form.warehouseCode}
+                  onChange={(e) => setForm({ ...form, warehouseCode: e.target.value })} className={INPUT}>
+            {[...new Set([...WAREHOUSE_CODES, form.warehouseCode])].map((w) => <option key={w} value={w}>{w}</option>)}
+          </select>
+        </Field>
+        <div className="sm:col-span-2 lg:col-span-4">
+          <Field label="Notes" hint="facultatif">
+            <input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className={INPUT} />
+          </Field>
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button onClick={save} disabled={busy}
+                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white disabled:opacity-40">
+          {busy ? "Enregistrement…" : "Enregistrer"}
+        </button>
+        <button onClick={onClose} className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-bold text-gray-700">
+          Annuler
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Ajout d'une ligne à une réception existante — aucun effet sur le stock. */
+function AddLineForm({ receptionId, onDone, onError, onClose }: {
+  receptionId: string; onDone: (m: string) => void; onError: (m: string) => void; onClose: () => void;
+}) {
+  const [product, setProduct] = useState<ProductHit | null>(null);
+  const [form, setForm] = useState({
+    label: "", quantity: "", unit: "EACH", warehouseCode: WAREHOUSE_CODES[0], notes: "",
+  });
+  const [busy, setBusy] = useState(false);
+
+  const save = async () => {
+    const label = (form.label || product?.name || "").trim();
+    if (!label) return onError("Désignation reçue obligatoire.");
+    if (!(Number(form.quantity) > 0)) return onError("Quantité invalide.");
+    setBusy(true);
+    const r = await authFetch(`/stock/receptions/${receptionId}/lines`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        lines: [{
+          label, productId: product?.id || null, quantity: Number(form.quantity),
+          unit: form.unit || product?.unit || "EACH",
+          warehouseCode: form.warehouseCode, notes: form.notes || null,
+        }],
+      }),
+    });
+    const d = await r.json().catch(() => ({}));
+    setBusy(false);
+    if (!r.ok) return onError(d?.error || "Échec de l'ajout.");
+    onDone(`Ligne ajoutée : ${n(form.quantity)} × « ${label} » sur ${form.warehouseCode}. Aucun stock modifié.`);
+  };
+
+  return (
+    <section className="mt-3 rounded-xl border border-indigo-200 bg-indigo-50 p-4">
+      <p className="text-sm font-bold text-gray-900">Ajouter un produit à cette réception</p>
+      <div className="mt-2">
+        <ProductSearchSelect
+          value={product}
+          onSelect={(p) => {
+            setProduct(p);
+            setForm((f) => ({ ...f, label: p ? p.name : f.label, unit: p?.unit || f.unit }));
+          }}
+          placeholder="Rechercher un produit… (laissez vide si le produit n'existe pas encore)"
+        />
+      </div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Field label="Désignation reçue">
+          <input value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} className={INPUT} />
+        </Field>
+        <Field label="Quantité reçue">
+          <input type="number" min={1} value={form.quantity}
+                 onChange={(e) => setForm({ ...form, quantity: e.target.value })} className={INPUT} />
+        </Field>
+        <Field label="Unité">
+          <input value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} className={INPUT} />
+        </Field>
+        <Field label="Entrepôt destination">
+          <select value={form.warehouseCode}
+                  onChange={(e) => setForm({ ...form, warehouseCode: e.target.value })} className={INPUT}>
+            {WAREHOUSE_CODES.map((w) => <option key={w} value={w}>{w}</option>)}
+          </select>
+        </Field>
+      </div>
+      {!product && form.label.trim() && (
+        <p className="mt-2 rounded-lg bg-white p-2 text-xs text-amber-900">
+          Sans produit Triangle, la ligne sera enregistrée <span className="font-bold">à vérifier</span> :
+          elle appartient à la réception mais pas au stock disponible.
+        </p>
+      )}
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button onClick={save} disabled={busy}
+                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-40">
+          {busy ? "Ajout…" : "Ajouter la ligne"}
+        </button>
+        <button onClick={onClose} className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-bold text-gray-700">
+          Fermer
+        </button>
+      </div>
+    </section>
   );
 }
 

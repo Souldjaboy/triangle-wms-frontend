@@ -75,12 +75,17 @@ export default function ReceptionsPage() {
     return `${r.reception_number} ${r.container_number || ""} ${r.source || ""}`.toLowerCase().includes(q);
   }), [rows, query, statusFilter, warehouseFilter]);
 
-  const totals = useMemo(() => filtered.reduce((acc, r) => ({
-    received: acc.received + Number(r.quantity_received || 0),
-    putaway: acc.putaway + Number(r.quantity_putaway || 0),
-    pending: acc.pending + Number(r.quantity_pending || 0),
-    review: acc.review + Number(r.to_review || 0),
-  }), { received: 0, putaway: 0, pending: 0, review: 0 }), [filtered]);
+  /* Une réception annulée n'attend plus rien : ses quantités sortent des
+     totaux, sans quoi l'écran annoncerait un travail de rangement qui n'existe
+     pas. Elle reste visible dans la liste, pour l'historique. */
+  const totals = useMemo(() => filtered
+    .filter((r) => r.status !== "CANCELLED")
+    .reduce((acc, r) => ({
+      received: acc.received + Number(r.quantity_received || 0),
+      putaway: acc.putaway + Number(r.quantity_putaway || 0),
+      pending: acc.pending + Number(r.quantity_pending || 0),
+      review: acc.review + Number(r.to_review || 0),
+    }), { received: 0, putaway: 0, pending: 0, review: 0 }), [filtered]);
 
   const analyse = async () => {
     if (!file) return setError("Choisissez d'abord un fichier.");
@@ -129,10 +134,17 @@ export default function ReceptionsPage() {
               Entrepôts
             </Link>
             {canImport && (
-              <button onClick={() => setImportOpen((v) => !v)}
-                      className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white">
-                {importOpen ? "Fermer l'import" : "Importer les réceptions Excel"}
-              </button>
+              <>
+                {/* Deux moyens d'alimenter le MÊME modèle : saisie et import. */}
+                <Link href="/stocks/receptions/new"
+                      className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white">
+                  + Nouvelle réception
+                </Link>
+                <button onClick={() => setImportOpen((v) => !v)}
+                        className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white">
+                  {importOpen ? "Fermer l'import" : "Importer les réceptions Excel"}
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -259,14 +271,20 @@ export default function ReceptionsPage() {
               )}
               {filtered.map((r) => (
                 <tr key={r.id} className="hover:bg-gray-50">
-                  <td className="p-3 font-bold text-gray-900">{r.reception_number}</td>
+                  <td className="p-3">
+                    <p className="font-bold text-gray-900">{r.reception_number}</p>
+                    <p className="text-[11px] text-gray-500">{r.source_label || "—"}</p>
+                  </td>
                   <td className="p-3">{r.container_number || "—"}</td>
                   <td className="p-3">{fdate(r.reception_date)}</td>
                   <td className="p-3 text-xs">{r.warehouses || "—"}</td>
                   <td className="p-3 text-right">{n(r.line_count)}</td>
                   <td className="p-3 text-right font-bold">{n(r.quantity_received)}</td>
                   <td className="p-3 text-right text-green-700">{n(r.quantity_putaway)}</td>
-                  <td className="p-3 text-right font-bold text-amber-700">{n(r.quantity_pending)}</td>
+                  {/* Une réception annulée n'a plus de reste à ranger. */}
+                  <td className={`p-3 text-right font-bold ${r.status === "CANCELLED" ? "text-gray-400" : "text-amber-700"}`}>
+                    {r.status === "CANCELLED" ? "—" : n(r.quantity_pending)}
+                  </td>
                   <td className="p-3">
                     <span className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-bold ${STATUS_TONE[r.status] || "bg-gray-100 text-gray-700"}`}>
                       {r.status_label}
@@ -304,7 +322,10 @@ export default function ReceptionsPage() {
               <div className="mt-2 grid grid-cols-3 gap-2 text-center">
                 <div className="rounded-lg bg-gray-50 p-2"><p className="text-[11px] text-gray-500">Reçu</p><p className="font-black">{n(r.quantity_received)}</p></div>
                 <div className="rounded-lg bg-gray-50 p-2"><p className="text-[11px] text-gray-500">Rangé</p><p className="font-black text-green-700">{n(r.quantity_putaway)}</p></div>
-                <div className="rounded-lg bg-gray-50 p-2"><p className="text-[11px] text-gray-500">Reste</p><p className="font-black text-amber-700">{n(r.quantity_pending)}</p></div>
+                <div className="rounded-lg bg-gray-50 p-2"><p className="text-[11px] text-gray-500">Reste</p>
+                  <p className={`font-black ${r.status === "CANCELLED" ? "text-gray-400" : "text-amber-700"}`}>
+                    {r.status === "CANCELLED" ? "—" : n(r.quantity_pending)}
+                  </p></div>
               </div>
               <div className="mt-3 flex flex-wrap gap-3 text-sm font-bold">
                 <Link href={`/stocks/receptions/${r.id}`} className="text-blue-700">Voir</Link>

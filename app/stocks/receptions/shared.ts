@@ -6,6 +6,10 @@
  * additionnée au stock disponible.
  */
 
+/* Entrepôts du site. La liste sert de choix par défaut à la saisie manuelle ;
+   le serveur crée l'entrepôt s'il manque, mais ne renomme jamais l'existant. */
+export const WAREHOUSE_CODES = ["W-EM2S-A", "W-EM2S-B", "W-EM2S-C"];
+
 export type ReceptionRow = {
   id: number;
   reception_number: string;
@@ -13,6 +17,11 @@ export type ReceptionRow = {
   reception_date: string | null;
   status: string;
   status_label: string;
+  source_label?: string | null;
+  supplier_name?: string | null;
+  supplier_reference?: string | null;
+  carrier?: string | null;
+  cancel_reason?: string | null;
   warehouses: string | null;
   line_count: number;
   quantity_received: string;
