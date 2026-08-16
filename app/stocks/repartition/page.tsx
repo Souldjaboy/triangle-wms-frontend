@@ -23,7 +23,9 @@ type Pending = {
   stock: number; unit: string | null;
   location_code: string | null; warehouse: string | null;
   reparti: number; aLocaliser: number;
+  allocation_priority: number | null;
 };
+type Tri = "priorite" | "produit" | "quantite" | "emplacement";
 type Ligne = { key: number; bin: Bin | null; quantity: string };
 
 const n = (v: unknown) => Number(v || 0).toLocaleString("fr-FR");
@@ -41,15 +43,46 @@ export default function RepartitionPage() {
   const [query, setQuery] = useState("");
   const [seulementStock, setSeulementStock] = useState(true);
   const [actif, setActif] = useState<Pending | null>(null);
+  const [tri, setTri] = useState<Tri>("priorite");
+  const [glisse, setGlisse] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const r = await authFetch("/stock/allocation/pending", { cache: "no-store" });
+    const r = await authFetch(`/stock/allocation/pending?sort=${tri}`, { cache: "no-store" });
     if (r.ok) { const d = await r.json(); setItems(d.items); setTotals(d.totals); }
     else setError("Erreur de chargement des produits à localiser.");
     setLoading(false);
-  }, []);
+  }, [tri]);
   useEffect(() => { load(); }, [load]);
+
+  /* L'ordre de rangement appartient au magasinier : il est enregistré en base
+     pour survivre à un rechargement. Une priorité ne touche aucun stock. */
+  const enregistrerOrdre = useCallback(async (ordre: Pending[]) => {
+    setItems(ordre);
+    const r = await authFetch("/stock/allocation/order", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ order: ordre.map((i) => i.id) }),
+    });
+    if (!r.ok) { setError("Ordre non enregistré."); await load(); return; }
+    setItems(ordre.map((i, k) => ({ ...i, allocation_priority: k + 1 })));
+  }, [load]);
+
+  const deplacer = (index: number, delta: number) => {
+    const cible = index + delta;
+    if (cible < 0 || cible >= items.length) return;
+    const copie = [...items];
+    [copie[index], copie[cible]] = [copie[cible], copie[index]];
+    enregistrerOrdre(copie);
+  };
+
+  const deposer = (surIndex: number) => {
+    if (glisse === null || glisse === surIndex) return setGlisse(null);
+    const copie = [...items];
+    const [pris] = copie.splice(glisse, 1);
+    copie.splice(surIndex, 0, pris);
+    setGlisse(null);
+    enregistrerOrdre(copie);
+  };
 
   const filtres = useMemo(() => items.filter((i) => {
     if (seulementStock && i.stock <= 0) return false;
@@ -61,7 +94,13 @@ export default function RepartitionPage() {
     <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
       <div className="mx-auto max-w-7xl">
         <Link href="/stocks" className="text-sm font-bold text-blue-700">← Stocks</Link>
-        <h1 className="mt-1 text-2xl font-black text-gray-900 sm:text-3xl">Répartition par emplacement</h1>
+        <div className="mt-1 flex flex-wrap items-start justify-between gap-3">
+          <h1 className="text-2xl font-black text-gray-900 sm:text-3xl">Répartition par emplacement</h1>
+          <Link href="/stocks/produits/nouveau"
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white">
+            + Nouveau produit
+          </Link>
+        </div>
         <p className="mt-1 max-w-3xl text-sm text-gray-600">
           Ces produits ont déjà leur stock ; il reste à dire <span className="font-bold">où</span> il se
           trouve. Répartir ne crée ni ne supprime aucune unité — la somme saisie doit être exactement
@@ -90,12 +129,29 @@ export default function RepartitionPage() {
             <input type="checkbox" checked={seulementStock} onChange={(e) => setSeulementStock(e.target.checked)} />
             Masquer les produits à stock nul
           </label>
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            Trier par
+            <select value={tri} onChange={(e) => setTri(e.target.value as Tri)}
+                    className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm">
+              <option value="priorite">Ordre de rangement</option>
+              <option value="produit">Produit</option>
+              <option value="quantite">Quantité</option>
+              <option value="emplacement">Emplacement</option>
+            </select>
+          </label>
         </section>
+        {tri === "priorite" && (
+          <p className="mt-2 text-xs text-gray-500">
+            Glissez une ligne pour la déplacer, ou utilisez ▲ ▼. L&apos;ordre est enregistré
+            immédiatement et conservé après actualisation.
+          </p>
+        )}
 
         <div className="mt-4 overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
           <table className="w-full min-w-[760px] text-left text-sm">
             <thead className="bg-gray-50 text-xs uppercase text-gray-500">
               <tr>
+                <th className="p-3 w-24">Ordre</th>
                 <th className="p-3">Produit</th><th className="p-3">Référence</th>
                 <th className="p-3">Ancien code</th>
                 <th className="p-3 text-right">Stock</th><th className="p-3 text-right">Réparti</th>
@@ -103,12 +159,34 @@ export default function RepartitionPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {loading && <tr><td colSpan={7} className="p-6 text-center text-gray-500">Chargement…</td></tr>}
+              {loading && <tr><td colSpan={8} className="p-6 text-center text-gray-500">Chargement…</td></tr>}
               {!loading && !filtres.length && (
-                <tr><td colSpan={7} className="p-6 text-center text-gray-500">Aucun produit à localiser.</td></tr>
+                <tr><td colSpan={8} className="p-6 text-center text-gray-500">Aucun produit à localiser.</td></tr>
               )}
-              {filtres.map((i) => (
-                <tr key={i.id} className="hover:bg-gray-50">
+              {filtres.map((i, index) => (
+                <tr key={i.id}
+                    draggable={tri === "priorite"}
+                    onDragStart={() => setGlisse(index)}
+                    onDragOver={(e) => { if (glisse !== null) e.preventDefault(); }}
+                    onDrop={() => deposer(index)}
+                    className={`${glisse === index ? "opacity-40" : ""} hover:bg-gray-50`}>
+                  <td className="p-3">
+                    <div className="flex items-center gap-1">
+                      <span className="w-7 text-xs font-black text-gray-500">
+                        {i.allocation_priority ?? "—"}
+                      </span>
+                      {tri === "priorite" && (
+                        <span className="flex flex-col leading-none">
+                          <button onClick={() => deplacer(index, -1)} disabled={index === 0}
+                                  aria-label="Monter"
+                                  className="px-1 text-xs text-gray-500 disabled:opacity-25">▲</button>
+                          <button onClick={() => deplacer(index, 1)} disabled={index === filtres.length - 1}
+                                  aria-label="Descendre"
+                                  className="px-1 text-xs text-gray-500 disabled:opacity-25">▼</button>
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td className="p-3 font-semibold text-gray-900">{i.name}</td>
                   <td className="p-3 text-xs">{i.reference || "—"}</td>
                   <td className="p-3 text-xs text-gray-500">{i.location_code || "—"}</td>

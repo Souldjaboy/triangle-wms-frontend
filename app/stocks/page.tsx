@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { formatFCFA } from "../lib/format";
 import ProductSearchSelect, { type ProductHit } from "../components/ProductSearchSelect";
+import BinSelector, { useBinTree, type Bin } from "../components/BinSelector";
 import { usePermissions } from "../lib/permissions";
 
 export default function StocksPage() {
@@ -23,6 +24,12 @@ export default function StocksPage() {
   const [messageType, setMessageType] = useState<"success" | "error">("success");
   const [urlPresetApplied, setUrlPresetApplied] = useState(false);
   const [highlightMovementId, setHighlightMovementId] = useState<number | null>(null);
+  /* Emplacement exact de l'opération. Renseigné, il fait passer l'écriture par
+     le moteur de stock par emplacement plutôt que par le mouvement global. */
+  const { tree: binTree, reload: reloadBinTree } = useBinTree();
+  const [binSource, setBinSource] = useState<Bin | null>(null);
+  const [binDestination, setBinDestination] = useState<Bin | null>(null);
+  const [binsProduit, setBinsProduit] = useState<any[]>([]);
   /* Indicateurs de réception. La quantité en attente de rangement N'EST JAMAIS
      ajoutée au stock disponible : ce sont deux grandeurs distinctes. */
   const [receptionStats, setReceptionStats] = useState<{
@@ -179,6 +186,8 @@ export default function StocksPage() {
 
   const selectMovementType = (type: string) => {
     setSelectedType(type);
+    setBinSource(null);
+    setBinDestination(null);
 
     setFormData({
       ...formData,
@@ -241,6 +250,18 @@ export default function StocksPage() {
     });
   };
 
+  /* Bacs où ce produit a RÉELLEMENT du stock : ce sont les seules sources
+     possibles pour une sortie. */
+  const chargerBinsProduit = async (productId: number | null) => {
+    if (!productId) { setBinsProduit([]); return; }
+    const r = await fetch(`/api/stock/products/${productId}/balances`, {
+      headers: authHeaders(), cache: "no-store",
+    });
+    if (!r.ok) { setBinsProduit([]); return; }
+    const d = await r.json();
+    setBinsProduit((d.balances || []).filter((b: any) => Number(b.quantity) > 0));
+  };
+
   const handleProductSearchSelect = (product: ProductHit | null) => {
     setSelectedProduct(product);
     setFormData((current) => ({
@@ -276,14 +297,44 @@ export default function StocksPage() {
       user_role: currentUser?.role || userRole || "Non défini",
     };
 
-    const response = await fetch("/api/stock-movements", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...authHeaders(),
-      },
-      body: JSON.stringify(payload),
-    });
+    /* Un bac choisi = opération par emplacement. On passe alors par le moteur
+       transactionnel dédié, qui met à jour la balance ET products.stock dans la
+       même transaction. Sans bac, le comportement historique est conservé. */
+    const parEmplacement =
+      (selectedType === "Entrée"    && binDestination) ||
+      (selectedType === "Sortie"    && binSource) ||
+      (selectedType === "Transfert" && binSource && binDestination);
+
+    let response: Response;
+    if (parEmplacement && selectedProduct) {
+      const routes: Record<string, string> = {
+        "Entrée": "/api/stock/locations/entry",
+        "Sortie": "/api/stock/locations/exit",
+        "Transfert": "/api/stock/locations/transfer",
+      };
+      const corps: Record<string, unknown> = {
+        productId: selectedProduct.id,
+        quantity: Number(formData.quantity || 0),
+        reason: formData.reason || `${selectedType} par emplacement`,
+      };
+      if (selectedType === "Entrée") corps.locationId = binDestination!.id;
+      if (selectedType === "Sortie") corps.locationId = binSource!.id;
+      if (selectedType === "Transfert") {
+        corps.sourceLocationId = binSource!.id;
+        corps.destinationLocationId = binDestination!.id;
+      }
+      response = await fetch(routes[selectedType], {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify(corps),
+      });
+    } else {
+      response = await fetch("/api/stock-movements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify(payload),
+      });
+    }
 
     const data = await response.json();
 
@@ -294,8 +345,19 @@ export default function StocksPage() {
     }
 
     setMessageType("success");
-    setMessage(`Demande ${selectedType} créée avec succès.`);
+    setMessage(
+      parEmplacement
+        ? `${selectedType} enregistrée sur emplacement. ` +
+          (selectedType === "Transfert"
+            ? "Stock global inchangé."
+            : `Stock global ${data.stockBefore} → ${data.stockAfter}.`)
+        : `Demande ${selectedType} créée avec succès.`
+    );
     setSelectedProduct(null);
+    setBinSource(null);
+    setBinDestination(null);
+    setBinsProduit([]);
+    if (parEmplacement) { fetchMovements(); reloadBinTree(); }
 
     setFormData({
       type: selectedType,
@@ -555,10 +617,98 @@ export default function StocksPage() {
           <label className="mb-2 block text-sm font-bold text-gray-600">Rechercher un produit</label>
           <ProductSearchSelect
             value={selectedProduct}
-            onSelect={handleProductSearchSelect}
+            onSelect={(p) => {
+              handleProductSearchSelect(p);
+              setBinSource(null);
+              setBinDestination(null);
+              chargerBinsProduit(p?.id || null);
+            }}
             placeholder="Nom, référence, SKU ou code-barres..."
           />
         </div>
+
+        {/* ---------- EMPLACEMENT EXACT DE L'OPÉRATION ----------
+            Renseigné, il fait passer l'écriture par le moteur de stock par
+            emplacement : la balance du bac ET products.stock sont mis à jour
+            dans la même transaction. Laissé vide, le comportement historique
+            (mouvement global en attente de validation) est conservé. */}
+        {selectedProduct && selectedType !== "Inventaire" && (
+          <div className="md:col-span-3 rounded-2xl border border-blue-200 bg-blue-50 p-4">
+            <p className="text-sm font-black text-gray-900">Emplacement exact</p>
+
+            {selectedType === "Sortie" && (
+              <>
+                <p className="mt-1 text-xs text-blue-900">
+                  Seuls les bacs contenant réellement ce produit peuvent servir de source.
+                </p>
+                {binsProduit.length === 0 ? (
+                  <p className="mt-2 rounded-lg bg-white p-2 text-sm text-amber-900">
+                    Ce produit n&apos;a encore aucun stock localisé. Répartissez-le d&apos;abord depuis
+                    l&apos;écran Répartition, ou laissez l&apos;emplacement vide pour un mouvement global.
+                  </p>
+                ) : (
+                  <div className="mt-2 space-y-2">
+                    {binsProduit.map((b: any) => (
+                      <label key={b.location_id}
+                             className={`flex flex-wrap items-center justify-between gap-2 rounded-xl border p-3 text-sm ${
+                               binSource?.id === b.location_id ? "border-blue-500 bg-white" : "border-gray-200 bg-white"}`}>
+                        <span className="flex items-center gap-2">
+                          <input type="radio" name="bin_source" checked={binSource?.id === b.location_id}
+                                 onChange={() => setBinSource({
+                                   id: b.location_id, bin: b.bin_code,
+                                   code: b.full_code || b.emplacement_code,
+                                   quantity: Number(b.quantity), reserved: Number(b.reserved_quantity),
+                                   available: Number(b.available), status: b.status,
+                                 })} />
+                          <span className="font-bold">{b.warehouse_code}</span>
+                          <span className="text-gray-500">/ {b.row_code} / {b.loc_code} / {b.lvl_code} /</span>
+                          <span className="font-bold">{b.bin_code}</span>
+                        </span>
+                        <span className="text-xs">
+                          quantité <b>{Number(b.quantity).toLocaleString("fr-FR")}</b> ·
+                          réservé {Number(b.reserved_quantity).toLocaleString("fr-FR")} ·
+                          <b className="text-green-700"> disponible {Number(b.available).toLocaleString("fr-FR")}</b>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+                {binSource && Number(formData.quantity || 0) > binSource.available && (
+                  <p className="mt-2 rounded-lg bg-red-50 p-2 text-sm font-semibold text-red-800">
+                    {Number(formData.quantity).toLocaleString("fr-FR")} demandé(s) mais seulement{" "}
+                    {binSource.available.toLocaleString("fr-FR")} disponible(s) dans ce bac.
+                  </p>
+                )}
+              </>
+            )}
+
+            {selectedType === "Transfert" && (
+              <div className="mt-2 space-y-3">
+                <BinSelector tree={binTree} value={binSource} onSelect={setBinSource} label="SOURCE" />
+                <BinSelector tree={binTree} value={binDestination} onSelect={setBinDestination} label="DESTINATION" />
+                {binSource && binDestination && binSource.id === binDestination.id && (
+                  <p className="rounded-lg bg-red-50 p-2 text-sm font-semibold text-red-800">
+                    Source et destination identiques.
+                  </p>
+                )}
+                <p className="text-xs text-blue-900">
+                  Le transfert fonctionne entre deux entrepôts comme à l&apos;intérieur d&apos;un seul —
+                  rayon, location, level ou bac différents. Le stock global ne change jamais.
+                </p>
+              </div>
+            )}
+
+            {selectedType === "Entrée" && (
+              <div className="mt-2">
+                <BinSelector tree={binTree} value={binDestination} onSelect={setBinDestination}
+                             label="Bac de destination" />
+                <p className="mt-1 text-xs text-blue-900">
+                  La quantité augmentera la balance de ce bac ET le stock global d&apos;autant.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         <input
           type="text"
