@@ -307,9 +307,13 @@ export default function StocksPage() {
 
     let response: Response;
     if (parEmplacement && selectedProduct) {
+      /* Entrée et Sortie sont PRÉPARÉES : le mouvement part « En attente » et
+         n'applique rien. Une sortie réserve la quantité du bac sans la déduire.
+         C'est le bouton Valider de la liste qui applique — ou Refuser qui
+         libère. Le transfert, lui, reste immédiat et transactionnel. */
       const routes: Record<string, string> = {
-        "Entrée": "/api/stock/locations/entry",
-        "Sortie": "/api/stock/locations/exit",
+        "Entrée": "/api/stock/locations/prepare-entry",
+        "Sortie": "/api/stock/locations/prepare-exit",
         "Transfert": "/api/stock/locations/transfer",
       };
       const corps: Record<string, unknown> = {
@@ -346,12 +350,15 @@ export default function StocksPage() {
 
     setMessageType("success");
     setMessage(
-      parEmplacement
-        ? `${selectedType} enregistrée sur emplacement. ` +
-          (selectedType === "Transfert"
-            ? "Stock global inchangé."
-            : `Stock global ${data.stockBefore} → ${data.stockAfter}.`)
-        : `Demande ${selectedType} créée avec succès.`
+      !parEmplacement
+        ? `Demande ${selectedType} créée avec succès.`
+        : selectedType === "Transfert"
+          ? `Transfert appliqué : ${data.source?.full_code || "source"} → ${data.destination?.full_code || "destination"}. Stock global inchangé.`
+          : selectedType === "Sortie"
+            ? `Sortie préparée sur ce bac : ${formData.quantity} unité(s) réservées, ` +
+              `stock inchangé. Validez la demande pour la déduire.`
+            : `Entrée préparée sur ce bac : aucune unité ajoutée pour l'instant. ` +
+              `Validez la demande pour l'appliquer.`
     );
     setSelectedProduct(null);
     setBinSource(null);
@@ -640,6 +647,8 @@ export default function StocksPage() {
               <>
                 <p className="mt-1 text-xs text-blue-900">
                   Seuls les bacs contenant réellement ce produit peuvent servir de source.
+                  La sortie sera <b>préparée</b> : la quantité est réservée sur le bac, mais
+                  ni la balance ni le stock global ne baissent avant validation.
                 </p>
                 {binsProduit.length === 0 ? (
                   <p className="mt-2 rounded-lg bg-white p-2 text-sm text-amber-900">
@@ -703,7 +712,9 @@ export default function StocksPage() {
                 <BinSelector tree={binTree} value={binDestination} onSelect={setBinDestination}
                              label="Bac de destination" />
                 <p className="mt-1 text-xs text-blue-900">
-                  La quantité augmentera la balance de ce bac ET le stock global d&apos;autant.
+                  L&apos;entrée sera enregistrée <b>en attente</b> : aucune unité n&apos;est ajoutée
+                  tant qu&apos;elle n&apos;est pas validée. À la validation, la balance de ce bac
+                  et le stock global augmenteront d&apos;autant.
                 </p>
               </div>
             )}
