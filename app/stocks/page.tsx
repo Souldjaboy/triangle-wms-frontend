@@ -30,6 +30,17 @@ export default function StocksPage() {
   const [binSource, setBinSource] = useState<Bin | null>(null);
   const [binDestination, setBinDestination] = useState<Bin | null>(null);
   const [binsProduit, setBinsProduit] = useState<any[]>([]);
+  /* Nombre TOTAL de produits actifs de l'entreprise. `products` ne contient
+     que la première page (50 au maximum) : l'afficher comme compteur donnait
+     50 au lieu de 247. Le total vient du serveur et ne bouge ni avec la
+     pagination, ni avec la recherche, ni avec le tri. */
+  const [totalProduits, setTotalProduits] = useState<number | null>(null);
+  /* Répartition du produit sélectionné, et localisation directe depuis cet
+     écran quand il n'a encore aucun bac. */
+  const [totauxProduit, setTotauxProduit] = useState<{stock:number;reparti:number;aLocaliser:number}|null>(null);
+  const [localisation, setLocalisation] = useState<{key:number;bin:Bin|null;quantity:string}[]>([]);
+  const [seqLoc, setSeqLoc] = useState(1);
+  const [suggestion, setSuggestion] = useState<any>(null);
   /* Indicateurs de réception. La quantité en attente de rangement N'EST JAMAIS
      ajoutée au stock disponible : ce sont deux grandeurs distinctes. */
   const [receptionStats, setReceptionStats] = useState<{
@@ -80,6 +91,7 @@ export default function StocksPage() {
 
     const data = await response.json().catch(() => ({}));
     setProducts(Array.isArray(data.items) ? data.items : []);
+    if (typeof data.total_active === "number") setTotalProduits(data.total_active);
   };
 
   const fetchWarehouses = async () => {
@@ -253,13 +265,44 @@ export default function StocksPage() {
   /* Bacs où ce produit a RÉELLEMENT du stock : ce sont les seules sources
      possibles pour une sortie. */
   const chargerBinsProduit = async (productId: number | null) => {
-    if (!productId) { setBinsProduit([]); return; }
+    setLocalisation([]); setSuggestion(null);
+    if (!productId) { setBinsProduit([]); setTotauxProduit(null); return; }
     const r = await fetch(`/api/stock/products/${productId}/balances`, {
       headers: authHeaders(), cache: "no-store",
     });
-    if (!r.ok) { setBinsProduit([]); return; }
+    if (!r.ok) { setBinsProduit([]); setTotauxProduit(null); return; }
     const d = await r.json();
     setBinsProduit((d.balances || []).filter((b: any) => Number(b.quantity) > 0));
+    setTotauxProduit(d.totals || null);
+    /* Rien de localisé mais du stock : on va chercher ce que l'historique
+       suggère, sans jamais l'appliquer. */
+    if (d.totals && d.totals.reparti === 0 && d.totals.stock > 0) {
+      const sg = await fetch(`/api/stock/products/${productId}/legacy-location`, {
+        headers: authHeaders(), cache: "no-store",
+      });
+      if (sg.ok) setSuggestion(await sg.json());
+    }
+  };
+
+  /* Localiser un stock existant : on dit OÙ il est, on ne crée aucune unité.
+     La somme doit être exactement égale au stock du produit. */
+  const localiserStock = async () => {
+    if (!selectedProduct || !totauxProduit) return;
+    const r = await fetch(`/api/stock/products/${selectedProduct.id}/allocate`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({
+        allocations: localisation
+          .filter((l) => l.bin && Number(l.quantity) > 0)
+          .map((l) => ({ locationId: l.bin!.id, quantity: Number(l.quantity) })),
+      }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { setMessageType("error"); setMessage(d?.error || "Échec de la localisation."); return; }
+    setMessageType("success");
+    setMessage(`« ${selectedProduct.name} » localisé sur ${d.lignes.length} bac(s). Stock global inchangé.`);
+    setLocalisation([]);
+    await chargerBinsProduit(selectedProduct.id);
+    reloadBinTree();
   };
 
   const handleProductSearchSelect = (product: ProductHit | null) => {
@@ -643,6 +686,114 @@ export default function StocksPage() {
           <div className="md:col-span-3 rounded-2xl border border-blue-200 bg-blue-50 p-4">
             <p className="text-sm font-black text-gray-900">Emplacement exact</p>
 
+            {totauxProduit && (
+              <div className="mt-2 grid grid-cols-3 gap-2 text-center">
+                <div className="rounded-lg bg-white p-2">
+                  <p className="text-[11px] text-gray-500">Stock global</p>
+                  <p className="font-black">{totauxProduit.stock.toLocaleString("fr-FR")}</p>
+                </div>
+                <div className="rounded-lg bg-white p-2">
+                  <p className="text-[11px] text-gray-500">Stock localisé</p>
+                  <p className="font-black text-green-700">{totauxProduit.reparti.toLocaleString("fr-FR")}</p>
+                </div>
+                <div className="rounded-lg bg-white p-2">
+                  <p className="text-[11px] text-gray-500">À localiser</p>
+                  <p className={`font-black ${totauxProduit.aLocaliser > 0 ? "text-amber-700" : ""}`}>
+                    {totauxProduit.aLocaliser.toLocaleString("fr-FR")}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* ---------- LOCALISER UN STOCK EXISTANT ----------
+                Un produit peut avoir du stock sans aucun bac connu. Plutôt que
+                de renvoyer l'utilisateur sur un autre écran, on lui permet de
+                le localiser ici. Dire OÙ est le stock ne crée aucune unité :
+                products.stock reste identique. */}
+            {selectedType === "Sortie" && totauxProduit
+              && totauxProduit.reparti === 0 && totauxProduit.stock > 0 && (
+              <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3">
+                <p className="text-sm font-black text-gray-900">Localiser le stock existant</p>
+                <p className="mt-1 text-xs text-amber-900">
+                  Ce produit a {totauxProduit.stock.toLocaleString("fr-FR")} unité(s) mais aucun bac
+                  connu. Indiquez où elles se trouvent — <b>aucune unité n&apos;est créée</b>, le
+                  stock global reste identique.
+                </p>
+
+                {suggestion?.suggestion && (
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white p-2">
+                    <p className="text-xs">
+                      Ancien emplacement connu :{" "}
+                      <b>{suggestion.suggestion.full_code || suggestion.suggestion.emplacement_code}</b>
+                      <span className="text-gray-500"> — {suggestion.suggestion.preuves}</span>
+                    </p>
+                    <button type="button"
+                            onClick={() => {
+                              const sg = suggestion.suggestion;
+                              setLocalisation([{ key: seqLoc, quantity: String(totauxProduit.stock),
+                                bin: { id: sg.id, bin: sg.bin_code,
+                                       code: sg.full_code || sg.emplacement_code,
+                                       quantity: 0, reserved: 0, available: 0, status: "EMPTY" } }]);
+                              setSeqLoc((x) => x + 1);
+                            }}
+                            className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white">
+                      Utiliser cet emplacement comme suggestion
+                    </button>
+                  </div>
+                )}
+                {suggestion && !suggestion.suggestion && suggestion.pistes?.length > 0 && (
+                  <p className="mt-2 rounded-lg bg-white p-2 text-xs text-gray-700">
+                    Historique trouvé mais inexploitable tel quel :{" "}
+                    {suggestion.pistes.map((p: any) => p.full_code || p.emplacement_code).join(", ")}
+                    {suggestion.pistes[0]?.motif_fr ? ` — ${suggestion.pistes[0].motif_fr}.` : ""}{" "}
+                    Saisissez le bac réel ci-dessous.
+                  </p>
+                )}
+
+                <div className="mt-2 space-y-2">
+                  {localisation.map((l, i) => (
+                    <div key={l.key} className="rounded-lg bg-white p-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold uppercase text-gray-500">Bac {i + 1}</span>
+                        <button type="button" className="text-[11px] font-bold text-red-700"
+                                onClick={() => setLocalisation((p) => p.filter((x) => x.key !== l.key))}>
+                          Retirer
+                        </button>
+                      </div>
+                      <BinSelector tree={binTree} value={l.bin} label="" compact
+                        onSelect={(bin) => setLocalisation((p) => p.map((x) => x.key === l.key ? { ...x, bin } : x))} />
+                      <input type="number" min={1} value={l.quantity} placeholder="Quantité"
+                             onChange={(e) => setLocalisation((p) => p.map((x) => x.key === l.key ? { ...x, quantity: e.target.value } : x))}
+                             className="mt-2 w-32 rounded-lg border border-gray-300 px-2 py-1.5 text-sm" />
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                  <button type="button"
+                          onClick={() => { setLocalisation((p) => [...p, { key: seqLoc, bin: null, quantity: "" }]); setSeqLoc((x) => x + 1); }}
+                          className="text-xs font-bold text-blue-700">+ Ajouter un bac</button>
+                  {localisation.length > 0 && (() => {
+                    const t = localisation.reduce((s, l) => s + Number(l.quantity || 0), 0);
+                    const ecart = t - totauxProduit.stock;
+                    const pret = ecart === 0 && localisation.every((l) => l.bin && Number(l.quantity) > 0);
+                    return (
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className={`text-xs font-black ${ecart === 0 ? "text-green-800" : "text-amber-900"}`}>
+                          {t.toLocaleString("fr-FR")} / {totauxProduit.stock.toLocaleString("fr-FR")}
+                          {ecart === 0 ? " — complet" : ecart > 0 ? ` — ${ecart} de trop` : ` — ${-ecart} manquante(s)`}
+                        </span>
+                        <button type="button" onClick={localiserStock} disabled={!pret}
+                                className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40">
+                          Enregistrer la localisation
+                        </button>
+                      </span>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
+
             {selectedType === "Sortie" && (
               <>
                 <p className="mt-1 text-xs text-blue-900">
@@ -883,7 +1034,7 @@ export default function StocksPage() {
         <div className="bg-white p-6 rounded-2xl shadow">
           <p className="text-gray-500">Produits</p>
           <h2 className="text-3xl font-bold text-blue-500">
-            {products.length}
+            {(totalProduits ?? products.length).toLocaleString("fr-FR")}
           </h2>
         </div>
 
