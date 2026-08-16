@@ -33,7 +33,7 @@ type Doc = {
   total_amount: string | null; observation: string | null;
   created_by: string | null; created_at: string | null; status: string | null;
   items: Item[];
-  auteur_affiche: { nom: string; fonction: string; email: string };
+  auteur_affiche: { nom: string; fonction: string; role?: string; badge?: string; email: string };
   auteur_substitue: boolean;
   mouvement_type: string | null; mouvement_quantite: number | null;
   mouvement_statut: string | null; stock_before: string | null; stock_after: string | null;
@@ -180,6 +180,9 @@ function Impression() {
               <p className="font-bold">Établi par</p>
               <p className="mt-1">{doc.auteur_affiche.nom || "—"}</p>
               {doc.auteur_affiche.fonction && <p className="text-gray-600">{doc.auteur_affiche.fonction}</p>}
+              {doc.auteur_affiche.badge && (
+                <p className="text-gray-600">Badge : {doc.auteur_affiche.badge}</p>
+              )}
               {doc.auteur_affiche.email && <p className="text-gray-600">{doc.auteur_affiche.email}</p>}
               <div className="mt-10 border-t border-black pt-1 text-gray-600">Signature</div>
             </div>
