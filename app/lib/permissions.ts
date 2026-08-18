@@ -1,43 +1,122 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { authFetch } from "./api";
 
 /**
- * RBAC Triangle côté frontend — MÊME SOURCE DE VÉRITÉ que le backend.
+ * DROITS CÔTÉ NAVIGATEUR — SOURCE UNIQUE.
  *
- * Les permissions sont lues via GET /me/permissions à chaque montage (PHASE 31 :
- * propagation immédiate — elles ne proviennent PAS du JWT, donc une modification
- * par le Super Admin est effective dès le rechargement suivant).
+ * Menus, boutons et gardes de route lisent tous ici. Une page qui déciderait
+ * elle-même à partir du rôle finirait par diverger du backend le jour où un
+ * droit est retiré à un compte sans changer son rôle.
  *
- * Règle (identique au backend) :
- *   case cochée   = action autorisée
- *   case décochée = action refusée
- *   module non configuré = repli sur le rôle (fallback_allowed)
+ * Ce que dit ce module n'est qu'un affichage. Le refus qui compte est celui du
+ * backend : masquer un bouton n'a jamais empêché personne d'appeler l'API.
+ *
+ * Le contrat historique — { perms, loading, can, reload } — est conservé : les
+ * écrans qui s'en servent déjà continuent de fonctionner sans modification.
+ * S'y ajoutent la visibilité des modules et le référentiel, que le nouveau
+ * centre des droits utilise.
  */
 
-export const ACTIONS = ["view", "create", "update", "delete", "validate"] as const;
-export type Action = (typeof ACTIONS)[number];
+export const ACTIONS = [
+  "visible", "view", "create", "update", "delete", "import", "export",
+  "print", "validate", "cancel", "putaway", "transfer", "reserve",
+  "assign", "configure", "share", "manage",
+] as const;
+export type Action = (typeof ACTIONS)[number] | string;
+
+export type ModulePermission = {
+  module_key: string;
+  parent_key: string | null;
+  label: string;
+  description: string;
+  sort_order: number;
+  is_system: boolean;
+  actions: string[];
+};
 
 type ModulePerms = Record<string, boolean>;
 export type EffectivePermissions = {
   is_super_admin: boolean;
   role?: string;
+  company_id?: number | null;
   modules: Record<string, ModulePerms>;
+  /* Repli appliqué aux modules absents du référentiel. */
   fallback_allowed: boolean;
+  /* Référentiel hiérarchisé, vide tant que le centre des droits n'est pas
+     déployé — les écrans historiques n'en ont pas besoin. */
+  catalogue: ModulePermission[];
 };
 
-// Aliases : miroir de normalizeModuleKey() du backend (évite les doublons).
+/* Miroir des alias du backend : un menu qui pointe « stocks » et un droit
+   enregistré sur « stock » doivent désigner la même chose. */
 const ALIASES: Record<string, string> = {
-  stocks: "stock", inventaires: "inventaire", emplacements: "emplacement",
+  stocks: "stock", inventaires: "stock.inventaire", inventaire: "stock.inventaire",
+  emplacements: "stock.emplacement", emplacement: "stock.emplacement",
   produits: "produit", utilisateurs: "utilisateur", entrepots: "entrepot",
   demandes: "demande", receptions: "reception", documents: "document",
-  rapports: "rapport", assistant_ia: "ia", assistant: "ia",
-  tresorerie: "comptabilite", factures: "comptabilite", camions: "logistique",
+  rapports: "rapport", badges: "badge", notifications: "notification",
+  assistant_ia: "ia", assistant: "ia", tresorerie: "comptabilite",
+  factures: "comptabilite", camions: "logistique", clients: "crm",
+  fournisseurs: "fournisseur", partenaires: "partenaire",
+  ventes: "vente", achats: "achat", parametres: "parametre",
 };
+
 function normalizeModuleKey(key: string): string {
   const k = String(key || "").trim().toLowerCase().replace(/\s+/g, "_");
   return ALIASES[k] || k;
+}
+
+/** « stock.entree.x » → ["stock.entree.x", "stock.entree", "stock"]. */
+function chaineDeCles(key: string): string[] {
+  const morceaux = normalizeModuleKey(key).split(".");
+  const out: string[] = [];
+  for (let i = morceaux.length; i > 0; i -= 1) out.push(morceaux.slice(0, i).join("."));
+  return out;
+}
+
+const ROLES_ADMIN = [
+  "super_admin", "admin", "administrateur", "direction", "directeur", "gerant", "manager",
+];
+
+/**
+ * Interroge le centre des droits, et retombe sur l'ancienne route tant qu'il
+ * n'est pas déployé : le frontend peut ainsi précéder le backend sans que les
+ * écrans existants perdent leurs permissions.
+ */
+async function charger(): Promise<EffectivePermissions | null> {
+  try {
+    const r = await authFetch("/permissions/me", { cache: "no-store" });
+    if (r.ok) {
+      const d = await r.json();
+      return {
+        is_super_admin: d.is_super_admin === true,
+        role: d.role || "",
+        company_id: d.company_id ?? null,
+        modules: d.permissions || {},
+        fallback_allowed:
+          d.is_super_admin === true ||
+          ROLES_ADMIN.includes(String(d.role || "").toLowerCase().trim()),
+        catalogue: Array.isArray(d.modules) ? d.modules : [],
+      };
+    }
+  } catch { /* on tente l'ancienne route */ }
+
+  try {
+    const r = await authFetch("/me/permissions", { cache: "no-store" });
+    if (!r.ok) return null;
+    const d = await r.json();
+    return {
+      is_super_admin: d.is_super_admin === true,
+      role: d.role || "",
+      modules: d.modules || {},
+      fallback_allowed: d.fallback_allowed === true,
+      catalogue: [],
+    };
+  } catch {
+    return null;
+  }
 }
 
 export function usePermissions() {
@@ -46,8 +125,7 @@ export function usePermissions() {
 
   const load = useCallback(() => {
     setLoading(true);
-    authFetch("/me/permissions", { cache: "no-store" })
-      .then(async (r) => (r.ok ? ((await r.json()) as EffectivePermissions) : null))
+    charger()
       .then(setPerms)
       .catch(() => setPerms(null))
       .finally(() => setLoading(false));
@@ -60,18 +138,56 @@ export function usePermissions() {
     return () => window.removeEventListener("triangle-permissions-updated", onUpdate);
   }, [load]);
 
-  /** can("stock", "validate") — identique au verdict backend. */
-  const can = useCallback(
-    (moduleKey: string, action: Action = "view"): boolean => {
-      if (!perms) return true; // avant chargement : ne rien masquer (évite le clignotement)
+  const resoudre = useCallback(
+    (moduleKey: string, action: Action): boolean => {
+      /* Avant chargement on ne masque rien : un menu qui clignote à chaque
+         navigation coûte plus cher qu'un bouton visible une seconde de trop,
+         et le backend refuse de toute façon ce qui n'est pas permis. */
+      if (!perms) return true;
       if (perms.is_super_admin) return true;
-      const root = normalizeModuleKey(String(moduleKey).split(".")[0]);
-      const mod = perms.modules[normalizeModuleKey(moduleKey)] || perms.modules[root];
-      if (!mod) return perms.fallback_allowed; // module non configuré -> repli rôle
-      return mod[action] === true;
+
+      for (const cle of chaineDeCles(moduleKey)) {
+        const mod = perms.modules[cle];
+        if (mod && action in mod) return mod[action] === true;
+      }
+      /* Module absent du référentiel : comportement historique. */
+      return perms.fallback_allowed;
     },
     [perms]
   );
 
-  return { perms, loading, can, reload: load };
+  /** can("stock.entree", "create") — même verdict que le backend. */
+  const can = useCallback(
+    (moduleKey: string, action: Action = "view") => resoudre(moduleKey, action),
+    [resoudre]
+  );
+
+  /**
+   * Un module masqué disparaît du menu et de la navigation. Son URL et ses
+   * routes API sont refusées côté serveur, indépendamment de cet appel.
+   */
+  const isModuleVisible = useCallback(
+    (moduleKey: string) => {
+      if (!perms) return true;
+      if (perms.is_super_admin) return true;
+      for (const cle of chaineDeCles(moduleKey)) {
+        const mod = perms.modules[cle];
+        if (mod && "visible" in mod) return mod.visible === true;
+        if (mod && "view" in mod) return mod.view === true;
+      }
+      return perms.fallback_allowed;
+    },
+    [perms]
+  );
+
+  const catalogue = useMemo(() => perms?.catalogue ?? [], [perms]);
+
+  return { perms, loading, can, isModuleVisible, catalogue, reload: load };
+}
+
+/** Prévient tous les écrans montés qu'un droit vient de changer. */
+export function signalerChangementDroits() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("triangle-permissions-updated"));
+  }
 }

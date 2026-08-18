@@ -592,6 +592,17 @@ export default function DashboardPage() {
         </Link>
       )}
 
+      {/* Centre des droits : visible pour qui peut réellement les gérer, et
+          pour personne d'autre. La même permission garde l'API. */}
+      {can("utilisateur.permissions", "manage") && (
+        <Link href="/parametres/permissions">
+          <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+            <span aria-hidden>🔐</span>
+            Droits &amp; permissions
+          </li>
+        </Link>
+      )}
+
       {moduleEnabled("badges") && (
         <Link href="/badges">
           <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
