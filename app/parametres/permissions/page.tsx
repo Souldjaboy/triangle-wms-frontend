@@ -85,6 +85,14 @@ export default function CentrePermissions() {
         setUtilisateurs(d.users || []);
         const premier = (d.users || []).find((u: Utilisateur) => !u.is_super_admin) || (d.users || [])[0];
         if (premier) setCible(premier.id);
+        /* Une liste vide sans explication est indiscernable d'une panne :
+           c'est ce qui a rendu ce défaut si long à diagnostiquer. */
+        if (!(d.users || []).length) {
+          setErreur("Aucun compte à administrer n’a été renvoyé pour cette entreprise.");
+        }
+      } else {
+        const d = await ru.json().catch(() => ({}));
+        setErreur(d.error || "Impossible de charger la liste des employés.");
       }
     })();
   }, []);
