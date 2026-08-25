@@ -23,6 +23,10 @@ export const ACTIONS = [
   "visible", "view", "create", "update", "delete", "import", "export",
   "print", "validate", "cancel", "putaway", "transfer", "reserve",
   "assign", "configure", "share", "manage",
+  /* Ajoutées avec les emplacements et les dates de documents : réimprimer un
+     bon qui circule, archiver plutôt que supprimer, renommer en masse, et
+     relire le journal des modifications. */
+  "reprint", "archive", "reorganize", "audit",
 ] as const;
 export type Action = (typeof ACTIONS)[number] | string;
 

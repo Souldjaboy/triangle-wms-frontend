@@ -5,6 +5,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { authFetch } from "../../lib/api";
 import { formatFCFA } from "../../lib/format";
+import { afficherDate } from "../../lib/dates";
+import DateDocumentEditor from "../../components/DateDocumentEditor";
+import { usePermissions } from "../../lib/permissions";
 
 export default function DocumentDetailPage() {
   const params = useParams<{ id: string }>();
@@ -13,6 +16,11 @@ export default function DocumentDetailPage() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [emailOpen, setEmailOpen] = useState(false);
+  const [dateOpen, setDateOpen] = useState(false);
+  /* La date métier du document, servie par /documents/:id/dates. Tant
+     qu'elle n'est pas chargée, on retombe sur ce que porte le document. */
+  const [datesDoc, setDatesDoc] = useState<any>(null);
+  const { can } = usePermissions();
   const [emailForm, setEmailForm] = useState({
     recipient_email: "",
     subject: "",
@@ -46,9 +54,30 @@ export default function DocumentDetailPage() {
     }
   };
 
+  /** Les quatre dates du document, servies par l'API dédiée. */
+  const chargerDates = async () => {
+    const r = await authFetch(`/documents/${params.id}/dates`, { cache: "no-store" });
+    if (r.ok) setDatesDoc(await r.json().catch(() => null));
+  };
+
   useEffect(() => {
     loadDocument();
+    chargerDates();
   }, [params.id]);
+
+  /**
+   * Imprimer, et le dire au serveur.
+   *
+   * `printed_at` n'est pas la date du document : c'est celle de sa sortie.
+   * Sans cet enregistrement, on ne saurait pas qu'un bon circule déjà, et
+   * corriger sa date resterait un geste anodin alors qu'il ne l'est plus.
+   */
+  const imprimer = () => {
+    window.print();
+    authFetch(`/documents/${params.id}/printed`, { method: "POST" })
+      .then(() => chargerDates())
+      .catch(() => {});
+  };
 
   const sendEmail = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -84,6 +113,7 @@ export default function DocumentDetailPage() {
   }
 
   return (
+    <>
     <div className="min-h-screen bg-gray-100 p-4 md:p-8">
       <div className="mb-6 flex flex-col gap-3 print:hidden md:flex-row md:items-center md:justify-between">
         <div>
@@ -93,11 +123,17 @@ export default function DocumentDetailPage() {
           <h1 className="mt-2 text-3xl font-black text-black">{doc.document_type}</h1>
           <p className="font-bold text-blue-700">{doc.document_number}</p>
         </div>
-        <div className="flex flex-wrap gap-3">
-          <button onClick={() => window.print()} className="rounded-xl bg-black px-5 py-3 font-bold text-white">
+        <div className="flex flex-wrap gap-3 print:hidden">
+          {can("document", "update") && (
+            <button onClick={() => setDateOpen(true)}
+                    className="rounded-xl border-2 border-black px-5 py-3 font-bold text-black">
+              Modifier la date et l&apos;heure
+            </button>
+          )}
+          <button onClick={imprimer} className="rounded-xl bg-black px-5 py-3 font-bold text-white">
             Imprimer
           </button>
-          <button onClick={() => window.print()} className="rounded-xl bg-gray-800 px-5 py-3 font-bold text-white">
+          <button onClick={imprimer} className="rounded-xl bg-gray-800 px-5 py-3 font-bold text-white">
             Télécharger PDF
           </button>
           <button onClick={() => setEmailOpen(true)} className="rounded-xl bg-yellow-500 px-5 py-3 font-bold text-black">
@@ -167,9 +203,21 @@ export default function DocumentDetailPage() {
           <div className="text-right">
             <p className="text-2xl font-black">{doc.document_type}</p>
             <p className="font-bold text-blue-700">{doc.document_number}</p>
+            {/* Date MÉTIER, à l'heure de Bamako. Auparavant on imprimait
+                created_at dans le fuseau du navigateur : le même bon affichait
+                une heure différente selon le téléphone qui l'ouvrait. */}
             <p className="text-gray-500">
-              {doc.created_at ? new Date(doc.created_at).toLocaleString("fr-FR") : "-"}
+              {afficherDate(
+                datesDoc?.dates?.document_affiche?.iso
+                  || doc.document_datetime || doc.operation_effective_at || doc.created_at,
+                "-"
+              )}
             </p>
+            {Number(datesDoc?.revision || doc.document_revision || 1) > 1 && (
+              <p className="text-xs text-gray-400">
+                Révision {datesDoc?.revision || doc.document_revision}
+              </p>
+            )}
           </div>
         </header>
 
@@ -225,5 +273,13 @@ export default function DocumentDetailPage() {
         )}
       </main>
     </div>
+
+      <DateDocumentEditor
+        documentId={Number(params.id)}
+        ouvert={dateOpen}
+        onFermer={() => setDateOpen(false)}
+        onEnregistre={(v) => { setDatesDoc(v); loadDocument(); }}
+      />
+    </>
   );
 }

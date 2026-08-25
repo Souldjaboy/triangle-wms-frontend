@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { formatFCFA } from "../lib/format";
+import { afficherDate } from "../lib/dates";
 
 /* Le type d'un document est du texte libre selon son origine : on le classe
    pour filtrer, sans jamais le réécrire. Même règle que le serveur. */
@@ -343,11 +344,17 @@ export default function DocumentsPage() {
                         Créé par : {doc.created_by}
                       </p>
 
+                      {/* Date MÉTIER à l'heure de Bamako, avec repli explicite
+                          sur la date de création tant qu'aucune n'est posée. */}
                       <p className="text-sm text-gray-500">
                         Date :{" "}
-                        {doc.created_at
-                          ? new Date(doc.created_at).toLocaleString("fr-FR")
-                          : "-"}
+                        {afficherDate(
+                          doc.document_datetime || doc.operation_effective_at || doc.created_at,
+                          "-"
+                        )}
+                        {!doc.document_datetime && !doc.operation_effective_at && doc.created_at && (
+                          <span className="text-xs text-gray-400"> (date de création)</span>
+                        )}
                       </p>
                     </div>
 
