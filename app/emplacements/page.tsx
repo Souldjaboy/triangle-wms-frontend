@@ -29,7 +29,9 @@ type Bin = {
   id: number; warehouse_code: string; row_code: string; shelf_code: string;
   level_code: string; bin_code: string; code: string; previous_full_code: string | null;
   quantity: number; reserved: number; available: number; nb_produits: number;
-  statut: "EMPTY" | "OCCUPIED" | "PARTIAL" | "DISABLED" | "ARCHIVED";
+  statut: "EMPTY" | "OCCUPIED" | "PARTIAL" | "DISABLED" | "ARCHIVED" | "A_REGULARISER";
+  statut_libelle: string;
+  ambigu: boolean; regularisable: boolean;
   exploitable: boolean; motif: string | null; motif_libelle: string | null;
   composite: boolean; bins_suggeres: string[]; is_top: boolean;
   is_active: boolean; archived_at: string | null; contenu: Produit[];
@@ -42,6 +44,7 @@ const STATUTS: { cle: string; label: string }[] = [
   { cle: "OCCUPIED", label: "Occupés" },
   { cle: "PARTIAL", label: "Partiellement occupés" },
   { cle: "DISABLED", label: "Désactivés" },
+  { cle: "A_REGULARISER", label: "À régulariser" },
 ];
 
 const COULEUR: Record<string, string> = {
@@ -50,10 +53,12 @@ const COULEUR: Record<string, string> = {
   PARTIAL: "bg-amber-100 text-amber-800",
   DISABLED: "bg-gray-200 text-gray-700",
   ARCHIVED: "bg-gray-100 text-gray-500",
+  A_REGULARISER: "bg-rose-100 text-rose-800",
 };
 const LIBELLE: Record<string, string> = {
   EMPTY: "Libre", OCCUPIED: "Occupé", PARTIAL: "Partiellement occupé",
   DISABLED: "Désactivé", ARCHIVED: "Archivé",
+  A_REGULARISER: "Emplacement historique à régulariser",
 };
 
 const n = (v: unknown) => Number(v || 0).toLocaleString("fr-FR");
@@ -61,6 +66,11 @@ const CHAMP = "mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm";
 
 /** Le résumé d'un bac tel qu'on veut le lire d'un coup d'œil dans une liste. */
 function resume(b: Bin): string {
+  if (b.ambigu) {
+    return b.quantity > 0
+      ? `${b.nb_produits} produit(s) — ${n(b.quantity)} unité(s) à répartir`
+      : "Historique, sans stock";
+  }
   if (b.statut === "DISABLED") return "Désactivé";
   if (b.statut === "ARCHIVED") return "Archivé";
   if (b.quantity <= 0) return "Libre";
@@ -215,12 +225,14 @@ export default function EmplacementsPage() {
             ))}
           </span>
         </div>
-        {Number(compteurs.composites || 0) > 0 && (
-          <p className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
-            <span className="font-bold">{compteurs.composites} emplacement(s) « 1,2,3 »</span> — créés par
-            l&apos;ancien bouton « Full Bin », qui enregistrait un seul bac au lieu de trois.
-            C&apos;est pour cela que Bin 1, Bin 2 et Bin 3 restaient introuvables. Ouvrez-les
-            pour créer les vrais bacs ; le stock ne bouge pas.
+        {Number(compteurs.A_REGULARISER || 0) > 0 && (
+          <p className="mt-3 rounded-xl border border-rose-300 bg-rose-50 p-3 text-xs text-rose-900">
+            <span className="font-bold">
+              {compteurs.A_REGULARISER} emplacement(s) historique(s) à régulariser
+            </span>{" "}
+            — « 1,2,3 », « BIN1-2 » : une ligne qui nomme plusieurs bacs à la fois. Elles viennent de
+            l&apos;ancien écran et des imports, et elles portent souvent du stock réel. Elles ne sont
+            plus masquées : ouvrez-les pour dire ce qui va où. Rien n&apos;est réparti automatiquement.
           </p>
         )}
       </section>
@@ -234,7 +246,10 @@ export default function EmplacementsPage() {
             <p className="text-sm text-gray-500">Aucun emplacement ne correspond.</p>
           ) : vue === "tableau" ? (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
+              {/* Une largeur minimale : sur un téléphone le tableau DÉFILE au
+                  lieu de s'écraser, sinon les en-têtes se collent les uns aux
+                  autres et le code du bac se casse sur cinq lignes. */}
+              <table className="w-full min-w-[760px] text-left text-sm">
                 <thead className="border-b text-xs uppercase text-gray-500">
                   <tr>
                     <th className="py-2">Code</th><th>Rayon</th><th>Étagère</th>
@@ -270,7 +285,9 @@ export default function EmplacementsPage() {
         <aside className="space-y-4">
           {selection ? (
             <DetailBin bac={selection} peutModifier={peutModifier} peutArchiver={peutArchiver}
-                       onAgir={agirSurBin} onDecouper={decouper} onFermer={() => setSelection(null)} />
+                       onAgir={agirSurBin} onDecouper={decouper}
+                       onRegularise={(m, e) => { notifier(m, e ? "erreur" : "ok"); if (!e) { setSelection(null); charger(); } }}
+                       onFermer={() => setSelection(null)} />
           ) : (
             <div className="rounded-2xl bg-white p-4 text-sm text-gray-500 shadow">
               Sélectionnez un bac pour voir son contenu et agir dessus.
@@ -364,13 +381,14 @@ function Arborescence({
 /* ═══════════════════════════════════════════════════ DÉTAIL D'UN BAC ══ */
 
 function DetailBin({
-  bac, peutModifier, peutArchiver, onAgir, onDecouper, onFermer,
+  bac, peutModifier, peutArchiver, onAgir, onDecouper, onRegularise, onFermer,
 }: {
   bac: Bin;
   peutModifier: boolean;
   peutArchiver: boolean;
   onAgir: (id: number, corps: Record<string, unknown>, succes: string) => Promise<void>;
   onDecouper: (b: Bin) => Promise<void>;
+  onRegularise: (message: string, erreur?: boolean) => void;
   onFermer: () => void;
 }) {
   const [nouveauCode, setNouveauCode] = useState(bac.bin_code);
@@ -439,20 +457,8 @@ function DetailBin({
         </p>
       )}
 
-      {bac.composite && (
-        <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3">
-          <p className="text-sm font-bold text-amber-900">Emplacement composite</p>
-          <p className="mt-1 text-xs text-amber-900">
-            Cette ligne nomme {bac.bins_suggeres.length} bacs à la fois
-            ({bac.bins_suggeres.join(", ")}) : ils n&apos;ont jamais été créés séparément.
-            Le découpage les crée <span className="font-bold">vides</span> — le stock reste ici,
-            car savoir que trois bacs existent ne dit pas lequel contient quoi.
-          </p>
-          <button onClick={() => onDecouper(bac)}
-                  className="mt-2 w-full rounded-lg bg-amber-600 px-3 py-2 text-sm font-bold text-white">
-            Créer les {bac.bins_suggeres.length} vrais bacs
-          </button>
-        </div>
+      {bac.regularisable && (
+        <Regulariser bac={bac} onDecouper={onDecouper} onFait={onRegularise} />
       )}
 
       {peutModifier && (
@@ -621,6 +627,147 @@ function CreerSerie({
                   className="mt-3 w-full rounded-lg bg-indigo-600 px-3 py-2 text-sm font-bold text-white disabled:opacity-40">
             Créer {resumeSerie?.a_creer ?? 0} bac(s)
           </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+/* ═══════════════════════════════════ RÉGULARISATION D'UN AMBIGU ══ */
+
+/**
+ * « 1,2,3 » ou « BIN1-2 » : une ligne qui nomme plusieurs bacs à la fois.
+ *
+ * Le système sait quels bacs auraient dû exister. Il ne sait PAS lequel
+ * contient quoi — et personne ne peut le deviner depuis un écran. C'est donc
+ * l'utilisateur qui répartit, produit par produit, avec ce qu'il a sous les
+ * yeux à l'entrepôt.
+ *
+ * La somme doit tomber juste : réparti + reliquat = quantité présente. Le
+ * total s'affiche en permanence, parce qu'une addition fausse découverte
+ * après coup est du stock perdu.
+ */
+function Regulariser({
+  bac, onDecouper, onFait,
+}: {
+  bac: Bin;
+  onDecouper: (b: Bin) => Promise<void>;
+  onFait: (message: string, erreur?: boolean) => void;
+}) {
+  const [ouvert, setOuvert] = useState(false);
+  const [motif, setMotif] = useState("");
+  const [busy, setBusy] = useState(false);
+  /* clé « produit|bac » → quantité saisie */
+  const [saisie, setSaisie] = useState<Record<string, string>>({});
+  const bins = bac.bins_suggeres.length ? bac.bins_suggeres : ["BIN1", "BIN2"];
+
+  const q = (pid: number, bin: string) => Number(saisie[`${pid}|${bin}`] || 0);
+  const totalPour = (pid: number) => bins.reduce((n, b) => n + q(pid, b), 0);
+
+  const lignes = bac.contenu.map((p) => {
+    const reparti = totalPour(p.product_id);
+    return { ...p, reparti, reliquat: p.quantity - reparti, juste: reparti <= p.quantity };
+  });
+  const pret = motif.trim().length > 0
+    && lignes.length > 0
+    && lignes.every((l) => l.juste)
+    && lignes.some((l) => l.reparti > 0);
+
+  const envoyer = async () => {
+    setBusy(true);
+    const repartitions: { product_id: number; bin: string; quantity: number }[] = [];
+    const reliquats: Record<number, number> = {};
+    for (const l of lignes) {
+      for (const b of bins) if (q(l.product_id, b) > 0) {
+        repartitions.push({ product_id: l.product_id, bin: b, quantity: q(l.product_id, b) });
+      }
+      reliquats[l.product_id] = l.reliquat;
+    }
+    const r = await authFetch(`/stock/locations/bins/${bac.id}/regulariser`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ repartitions, reliquats, reason: motif.trim() }),
+    });
+    const d = await r.json().catch(() => ({}));
+    setBusy(false);
+    if (!r.ok) return onFait(d?.error || "Régularisation impossible.", true);
+    onFait(d.message || "Emplacement régularisé.");
+  };
+
+  return (
+    <div className="mt-3 rounded-xl border border-rose-300 bg-rose-50 p-3">
+      <p className="text-sm font-bold text-rose-900">Emplacement historique à régulariser</p>
+      <p className="mt-1 text-xs text-rose-900">
+        Cette ligne nomme {bins.length} bacs à la fois ({bins.join(", ")}) : ils n&apos;ont jamais
+        existé séparément. {bac.motif_libelle ? `Motif : ${bac.motif_libelle}.` : ""}
+      </p>
+
+      {bac.quantity <= 0 ? (
+        <>
+          <p className="mt-2 text-xs text-rose-900">
+            Elle ne contient aucun stock : créer les vrais bacs suffit.
+          </p>
+          <button onClick={() => onDecouper(bac)}
+                  className="mt-2 w-full rounded-lg bg-rose-600 px-3 py-2 text-sm font-bold text-white">
+            Créer les {bins.length} vrais bacs
+          </button>
+        </>
+      ) : !ouvert ? (
+        <>
+          <p className="mt-2 text-xs text-rose-900">
+            Elle contient <span className="font-bold">{n(bac.quantity)} unité(s)</span>. Rien ne sera
+            réparti automatiquement : vous dites ce qui va où, et de vrais mouvements de transfert
+            sont écrits.
+          </p>
+          <button onClick={() => setOuvert(true)}
+                  className="mt-2 w-full rounded-lg bg-rose-600 px-3 py-2 text-sm font-bold text-white">
+            Régulariser / Découper
+          </button>
+        </>
+      ) : (
+        <div className="mt-3">
+          {lignes.map((l) => (
+            <div key={l.product_id} className="mb-3 rounded-lg bg-white p-2">
+              <p className="text-xs font-bold text-gray-900">{l.name}</p>
+              <p className="text-xs text-gray-500">
+                {n(l.quantity)} {l.unit} présent(s){l.reserved > 0 && ` · ${n(l.reserved)} réservé(s)`}
+              </p>
+              <div className="mt-2 grid grid-cols-3 gap-1">
+                {bins.map((b) => (
+                  <label key={b} className="block text-xs text-gray-600">{b}
+                    <input type="number" min={0} inputMode="numeric"
+                           value={saisie[`${l.product_id}|${b}`] ?? ""}
+                           onChange={(e) => setSaisie({ ...saisie, [`${l.product_id}|${b}`]: e.target.value })}
+                           className="mt-0.5 w-full rounded border border-gray-300 px-2 py-1.5 text-sm" />
+                  </label>
+                ))}
+              </div>
+              <p className={`mt-1 text-xs font-bold ${l.juste ? "text-gray-700" : "text-red-700"}`}>
+                réparti {n(l.reparti)} + reliquat {n(l.reliquat)} = {n(l.reparti + l.reliquat)}
+                {l.juste ? ` sur ${n(l.quantity)}` : ` — dépasse les ${n(l.quantity)} présents`}
+              </p>
+              {l.reliquat > 0 && l.juste && (
+                <p className="text-xs text-gray-500">
+                  Le reliquat reste dans l&apos;emplacement d&apos;origine, qui ne sera pas archivé.
+                </p>
+              )}
+            </div>
+          ))}
+          <label className="block text-xs font-bold text-gray-700">
+            Motif <span className="text-red-600">— obligatoire</span>
+            <input value={motif} onChange={(e) => setMotif(e.target.value)}
+                   placeholder="Comptage physique du 22/08" className={CHAMP} />
+          </label>
+          <div className="mt-2 flex gap-2">
+            <button onClick={envoyer} disabled={busy || !pret}
+                    className="flex-1 rounded-lg bg-rose-600 px-3 py-2 text-sm font-bold text-white disabled:opacity-40">
+              {busy ? "Régularisation…" : "Régulariser"}
+            </button>
+            <button onClick={() => setOuvert(false)} disabled={busy}
+                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-bold text-gray-700">
+              Annuler
+            </button>
+          </div>
         </div>
       )}
     </div>

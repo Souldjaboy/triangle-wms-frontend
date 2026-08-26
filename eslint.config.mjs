@@ -20,6 +20,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    /* Outillage Node, hors application : ces scripts pilotent un navigateur
+       et un serveur en CommonJS. Les règles de l'app Next n'y ont pas cours. */
+    "scripts/**",
   ]),
 ]);
 

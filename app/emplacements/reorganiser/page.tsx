@@ -58,6 +58,8 @@ export default function ReorganiserPage() {
   const [erreur, setErreur] = useState("");
   const [succes, setSucces] = useState("");
   const [rayons, setRayons] = useState<{ warehouse: string; row: string }[]>([]);
+  /* Ce qui vient d'être appliqué : le lot, son plan, et le chemin du retour. */
+  const [dernierLot, setDernierLot] = useState<any>(null);
 
   /* On propose les rayons réellement présents plutôt que de faire deviner
      leur orthographe exacte. */
@@ -134,6 +136,35 @@ export default function ReorganiserPage() {
     setSucces(`${d.bins} bac(s) renommé(s). Stock avant ${n(d.quantiteAvant)}, après ${n(d.quantiteApres)} — inchangé.`);
     setPlan(null); setLignes([nouvelleLigne()]); setMotif("");
     chargerRayons();
+    /* On relit immédiatement le lot : c'est lui qui porte le plan inverse et
+       l'aperçu du retour arrière. Rien n'est exécuté — seulement proposé. */
+    const relecture = await authFetch(`/stock/locations/reorganize/${d.batchId}`, { cache: "no-store" });
+    if (relecture.ok) setDernierLot(await relecture.json().catch(() => null));
+  };
+
+  /** Charge le plan inverse dans la table, sans l'appliquer. */
+  const chargerRetour = () => {
+    setLignes((dernierLot?.mappings_inverse || []).map((m: any) => ({
+      id: Math.random().toString(36).slice(2),
+      scope: m.scope, warehouse: m.warehouse || "", from: m.from, to: m.to,
+    })));
+    setPlan(null); setMotif(""); setSucces(""); setErreur("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  /** Le lot appliqué et son retour, exportés pour archivage hors ligne. */
+  const exporterLot = (format: "json" | "csv") => {
+    if (!dernierLot) return;
+    const contenu = format === "json"
+      ? JSON.stringify(dernierLot, null, 2)
+      : ["batch_id;code_avant;code_apres;quantite",
+         ...(dernierLot.plan_applique || []).map(
+           (l: any) => `${dernierLot.batch_id};${l.code_avant};${l.code_apres};${l.quantite}`)].join("\n");
+    const url = URL.createObjectURL(new Blob([contenu], {
+      type: format === "json" ? "application/json" : "text/csv;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = `reorganisation-${dernierLot.batch_id}.${format}`; a.click();
+    URL.revokeObjectURL(url);
   };
 
   /** Le plan avant/après, en CSV, pour le relire ou l'archiver hors ligne. */
@@ -316,6 +347,88 @@ export default function ReorganiserPage() {
               Résolvez les conflits ci-dessus : tant qu&apos;ils subsistent, rien ne sera appliqué.
             </p>
           )}
+        </section>
+      )}
+
+      {/* ─────────────────────── retour arrière possible */}
+      {dernierLot && (
+        <section className="mt-4 rounded-2xl border-2 border-gray-900 bg-white p-4">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <p className="text-sm font-bold text-gray-900">
+                Réorganisation appliquée — lot {dernierLot.batch_id}
+              </p>
+              <p className="text-xs text-gray-500">
+                {dernierLot.plan_applique?.length || 0} bac(s) · par {dernierLot.applique_par} ·
+                {" "}{dernierLot.motif}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => exporterLot("json")}
+                      className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-bold text-gray-700">
+                Export JSON
+              </button>
+              <button onClick={() => exporterLot("csv")}
+                      className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-bold text-gray-700">
+                Export CSV
+              </button>
+              <button onClick={() => setDernierLot(null)}
+                      className="rounded-lg px-3 py-1.5 text-xs font-bold text-gray-400">Masquer</button>
+            </div>
+          </div>
+
+          <div className="mt-3 grid gap-3 lg:grid-cols-2">
+            <div>
+              <p className="text-xs font-bold uppercase text-gray-500">Plan appliqué</p>
+              <div className="mt-1 max-h-48 overflow-y-auto rounded-lg border border-gray-200">
+                <table className="w-full text-left text-xs">
+                  <tbody>
+                    {(dernierLot.plan_applique || []).map((l: any) => (
+                      <tr key={l.location_id} className="border-b">
+                        <td className="p-1.5 text-gray-600">{l.code_avant}</td>
+                        <td className="p-1.5 font-bold text-gray-900">→ {l.code_apres}</td>
+                        <td className="p-1.5 text-right">{n(l.quantite)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-bold uppercase text-gray-500">Retour arrière proposé</p>
+              <ul className="mt-1 space-y-1 text-xs">
+                {(dernierLot.mappings_inverse || []).map((m: any, i: number) => (
+                  <li key={i} className="rounded-lg bg-gray-50 p-2">
+                    {m.scope} · {m.warehouse || "tous"} · <span className="font-bold">{m.from} → {m.to}</span>
+                  </li>
+                ))}
+              </ul>
+              {dernierLot.apercu_retour ? (
+                <p className={`mt-2 rounded-lg p-2 text-xs ${
+                  dernierLot.apercu_retour.applicable
+                    ? "bg-emerald-50 text-emerald-900" : "bg-red-50 text-red-900"}`}>
+                  {dernierLot.apercu_retour.applicable
+                    ? `Applicable : ${dernierLot.apercu_retour.resume.bins} bac(s), stock ` +
+                      `${n(dernierLot.apercu_retour.resume.quantiteAvant)} → ` +
+                      `${n(dernierLot.apercu_retour.resume.quantiteApres)}.`
+                    : "Non applicable en l'état : des codes sont déjà pris."}
+                </p>
+              ) : (
+                <p className="mt-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">
+                  {dernierLot.erreur_retour || "Aperçu du retour indisponible."}
+                </p>
+              )}
+              <button onClick={chargerRetour}
+                      className="mt-2 w-full rounded-lg border-2 border-gray-900 px-3 py-2 text-sm font-bold text-gray-900">
+                Charger ce retour dans la table
+              </button>
+              <p className="mt-1 text-xs text-gray-500">
+                Rien n&apos;est annulé d&apos;un clic : le plan est chargé, vous le relisez, vous
+                indiquez un motif, puis vous l&apos;appliquez comme n&apos;importe quelle
+                réorganisation.
+              </p>
+            </div>
+          </div>
         </section>
       )}
     </div>
