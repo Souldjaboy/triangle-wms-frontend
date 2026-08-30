@@ -9,7 +9,7 @@ import BinSelector, { useBinTree, type Bin } from "../components/BinSelector";
 import { usePermissions } from "../lib/permissions";
 
 export default function StocksPage() {
-  const { can, loading: permissionsLoading } = usePermissions();
+  const { can, canWrite, loading: permissionsLoading } = usePermissions();
   const [products, setProducts] = useState<any[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<ProductHit | null>(null);
   const [warehouses, setWarehouses] = useState<any[]>([]);
@@ -39,6 +39,10 @@ export default function StocksPage() {
      écran quand il n'a encore aucun bac. */
   const [totauxProduit, setTotauxProduit] = useState<{stock:number;reparti:number;aLocaliser:number}|null>(null);
   const [localisation, setLocalisation] = useState<{key:number;bin:Bin|null;quantity:string}[]>([]);
+  /* Répartition d'un mouvement entre plusieurs bacs. Distincte de
+     `localisation`, qui déclare seulement où se trouve un stock existant. */
+  const [repartitionMouvement, setRepartitionMouvement] =
+    useState<{ key: number; bin: Bin | null; quantity: string }[]>([]);
   const [seqLoc, setSeqLoc] = useState(1);
   const [suggestion, setSuggestion] = useState<any>(null);
   /* Indicateurs de réception. La quantité en attente de rangement N'EST JAMAIS
@@ -354,9 +358,19 @@ export default function StocksPage() {
          n'applique rien. Une sortie réserve la quantité du bac sans la déduire.
          C'est le bouton Valider de la liste qui applique — ou Refuser qui
          libère. Le transfert, lui, reste immédiat et transactionnel. */
+      /* Un produit vit rarement dans un seul bac : sortir trente unités d'un
+         stock réparti sur trois rayons demande de dire dans lesquels puiser.
+         Dès que plusieurs lignes sont renseignées, l'opération part sur la
+         route répartie, qui les applique en une seule transaction. Une ligne
+         unique continue d'emprunter le chemin habituel. */
+      const repartition = repartitionMouvement
+        .filter((l) => l.bin && Number(l.quantity) > 0)
+        .map((l) => ({ locationId: l.bin!.id, quantity: Number(l.quantity) }));
+      const multi = repartition.length > 1 && selectedType !== "Transfert";
+
       const routes: Record<string, string> = {
-        "Entrée": "/api/stock/locations/prepare-entry",
-        "Sortie": "/api/stock/locations/prepare-exit",
+        "Entrée": multi ? "/api/stock/locations/entry-multi" : "/api/stock/locations/prepare-entry",
+        "Sortie": multi ? "/api/stock/locations/exit-multi" : "/api/stock/locations/prepare-exit",
         "Transfert": "/api/stock/locations/transfer",
       };
       const corps: Record<string, unknown> = {
@@ -364,8 +378,12 @@ export default function StocksPage() {
         quantity: Number(formData.quantity || 0),
         reason: formData.reason || `${selectedType} par emplacement`,
       };
-      if (selectedType === "Entrée") corps.locationId = binDestination!.id;
-      if (selectedType === "Sortie") corps.locationId = binSource!.id;
+      if (multi) {
+        corps.allocations = repartition;
+      } else {
+        if (selectedType === "Entrée") corps.locationId = binDestination!.id;
+        if (selectedType === "Sortie") corps.locationId = binSource!.id;
+      }
       if (selectedType === "Transfert") {
         corps.sourceLocationId = binSource!.id;
         corps.destinationLocationId = binDestination!.id;
@@ -535,7 +553,9 @@ export default function StocksPage() {
   };
 
   const canViewStock = can("stock", "view");
-  const canCreateStock = can("stock", "create");
+  /* Le bandeau « Lecture seule » suit la capacité d'écrire, pas celle de
+     créer : quelqu'un qui ne peut que transférer n'est pas un lecteur. */
+  const canCreateStock = canWrite("stock");
   const canValidateStock = can("stock", "validate");
   const canPublishMarketplace = can("marketplace", "create");
 
@@ -838,6 +858,66 @@ export default function StocksPage() {
                     {Number(formData.quantity).toLocaleString("fr-FR")} demandé(s) mais seulement{" "}
                     {binSource.available.toLocaleString("fr-FR")} disponible(s) dans ce bac.
                   </p>
+                )}
+
+                {/* Répartir la sortie sur plusieurs bacs. Un seul bac suffit
+                    rarement : trente unités prises dans un stock de quatre-
+                    vingts réparti sur trois rayons viennent de deux endroits,
+                    et c'est au magasinier de dire lesquels. Les lignes partent
+                    ensemble, en une seule transaction. */}
+                {binsProduit.length > 1 && (
+                  <div className="mt-3 rounded-xl border border-blue-200 bg-white p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-bold">Répartir sur plusieurs bacs</p>
+                      <button type="button"
+                        onClick={() => setRepartitionMouvement((r) => [
+                          ...r, { key: Date.now() + r.length, bin: null, quantity: "" },
+                        ])}
+                        className="rounded-lg bg-blue-600 px-3 py-1 text-xs font-bold text-white">
+                        + Ajouter un bac
+                      </button>
+                    </div>
+
+                    {repartitionMouvement.length === 0 ? (
+                      <p className="mt-2 text-xs text-gray-500">
+                        Laissez vide pour prendre la totalité dans le bac sélectionné ci-dessus.
+                      </p>
+                    ) : (
+                      <div className="mt-2 space-y-2">
+                        {repartitionMouvement.map((l, i) => (
+                          <div key={l.key} className="flex flex-wrap items-end gap-2">
+                            <div className="min-w-[200px] flex-1">
+                              <BinSelector tree={binTree} value={l.bin} label="" compact
+                                onSelect={(b) => setRepartitionMouvement((r) =>
+                                  r.map((x, j) => (j === i ? { ...x, bin: b } : x)))} />
+                            </div>
+                            <input type="number" min="0" value={l.quantity} placeholder="quantité"
+                              onChange={(e) => setRepartitionMouvement((r) =>
+                                r.map((x, j) => (j === i ? { ...x, quantity: e.target.value } : x)))}
+                              className="w-28 rounded-lg border-2 border-gray-200 p-2 text-sm" />
+                            <button type="button"
+                              onClick={() => setRepartitionMouvement((r) => r.filter((_, j) => j !== i))}
+                              className="rounded-lg bg-gray-200 px-3 py-2 text-xs font-bold">Retirer</button>
+                          </div>
+                        ))}
+
+                        {(() => {
+                          const somme = repartitionMouvement
+                            .reduce((t, l) => t + Number(l.quantity || 0), 0);
+                          const demande = Number(formData.quantity || 0);
+                          const juste = somme === demande && somme > 0;
+                          return (
+                            <p className={`rounded-lg p-2 text-sm font-bold ${
+                              juste ? "bg-green-50 text-green-800" : "bg-amber-50 text-amber-900"}`}>
+                              Réparti {somme.toLocaleString("fr-FR")} sur {demande.toLocaleString("fr-FR")} demandé(s)
+                              {juste ? " — la somme tombe juste."
+                                     : ` — écart de ${(demande - somme).toLocaleString("fr-FR")}, à corriger avant validation.`}
+                            </p>
+                          );
+                        })()}
+                      </div>
+                    )}
+                  </div>
                 )}
               </>
             )}

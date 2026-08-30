@@ -51,6 +51,10 @@ export type EffectivePermissions = {
   /* Référentiel hiérarchisé, vide tant que le centre des droits n'est pas
      déployé — les écrans historiques n'en ont pas besoin. */
   catalogue: ModulePermission[];
+  /* Par module racine : une action d'écriture y est-elle ouverte ? C'est ce
+     qui décide du bandeau « Lecture seule ». Quelqu'un qui ne peut que
+     transférer n'est pas en lecture seule, bien qu'il ne crée rien. */
+  ecriture: Record<string, boolean>;
 };
 
 /* Miroir des alias du backend : un menu qui pointe « stocks » et un droit
@@ -106,6 +110,7 @@ async function charger(): Promise<EffectivePermissions | null> {
           d.is_super_admin === true ||
           ROLES_ADMIN.includes(String(d.role || "").toLowerCase().trim()),
         catalogue: Array.isArray(d.modules) ? d.modules : [],
+        ecriture: d.ecriture || {},
       };
     }
   } catch { /* on tente l'ancienne route */ }
@@ -120,6 +125,7 @@ async function charger(): Promise<EffectivePermissions | null> {
       modules: d.modules || {},
       fallback_allowed: d.fallback_allowed === true,
       catalogue: [],
+      ecriture: {},
     };
   } catch {
     return null;
@@ -205,7 +211,23 @@ export function usePermissions() {
 
   const catalogue = useMemo(() => perms?.catalogue ?? [], [perms]);
 
-  return { perms, loading, can, isModuleVisible, catalogue, reload: load };
+  /**
+   * Le compte peut-il écrire quelque part dans ce module ?
+   * Sert au bandeau « Lecture seule » — jamais à autoriser un bouton, qui
+   * garde son propre `can()`.
+   */
+  const canWrite = useCallback(
+    (moduleKey: string) => {
+      if (!perms) return true;
+      if (perms.is_super_admin) return true;
+      const racine = normalizeModuleKey(moduleKey).split(".")[0];
+      if (racine in perms.ecriture) return perms.ecriture[racine] === true;
+      return perms.fallback_allowed;
+    },
+    [perms]
+  );
+
+  return { perms, loading, can, isModuleVisible, canWrite, catalogue, reload: load };
 }
 
 /** Prévient tous les écrans montés qu'un droit vient de changer. */
