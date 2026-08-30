@@ -95,6 +95,7 @@ export default function EmplacementsPage() {
   const [selection, setSelection] = useState<Bin | null>(null);
   const [chemin, setChemin] = useState<{ w: string; r: string; s: string; l: string }>(
     { w: "", r: "", s: "", l: "" });
+  const [aideOuverte, setAideOuverte] = useState(false);
 
   const peutCreer = can("stock.emplacement", "create");
   const peutModifier = can("stock.emplacement", "update");
@@ -177,13 +178,35 @@ export default function EmplacementsPage() {
             Entrepôt → Rayon → Étagère → Niveau → Bac. Tous les bacs sont listés, occupés compris.
           </p>
         </div>
-        {peutReorganiser && (
-          <Link href="/emplacements/reorganiser"
-                className="rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-bold text-white">
-            Réorganiser les emplacements
-          </Link>
-        )}
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => setAideOuverte((v) => !v)}
+                  className="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-700">
+            Comment utiliser les emplacements ?
+          </button>
+          {peutReorganiser && (
+            <Link href="/emplacements/reorganiser"
+                  className="rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-bold text-white">
+              Réorganiser les emplacements
+            </Link>
+          )}
+        </div>
       </header>
+
+      {aideOuverte && (
+        <div className="mb-4 rounded-2xl bg-white p-4 text-sm text-gray-700 shadow">
+          <p className="font-bold text-gray-900">Entrepôt → Rayon → Étagère → Niveau → Bin</p>
+          <p className="mt-2">
+            Cliquez sur un rayon pour l&apos;ouvrir, puis sur une étagère et enfin sur un bin pour
+            afficher son contenu.
+          </p>
+          <ul className="mt-3 space-y-1">
+            <li><b>Libre</b> : le bin ne contient aucun produit.</li>
+            <li><b>Occupé</b> : le bin contient du stock.</li>
+            <li><b>Désactivé</b> : le bin ne peut pas être utilisé.</li>
+            <li><b>À régulariser</b> : ancien emplacement ambigu qui doit être corrigé avant utilisation.</li>
+          </ul>
+        </div>
+      )}
 
       {message && (
         <div className={`mb-4 rounded-xl p-3 text-sm font-bold ${
@@ -230,9 +253,9 @@ export default function EmplacementsPage() {
             <span className="font-bold">
               {compteurs.A_REGULARISER} emplacement(s) historique(s) à régulariser
             </span>{" "}
-            — « 1,2,3 », « BIN1-2 » : une ligne qui nomme plusieurs bacs à la fois. Elles viennent de
-            l&apos;ancien écran et des imports, et elles portent souvent du stock réel. Elles ne sont
-            plus masquées : ouvrez-les pour dire ce qui va où. Rien n&apos;est réparti automatiquement.
+            — Ces emplacements viennent de l&apos;ancien système. Certains noms regroupaient plusieurs
+            bins, par exemple « BIN1-2 » ou « FULLBIN ». Vérifiez leur emplacement physique avant de
+            répartir leur stock. Le logiciel ne déplacera rien automatiquement.
           </p>
         )}
       </section>
@@ -311,21 +334,36 @@ function Arborescence({
   selection: Bin | null;
   onChemin: (c: { w: string; r: string; s: string; l: string }) => void;
 }) {
+  /* Une seule source de vérité : React décide de `open`, le clic sur le
+     résumé change cet état, et rien d'autre n'y touche. Un `<details open>`
+     contrôlé qui garde aussi `onToggle` se contredit lui-même : le navigateur
+     bascule l'attribut, `onToggle` re-bascule l'état React, qui referme ce
+     que le navigateur venait d'ouvrir — d'où le clignotement. Chaque niveau
+     garde son ouverture par défaut d'origine (entrepôt ouvert, rayon replié) ;
+     l'étagère, elle, reste un `<details>` natif non contrôlé — l'autre
+     méthode valable — et n'a donc pas besoin d'entrer ici. */
   const [ouverts, setOuverts] = useState<Record<string, boolean>>({});
-  const bascule = (cle: string) => setOuverts((o) => ({ ...o, [cle]: !o[cle] }));
+  const estOuvert = (cle: string, defaut: boolean) => (cle in ouverts ? ouverts[cle] : defaut);
+  const bascule = (cle: string, defaut: boolean) =>
+    setOuverts((o) => ({ ...o, [cle]: !estOuvert(cle, defaut) }));
 
   return (
     <div className="space-y-1 text-sm">
       {Object.entries(arbre).sort().map(([w, rayons]) => (
-        <details key={w} open>
-          <summary className="cursor-pointer rounded-lg px-2 py-1.5 font-bold text-gray-900 hover:bg-gray-50">
+        <details key={w} open={estOuvert(w, true)}>
+          <summary
+            onClick={(event) => { event.preventDefault(); bascule(w, true); }}
+            className="cursor-pointer rounded-lg px-2 py-1.5 font-bold text-gray-900 hover:bg-gray-50"
+          >
             Entrepôt {w}
           </summary>
           <div className="ml-3 border-l border-gray-200 pl-3">
             {Object.entries(rayons).sort().map(([r, etageres]) => (
-              <details key={r} open={Boolean(ouverts[`${w}|${r}`])}
-                       onToggle={() => bascule(`${w}|${r}`)}>
-                <summary className="cursor-pointer rounded-lg px-2 py-1.5 font-bold text-gray-800 hover:bg-gray-50">
+              <details key={r} open={estOuvert(`${w}|${r}`, false)}>
+                <summary
+                  onClick={(event) => { event.preventDefault(); bascule(`${w}|${r}`, false); }}
+                  className="cursor-pointer rounded-lg px-2 py-1.5 font-bold text-gray-800 hover:bg-gray-50"
+                >
                   Rayon {r}
                 </summary>
                 <div className="ml-3 border-l border-gray-200 pl-3">

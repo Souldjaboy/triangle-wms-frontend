@@ -749,9 +749,12 @@ export default function StocksPage() {
               <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3">
                 <p className="text-sm font-black text-gray-900">Localiser le stock existant</p>
                 <p className="mt-1 text-xs text-amber-900">
-                  Ce produit a {totauxProduit.stock.toLocaleString("fr-FR")} unité(s) mais aucun bac
-                  connu. Indiquez où elles se trouvent — <b>aucune unité n&apos;est créée</b>, le
-                  stock global reste identique.
+                  Le stock total existe ({totauxProduit.stock.toLocaleString("fr-FR")} unité(s)),
+                  mais son emplacement physique n&apos;est pas encore enregistré.
+                  <br />
+                  Avant une sortie précise, indiquez dans quels bins le produit se trouve.
+                  <br />
+                  <b>Cette opération ne crée et ne supprime aucun stock.</b>
                 </p>
 
                 {suggestion?.suggestion && (
@@ -819,7 +822,7 @@ export default function StocksPage() {
                         </span>
                         <button type="button" onClick={localiserStock} disabled={!pret}
                                 className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40">
-                          Enregistrer la localisation
+                          Enregistrer la répartition du stock existant
                         </button>
                       </span>
                     );
@@ -842,31 +845,57 @@ export default function StocksPage() {
                   </p>
                 ) : (
                   <div className="mt-2 space-y-2">
-                    {binsProduit.map((b: any) => (
-                      <label key={b.location_id}
+                    {binsProduit.map((b: any) => {
+                      const selectionne = binSource?.id === b.location_id;
+                      return (
+                        <div key={b.location_id}
                              className={`flex flex-wrap items-center justify-between gap-2 rounded-xl border p-3 text-sm ${
-                               binSource?.id === b.location_id ? "border-blue-500 bg-white" : "border-gray-200 bg-white"}`}>
-                        <span className="flex items-center gap-2">
-                          <input type="radio" name="bin_source" checked={binSource?.id === b.location_id}
-                                 onChange={() => setBinSource({
-                                   id: b.location_id, bin: b.bin_code,
-                                   code: b.full_code || b.emplacement_code,
-                                   quantity: Number(b.quantity), reserved: Number(b.reserved_quantity),
-                                   available: Number(b.available), status: b.status,
-                                 })} />
-                          <span className="font-bold">{b.warehouse_code}</span>
-                          <span className="text-gray-500">/ {b.row_code} / {b.loc_code} / {b.lvl_code} /</span>
-                          <span className="font-bold">{b.bin_code}</span>
-                        </span>
-                        <span className="text-xs">
-                          quantité <b>{Number(b.quantity).toLocaleString("fr-FR")}</b> ·
-                          réservé {Number(b.reserved_quantity).toLocaleString("fr-FR")} ·
-                          <b className="text-green-700"> disponible {Number(b.available).toLocaleString("fr-FR")}</b>
-                        </span>
-                      </label>
-                    ))}
+                               selectionne ? "border-blue-500 bg-white" : "border-gray-200 bg-white"}`}>
+                          <span className="flex items-center gap-2">
+                            <span className="font-bold">{b.warehouse_code}</span>
+                            <span className="text-gray-500">/ {b.row_code} / {b.loc_code} / {b.lvl_code} /</span>
+                            <span className="font-bold">{b.bin_code}</span>
+                          </span>
+                          <span className="flex flex-wrap items-center gap-3 text-xs">
+                            <span>
+                              quantité <b>{Number(b.quantity).toLocaleString("fr-FR")}</b> ·
+                              réservé {Number(b.reserved_quantity).toLocaleString("fr-FR")} ·
+                              <b className="text-green-700"> disponible {Number(b.available).toLocaleString("fr-FR")}</b>
+                            </span>
+                            <button type="button"
+                                    onClick={() => setBinSource({
+                                      id: b.location_id, bin: b.bin_code,
+                                      code: b.full_code || b.emplacement_code,
+                                      quantity: Number(b.quantity), reserved: Number(b.reserved_quantity),
+                                      available: Number(b.available), status: b.status,
+                                    })}
+                                    className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold ${
+                                      selectionne ? "bg-blue-600 text-white" : "bg-slate-900 text-white hover:bg-slate-700"}`}>
+                              {selectionne ? "✓ Sélectionné" : "Sélectionner ce bin"}
+                            </button>
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
+                {binSource && (() => {
+                  const detail = binsProduit.find((b: any) => b.location_id === binSource.id);
+                  if (!detail) return null;
+                  return (
+                    <div className="mt-2 rounded-xl border border-blue-300 bg-blue-50 p-3 text-sm">
+                      <p className="font-black text-blue-900">Source sélectionnée</p>
+                      <p className="mt-1 text-xs leading-5 text-blue-900">
+                        Entrepôt : <b>{detail.warehouse_code}</b><br />
+                        Rayon : <b>{detail.row_code}</b><br />
+                        Étagère : <b>{detail.loc_code}</b><br />
+                        Niveau : <b>{detail.lvl_code}</b><br />
+                        Bin : <b>{detail.bin_code}</b><br />
+                        Quantité disponible : <b>{Number(detail.available).toLocaleString("fr-FR")}</b>
+                      </p>
+                    </div>
+                  );
+                })()}
                 {binSource && Number(formData.quantity || 0) > binSource.available && (
                   <p className="mt-2 rounded-lg bg-red-50 p-2 text-sm font-semibold text-red-800">
                     {Number(formData.quantity).toLocaleString("fr-FR")} demandé(s) mais seulement{" "}
