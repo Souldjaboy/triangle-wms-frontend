@@ -157,6 +157,22 @@ export function usePermissions() {
         const mod = perms.modules[cle];
         if (mod && action in mod) return mod[action] === true;
       }
+
+      /* Le parent ne connaît pas cette action, ses sous-modules si.
+         « Créer » n'existe pas sur les stocks : la création vit sur les
+         entrées, sorties, transferts et inventaires. Sans cette remontée,
+         la page demandait can("stock","create"), ne trouvait rien, et
+         affichait « Lecture seule » à qui pouvait pourtant enregistrer une
+         entrée. Miroir exact de la règle du backend. */
+      const racine = normalizeModuleKey(moduleKey);
+      const enfants = perms.catalogue.filter((m) => m.parent_key === racine);
+      if (enfants.length) {
+        const concernes = enfants.filter((m) => m.actions.includes(String(action)));
+        if (concernes.length) {
+          return concernes.some((m) => perms.modules[m.module_key]?.[action] === true);
+        }
+      }
+
       /* Module absent du référentiel : comportement historique. */
       return perms.fallback_allowed;
     },
