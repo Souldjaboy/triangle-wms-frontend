@@ -65,6 +65,9 @@ const ALIASES: Record<string, string> = {
   factures: "comptabilite", camions: "logistique", clients: "crm",
   fournisseurs: "fournisseur", partenaires: "partenaire",
   ventes: "vente", achats: "achat", parametres: "parametre",
+  /* Miroir du backend : les pages Ciment et Sable interrogent les clés
+     anglaises, le catalogue des droits les enregistre en français. */
+  cement: "ciment", sand: "sable",
 };
 
 function normalizeModuleKey(key: string): string {
