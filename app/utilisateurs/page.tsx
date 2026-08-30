@@ -9,6 +9,9 @@ type UserForm = {
   role: string;
   phone: string;
   is_active: boolean;
+  /* Vide = comportement habituel. « none » dispense de vérification, et seul
+     un super-administrateur peut le choisir. */
+  verification_mode: "" | "none" | "email" | "phone";
 };
 
 const emptyForm: UserForm = {
@@ -18,6 +21,7 @@ const emptyForm: UserForm = {
   role: "magasinier",
   phone: "",
   is_active: true,
+  verification_mode: "",
 };
 
 export default function UtilisateursPage() {
@@ -88,6 +92,15 @@ export default function UtilisateursPage() {
 
   const handleSubmit = async (event: any) => {
     event.preventDefault();
+
+    /* Au moins un moyen de reconnaître la personne. Le serveur applique la
+       même règle ; la dire ici évite un aller-retour pour rien. */
+    if (!form.email.trim() && !form.phone.trim()) {
+      setMessageType("error");
+      setMessage("Indiquez au moins une adresse email ou un numéro de téléphone.");
+      return;
+    }
+
     setLoading(true);
     setMessage("");
 
@@ -131,6 +144,7 @@ export default function UtilisateursPage() {
       role: user.role || "magasinier",
       phone: user.phone || "",
       is_active: user.is_active !== false,
+      verification_mode: user.verification_mode || "",
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -264,15 +278,14 @@ export default function UtilisateursPage() {
         <input
           name="email"
           type="email"
-          placeholder="Email"
+          placeholder="Email — facultatif si le téléphone est renseigné"
           value={form.email}
           onChange={handleChange}
           className="border p-3 rounded-xl"
-          required
         />
         <input
           name="phone"
-          placeholder="Téléphone"
+          placeholder="Téléphone — facultatif si l’email est renseigné"
           value={form.phone}
           onChange={handleChange}
           className="border p-3 rounded-xl"
@@ -311,6 +324,29 @@ export default function UtilisateursPage() {
           />
           Compte actif
         </label>
+
+        {/* Dispenser de vérification ouvre un compte sans preuve que la
+            personne contrôle l'adresse ou le numéro : le serveur refuse ce
+            choix à quiconque n'est pas super-administrateur, l'écran ne fait
+            que refléter cette règle. */}
+        {isSuperAdmin && (
+          <label className="col-span-3 sm:col-span-1 text-sm text-gray-700">
+            Exiger une vérification avant la première connexion
+            <select
+              name="verification_mode"
+              value={form.verification_mode}
+              onChange={handleChange}
+              className="mt-1 w-full border p-3 rounded-xl"
+            >
+              <option value="">Comportement habituel</option>
+              <option value="none">Aucune vérification exigée</option>
+              <option value="email" disabled={!form.email.trim()}>
+                Vérification email{form.email.trim() ? "" : " — exige une adresse"}
+              </option>
+              <option value="phone">Vérification téléphone — exige un service SMS</option>
+            </select>
+          </label>
+        )}
 
         <div className="col-span-3 flex gap-3">
           <button

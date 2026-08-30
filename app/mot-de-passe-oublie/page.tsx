@@ -121,7 +121,7 @@ function MotDePasseOublieContent() {
             </div>
             <input
               className="rounded-xl border p-4"
-              placeholder="Email ou téléphone"
+              placeholder="Email ou numéro de téléphone"
               value={identifier}
               onChange={(event) => setIdentifier(event.target.value)}
               required

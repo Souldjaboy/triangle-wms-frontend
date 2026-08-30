@@ -169,12 +169,12 @@ export default function LoginPage() {
           <form onSubmit={handleLogin} className="space-y-5">
             <div>
               <label className="block text-black font-bold mb-2">
-                Email ou téléphone
+                Email ou numéro de téléphone
               </label>
 
               <input
                 type="text"
-                placeholder="Votre email ou téléphone"
+                placeholder="Votre email ou votre numéro de téléphone"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full border p-4 rounded-xl text-black"

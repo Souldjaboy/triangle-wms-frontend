@@ -71,7 +71,7 @@ export default function ClientLoginPage() {
         <p className="mt-2 text-gray-500">Accès au panier, aux commandes, reçus et suivi Marketplace.</p>
         {error && <div className="mt-4 rounded-xl bg-red-50 p-3 font-bold text-red-700">{error}</div>}
         <div className="mt-5 grid gap-3">
-          <input required className="rounded-xl border p-3" placeholder="Email ou téléphone" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <input required className="rounded-xl border p-3" placeholder="Email ou numéro de téléphone" value={email} onChange={(e) => setEmail(e.target.value)} />
           <input required className="rounded-xl border p-3" type="password" placeholder="Mot de passe" value={password} onChange={(e) => setPassword(e.target.value)} />
         </div>
         <button disabled={loading} className="mt-5 w-full rounded-xl bg-yellow-500 p-3 font-black text-black">
