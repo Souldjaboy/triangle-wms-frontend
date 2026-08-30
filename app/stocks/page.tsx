@@ -556,6 +556,20 @@ export default function StocksPage() {
   /* Le bandeau « Lecture seule » suit la capacité d'écrire, pas celle de
      créer : quelqu'un qui ne peut que transférer n'est pas un lecteur. */
   const canCreateStock = canWrite("stock");
+
+  /* Dès qu'une ligne de répartition existe, elle engage : la validation reste
+     fermée tant qu'une ligne est incomplète — quantité sans bac, ou bac sans
+     quantité — ou que la somme ne tombe pas juste. Ignorer les lignes
+     incomplètes afficherait une répartition qui ne partirait jamais. */
+  const repartitionIncomplete = (() => {
+    if (repartitionMouvement.length === 0) return false;
+    const incomplete = repartitionMouvement.some(
+      (l) => !l.bin || !(Number(l.quantity) > 0)
+    );
+    if (incomplete) return true;
+    const somme = repartitionMouvement.reduce((t, l) => t + Number(l.quantity || 0), 0);
+    return somme !== Number(formData.quantity || 0);
+  })();
   const canValidateStock = can("stock", "validate");
   const canPublishMarketplace = can("marketplace", "create");
 
@@ -886,7 +900,10 @@ export default function StocksPage() {
                       <div className="mt-2 space-y-2">
                         {repartitionMouvement.map((l, i) => (
                           <div key={l.key} className="flex flex-wrap items-end gap-2">
-                            <div className="min-w-[200px] flex-1">
+                            {/* Sur téléphone le sélecteur prend toute la
+                                largeur : ligne, quantité et retrait
+                                s'empilent au lieu de se serrer à 375 px. */}
+                            <div className="min-w-[200px] flex-1 basis-full sm:basis-auto">
                               <BinSelector tree={binTree} value={l.bin} label="" compact
                                 onSelect={(b) => setRepartitionMouvement((r) =>
                                   r.map((x, j) => (j === i ? { ...x, bin: b } : x)))} />
@@ -894,7 +911,7 @@ export default function StocksPage() {
                             <input type="number" min="0" value={l.quantity} placeholder="quantité"
                               onChange={(e) => setRepartitionMouvement((r) =>
                                 r.map((x, j) => (j === i ? { ...x, quantity: e.target.value } : x)))}
-                              className="w-28 rounded-lg border-2 border-gray-200 p-2 text-sm" />
+                              className="w-28 flex-1 rounded-lg border-2 border-gray-200 p-2 text-sm sm:flex-none" />
                             <button type="button"
                               onClick={() => setRepartitionMouvement((r) => r.filter((_, j) => j !== i))}
                               className="rounded-lg bg-gray-200 px-3 py-2 text-xs font-bold">Retirer</button>
@@ -905,14 +922,32 @@ export default function StocksPage() {
                           const somme = repartitionMouvement
                             .reduce((t, l) => t + Number(l.quantity || 0), 0);
                           const demande = Number(formData.quantity || 0);
-                          const juste = somme === demande && somme > 0;
+                          const reste = demande - somme;
+                          const juste = reste === 0 && somme > 0;
                           return (
-                            <p className={`rounded-lg p-2 text-sm font-bold ${
-                              juste ? "bg-green-50 text-green-800" : "bg-amber-50 text-amber-900"}`}>
-                              Réparti {somme.toLocaleString("fr-FR")} sur {demande.toLocaleString("fr-FR")} demandé(s)
-                              {juste ? " — la somme tombe juste."
-                                     : ` — écart de ${(demande - somme).toLocaleString("fr-FR")}, à corriger avant validation.`}
-                            </p>
+                            <div className={`rounded-lg p-3 text-sm ${
+                              juste ? "bg-green-50 text-green-900" : "bg-amber-50 text-amber-900"}`}>
+                              <p>Quantité demandée : <b>{demande.toLocaleString("fr-FR")}</b></p>
+                              <p>Quantité répartie : <b>{somme.toLocaleString("fr-FR")}</b></p>
+                              <p>Reste à répartir : <b>{reste.toLocaleString("fr-FR")}</b></p>
+                              {(() => {
+                                const sansBac = repartitionMouvement.filter((l) => !l.bin).length;
+                                const sansQte = repartitionMouvement.filter(
+                                  (l) => l.bin && !(Number(l.quantity) > 0)
+                                ).length;
+                                return (
+                                  <p className="mt-1 font-bold">
+                                    {sansBac > 0
+                                      ? `${sansBac} ligne(s) sans bac : choisissez l’emplacement.`
+                                      : sansQte > 0
+                                        ? `${sansQte} ligne(s) sans quantité.`
+                                        : juste
+                                          ? "La répartition est exacte."
+                                          : "La validation reste bloquée tant que le reste n’est pas nul."}
+                                  </p>
+                                );
+                              })()}
+                            </div>
                           );
                         })()}
                       </div>
@@ -1095,9 +1130,17 @@ export default function StocksPage() {
           </>
         )}
 
+        {/* Tant que la répartition ne tombe pas juste, la validation reste
+            fermée : mieux vaut un bouton inerte qu'un mouvement à moitié
+            réparti que le serveur refusera de toute façon. */}
         <button
           type="submit"
-          className="bg-yellow-500 text-black font-bold rounded-xl py-3"
+          disabled={repartitionIncomplete}
+          title={repartitionIncomplete
+            ? "La somme répartie doit égaler la quantité demandée."
+            : undefined}
+          className="bg-yellow-500 text-black font-bold rounded-xl py-3
+                     disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600"
         >
           Créer demande {selectedType}
         </button>
