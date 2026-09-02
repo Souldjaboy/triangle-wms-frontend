@@ -27,6 +27,19 @@ export default function DocumentDetailPage() {
     message: "",
   });
 
+  /* Correction du contenu IMPRIMÉ : le numéro du bon et les quantités qui
+     figurent dessus. Rien ici ne touche au stock — le mouvement, le stock du
+     produit et les balances d'emplacement restent tels quels. C'est le
+     serveur qui le garantit ; l'écran le dit pour que personne ne s'en
+     serve en croyant corriger un stock. */
+  const [correctionOpen, setCorrectionOpen] = useState(false);
+  const [correction, setCorrection] = useState<{
+    document_number: string;
+    reason: string;
+    quantites: Record<string, string>;
+  }>({ document_number: "", reason: "", quantites: {} });
+  const [correctionEnCours, setCorrectionEnCours] = useState(false);
+
   const doc = documentData?.document;
   const items = documentData?.items || [];
   const isReceipt = useMemo(
@@ -77,6 +90,54 @@ export default function DocumentDetailPage() {
     authFetch(`/documents/${params.id}/printed`, { method: "POST" })
       .then(() => chargerDates())
       .catch(() => {});
+  };
+
+  /** Ouvre le formulaire pré-rempli avec ce que porte le document aujourd'hui. */
+  const ouvrirCorrection = () => {
+    const quantites: Record<string, string> = {};
+    for (const item of items) quantites[String(item.id)] = String(Number(item.quantity));
+    setCorrection({
+      document_number: doc?.document_number || "",
+      reason: "",
+      quantites,
+    });
+    setCorrectionOpen(true);
+  };
+
+  const enregistrerCorrection = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setMessage("");
+    setCorrectionEnCours(true);
+    try {
+      const response = await authFetch(`/documents/${params.id}/content`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          document_number: correction.document_number,
+          reason: correction.reason,
+          items: items.map((item: any) => ({
+            id: item.id,
+            quantity: Number(correction.quantites[String(item.id)]),
+          })),
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok) {
+        setCorrectionOpen(false);
+        setMessage(
+          `Document corrigé (révision ${data.revision}). `
+          + "Le mouvement de stock et les quantités en stock n'ont pas changé."
+        );
+        await loadDocument();
+      } else {
+        setMessage(data?.error || "Erreur de correction du document.");
+      }
+    } catch (error) {
+      console.error(error);
+      setMessage("Erreur de correction du document.");
+    } finally {
+      setCorrectionEnCours(false);
+    }
   };
 
   const sendEmail = async (event: React.FormEvent) => {
@@ -130,6 +191,12 @@ export default function DocumentDetailPage() {
               Modifier la date et l&apos;heure
             </button>
           )}
+          {can("document", "update") && !doc.cancelled_at && (
+            <button onClick={ouvrirCorrection}
+                    className="min-h-[44px] rounded-xl border-2 border-black px-5 py-3 font-bold text-black">
+              Corriger numéro / quantités
+            </button>
+          )}
           <button onClick={imprimer} className="rounded-xl bg-black px-5 py-3 font-bold text-white">
             Imprimer
           </button>
@@ -145,6 +212,99 @@ export default function DocumentDetailPage() {
       {message && (
         <div className="mb-5 rounded-xl bg-yellow-100 p-4 font-bold text-yellow-800 print:hidden">
           {message}
+        </div>
+      )}
+
+      {correctionOpen && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 print:hidden">
+          <form onSubmit={enregistrerCorrection}
+                className="my-8 w-full max-w-xl rounded-2xl bg-white p-5 shadow-xl md:p-6">
+            <h2 className="text-2xl font-black">Corriger numéro / quantités</h2>
+
+            {/* Dit à l'écran ce que le serveur impose : sans cette phrase,
+                quelqu'un corrigerait un bon en croyant rectifier un stock. */}
+            <p className="mt-2 rounded-xl bg-yellow-50 p-3 text-sm text-yellow-900">
+              Cette correction ne porte que sur le papier : le mouvement de
+              stock, le stock du produit et les emplacements ne bougent pas.
+              Pour corriger une quantité réellement entrée ou sortie, passez
+              par le mouvement lui-même.
+            </p>
+
+            {Number(doc.print_count || 0) > 0 && (
+              <p className="mt-3 rounded-xl bg-red-50 p-3 text-sm font-bold text-red-800">
+                Ce document a déjà été imprimé{" "}
+                {Number(doc.print_count)} fois : le corriger demande le droit de
+                réimpression.
+              </p>
+            )}
+
+            <label className="mt-4 block text-sm font-bold text-gray-700">
+              Numéro du document
+              <input
+                required
+                value={correction.document_number}
+                onChange={(e) =>
+                  setCorrection({ ...correction, document_number: e.target.value })
+                }
+                className="mt-1 w-full rounded-xl border p-3 font-mono font-bold text-black"
+              />
+            </label>
+
+            <div className="mt-4 space-y-2">
+              <p className="text-sm font-bold text-gray-700">Quantités imprimées</p>
+              {items.map((item: any) => (
+                <div key={item.id}
+                     className="flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 p-3">
+                  <span className="min-w-0 flex-1">
+                    <b className="block text-black">{item.product_name}</b>
+                    <span className="text-xs text-gray-500">
+                      {item.product_reference || "—"} · actuellement{" "}
+                      {Number(item.quantity)}
+                    </span>
+                  </span>
+                  <input
+                    type="number"
+                    min="0.001"
+                    step="any"
+                    required
+                    value={correction.quantites[String(item.id)] ?? ""}
+                    onChange={(e) =>
+                      setCorrection({
+                        ...correction,
+                        quantites: {
+                          ...correction.quantites,
+                          [String(item.id)]: e.target.value,
+                        },
+                      })
+                    }
+                    className="w-28 rounded-xl border p-3 text-right font-bold"
+                  />
+                </div>
+              ))}
+            </div>
+
+            <label className="mt-4 block text-sm font-bold text-gray-700">
+              Motif de la correction (obligatoire)
+              <textarea
+                required
+                value={correction.reason}
+                onChange={(e) => setCorrection({ ...correction, reason: e.target.value })}
+                placeholder="Ex. : quantité saisie deux fois lors de l'import du 2 septembre."
+                className="mt-1 min-h-24 w-full rounded-xl border p-3 text-black"
+              />
+            </label>
+
+            <div className="mt-5 flex flex-wrap justify-end gap-3">
+              <button type="button" onClick={() => setCorrectionOpen(false)}
+                      className="min-h-[44px] rounded-xl border px-5 py-3 font-bold">
+                Annuler
+              </button>
+              <button disabled={correctionEnCours}
+                      className="min-h-[44px] rounded-xl bg-black px-5 py-3 font-bold text-white disabled:bg-gray-300">
+                {correctionEnCours ? "Enregistrement…" : "Enregistrer la correction"}
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
@@ -228,7 +388,12 @@ export default function DocumentDetailPage() {
           <p><strong>Créé par :</strong> {doc.created_by || "-"}</p>
         </section>
 
-        <table className="w-full border-collapse text-left">
+        {/* Cinq colonnes ne tiennent pas dans 375 px : sans ce conteneur, c'est
+            la page entière qui glisse latéralement et les boutons sortent de
+            l'écran. Le tableau défile ici, seul. L'impression n'a pas cette
+            contrainte de largeur : elle reprend le débordement visible. */}
+        <div className="-mx-2 overflow-x-auto px-2 print:mx-0 print:overflow-visible print:px-0">
+        <table className="w-full min-w-[34rem] border-collapse text-left print:min-w-0">
           <thead>
             <tr className="bg-gray-100">
               <th className="p-2">Référence</th>
@@ -254,6 +419,7 @@ export default function DocumentDetailPage() {
             )}
           </tbody>
         </table>
+        </div>
 
         <div className="mt-6 text-right text-2xl font-black">
           Total : {formatFCFA(doc.total_amount)}

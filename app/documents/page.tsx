@@ -22,6 +22,11 @@ export default function DocumentsPage() {
   const [selection, setSelection] = useState<Set<number>>(new Set());
   const [filtre, setFiltre] = useState<"TOUS" | "RECEPTION" | "SORTIE">("TOUS");
   const [apercuAuteur, setApercuAuteur] = useState<any>(null);
+  /* Désactivée par défaut : l'historique n'a pas à se mêler au dernier import. */
+  const [avecHistorique, setAvecHistorique] = useState(false);
+  const [dernierImport, setDernierImport] = useState<any>(null);
+  const [selectionMvt, setSelectionMvt] = useState<Set<number>>(new Set());
+  const [generation, setGeneration] = useState(false);
 
   const authHeaders = () => ({
     Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
@@ -31,26 +36,20 @@ export default function DocumentsPage() {
     try {
       const docsRes = await fetch("/api/documents", { headers: authHeaders() });
       const docsData = await docsRes.json();
-      const docsArray = Array.isArray(docsData) ? docsData : [];
-      setDocuments(docsArray);
+      setDocuments(Array.isArray(docsData) ? docsData : []);
 
-      const movementsRes = await fetch("/api/stock-movements", {
-        headers: authHeaders(),
-      });
-      const movementsData = await movementsRes.json();
-      const movementsArray = Array.isArray(movementsData) ? movementsData : [];
-
-      const filtered = movementsArray.filter((movement: any) => {
-        if (movement.status !== "Validé") return false;
-
-        const alreadyGenerated = docsArray.some((doc: any) =>
-          doc.observation?.includes(`mouvement stock ID ${movement.id}`)
-        );
-
-        return !alreadyGenerated;
-      });
-
-      setMovements(filtered);
+      /* Le serveur décide ce qui reste à documenter : il rattache les
+         mouvements au DERNIER import par `import_id`, et sait lesquels portent
+         déjà un document actif. L'écran ne devine plus rien à partir du texte
+         d'une observation — c'est ce rapprochement approximatif qui mélangeait
+         l'ancienne sortie de 20 avec la nouvelle de 10. */
+      const url = "/api/documents/pending-movements"
+        + (avecHistorique ? "?historique=1" : "");
+      const mvtRes = await fetch(url, { headers: authHeaders() });
+      const mvtData = await mvtRes.json();
+      setMovements(Array.isArray(mvtData?.mouvements) ? mvtData.mouvements : []);
+      setDernierImport(mvtData?.dernierImport || null);
+      setSelectionMvt(new Set());
     } catch (error) {
       console.error(error);
       setDocuments([]);
@@ -68,9 +67,17 @@ export default function DocumentsPage() {
   };
 
   useEffect(() => {
-    fetchData();
     chargerApercuAuteur();
   }, []);
+
+  /* `avecHistorique` change l'URL appelée : sans lui dans les dépendances, la
+     case se cochait et la liste ne bougeait pas. La sélection est vidée au
+     passage — une case cochée sur un mouvement qui vient de disparaître de la
+     liste serait quand même envoyée à la génération groupée. */
+  useEffect(() => {
+    setSelectionMvt(new Set());
+    fetchData();
+  }, [avecHistorique]);
 
   const documentsFiltres = useMemo(
     () => documents.filter((d) => filtre === "TOUS" || familleDocument(d.document_type) === filtre),
@@ -100,7 +107,11 @@ export default function DocumentsPage() {
 
   const getDefaultDocumentType = (movement: any) => {
     if (movement.type === "Entrée") return "Bon de réception";
-    if (movement.type === "Sortie") return "Bon de livraison";
+    /* Une sortie de stock peut être une casse, un départ vers un chantier ou
+       une consommation interne. Un bon de livraison, lui, accompagne une
+       marchandise vendue et livrée : les confondre fait sortir des BL que
+       personne n'a commandés. */
+    if (movement.type === "Sortie") return "Bon de sortie";
     if (movement.type === "Transfert") return "Bon de transfert";
     if (movement.type === "Inventaire") return "Fiche inventaire";
     return "Document stock";
@@ -108,10 +119,43 @@ export default function DocumentsPage() {
 
   const getDocumentButtonLabel = (movement: any) => {
     if (movement.type === "Entrée") return "Générer BR";
-    if (movement.type === "Sortie") return "Générer BL";
+    if (movement.type === "Sortie") return "Générer BS";
     if (movement.type === "Transfert") return "Générer BT";
     if (movement.type === "Inventaire") return "Générer fiche inventaire";
     return "Générer document";
+  };
+
+  /* Un seul appel pour tout le lot. Une boucle qui appelle N fois la route
+     unitaire laisse, quand la moitié échoue, la moitié des bons créés avec des
+     numéros consommés — et personne ne sait où reprendre. */
+  const genererSelection = async () => {
+    if (selectionMvt.size === 0) return;
+    setGeneration(true);
+    try {
+      const r = await fetch("/api/documents/from-movements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ movement_ids: [...selectionMvt] }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setMessage(d?.error || "La génération groupée a été refusée.");
+        return;
+      }
+      const refuses = d.refuses > 0 ? ` — ${d.refuses} refusé(s)` : "";
+      setMessage(`${d.crees} document(s) généré(s)${refuses}.`);
+      await fetchData();
+    } finally {
+      setGeneration(false);
+    }
+  };
+
+  const basculerMvt = (id: number) => {
+    setSelectionMvt((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
   };
 
   const generateDocument = async (movement: any, type?: string) => {
@@ -131,14 +175,6 @@ export default function DocumentsPage() {
 
     setMessage(`${finalType} généré avec succès.`);
     fetchData();
-  };
-
-  const getMovementColor = (type: string) => {
-    if (type === "Entrée") return "bg-green-100 text-green-700";
-    if (type === "Sortie") return "bg-blue-100 text-blue-700";
-    if (type === "Transfert") return "bg-purple-100 text-purple-700";
-    if (type === "Inventaire") return "bg-yellow-100 text-yellow-700";
-    return "bg-gray-100 text-gray-700";
   };
 
   return (
@@ -235,74 +271,152 @@ export default function DocumentsPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-8">
-        <div className="bg-white rounded-2xl shadow p-6 print:hidden">
-          <h2 className="text-2xl font-bold text-black mb-2">
+      {/* Deux colonnes fixes forcent un défilement latéral sur téléphone : les
+          cases à cocher et le bouton groupé sortent de l'écran. Elles
+          s'empilent donc en dessous de 1024 px. */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8">
+        <div className="bg-white rounded-2xl shadow p-4 sm:p-6 print:hidden">
+          <h2 className="text-xl sm:text-2xl font-bold text-black mb-1">
             Mouvements à documenter
           </h2>
 
-          <p className="text-gray-500 mb-5">
-            Seuls les mouvements validés sans document apparaissent ici.
+          {/* D'où viennent ces mouvements, dit noir sur blanc. Sans cela, rien
+              ne distingue une sortie du dernier import d'une sortie de l'an
+              dernier — et c'est ainsi qu'un bon finissait par porter 30 au
+              lieu de 10. */}
+          <p className="text-sm text-gray-600 mb-3">
+            {avecHistorique ? (
+              <>
+                <b>Historique complet.</b> Les anciens mouvements sont affichés
+                à côté de ceux du dernier import.
+              </>
+            ) : (
+              <>
+                <b>Nouveaux mouvements du dernier import</b>
+                {dernierImport?.file_name ? ` — ${dernierImport.file_name}` : ""}.
+                Les anciens mouvements ne sont pas listés.
+              </>
+            )}
           </p>
+
+          <label className="mb-4 flex items-start gap-3 rounded-xl bg-gray-50 p-3 text-sm">
+            <input
+              type="checkbox"
+              checked={avecHistorique}
+              onChange={(e) => setAvecHistorique(e.target.checked)}
+              className="mt-0.5 h-5 w-5 shrink-0"
+            />
+            <span>
+              Afficher aussi les anciens mouvements
+              <span className="mt-0.5 block text-xs text-gray-500">
+                Ils restent dans l&apos;historique et gardent leurs documents,
+                mais ne se cumulent jamais avec ceux du dernier import.
+              </span>
+            </span>
+          </label>
 
           {movements.length === 0 ? (
             <p className="text-gray-500">
               Aucun mouvement à documenter.
             </p>
           ) : (
-            <div className="space-y-4">
-              {movements.map((movement: any) => (
-                <div key={movement.id} className="border rounded-xl p-4">
-                  <div className="flex justify-between items-start mb-3">
-                    <div>
-                      <span
-                        className={`px-3 py-1 rounded-full text-sm font-bold ${getMovementColor(
-                          movement.type
-                        )}`}
-                      >
-                        {movement.type}
+            <>
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSelectionMvt(
+                      selectionMvt.size === movements.length
+                        ? new Set()
+                        : new Set(movements.map((m: any) => m.id))
+                    )
+                  }
+                  className="min-h-[44px] rounded-xl bg-gray-100 px-4 py-2.5 text-sm font-bold text-gray-800"
+                >
+                  {selectionMvt.size === movements.length
+                    ? "Tout décocher"
+                    : `Tout sélectionner (${movements.length})`}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={genererSelection}
+                  disabled={selectionMvt.size === 0 || generation}
+                  className="min-h-[44px] rounded-xl bg-black px-4 py-2.5 text-sm font-bold text-white disabled:bg-gray-300"
+                >
+                  {generation
+                    ? "Génération…"
+                    : `Générer ${selectionMvt.size} document(s)`}
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {movements.map((movement: any) => (
+                  <label
+                    key={movement.id}
+                    className={`flex items-start gap-3 rounded-xl border p-3 ${
+                      selectionMvt.has(movement.id)
+                        ? "border-black bg-gray-50"
+                        : "border-gray-200"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectionMvt.has(movement.id)}
+                      onChange={() => basculerMvt(movement.id)}
+                      className="mt-1 h-5 w-5 shrink-0"
+                    />
+
+                    <span className="min-w-0 flex-1">
+                      <span className="flex flex-wrap items-center gap-2">
+                        <b className="text-black">{movement.product_name}</b>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+                            movement.type === "Sortie"
+                              ? "bg-red-100 text-red-900"
+                              : movement.type === "Entrée"
+                                ? "bg-amber-100 text-amber-900"
+                                : "bg-gray-100 text-gray-800"
+                          }`}
+                        >
+                          {movement.type} {Number(movement.quantity)}
+                        </span>
+                        {!movement.du_dernier_import && (
+                          <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-bold text-gray-700">
+                            ancien
+                          </span>
+                        )}
                       </span>
 
-                      <p className="font-bold text-black mt-3">
-                        {movement.product_reference} - {movement.product_name}
-                      </p>
+                      <span className="mt-1 block text-xs text-gray-600">
+                        {afficherDate(
+                          movement.operation_effective_at || movement.created_at
+                        )}
+                        {movement.entrepot ? ` · ${movement.entrepot}` : ""}
+                        {movement.location_code ? ` · ${movement.location_code}` : ""}
+                      </span>
 
-                      <p className="text-sm text-gray-500">
-                        Quantité : {movement.quantity}
-                      </p>
+                      <span className="mt-0.5 block text-xs text-gray-400">
+                        import{" "}
+                        {movement.import_fichier
+                          || (movement.import_id ? `#${movement.import_id}` : "—")}
+                      </span>
+                    </span>
 
-                      <p className="text-sm text-gray-500">
-                        Source : {movement.source_warehouse || "-"}
-                      </p>
-
-                      <p className="text-sm text-gray-500">
-                        Destination : {movement.destination_warehouse || "-"}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-3">
                     <button
-                      onClick={() => generateDocument(movement)}
-                      className="bg-yellow-500 text-black px-4 py-2 rounded-xl font-bold"
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        generateDocument(movement);
+                      }}
+                      className="min-h-[44px] shrink-0 rounded-xl bg-black px-3 py-2.5 text-xs font-bold text-white"
                     >
                       {getDocumentButtonLabel(movement)}
                     </button>
-
-                    {movement.type === "Sortie" && (
-                      <button
-                        onClick={() =>
-                          generateDocument(movement, "Bon de sortie")
-                        }
-                        className="bg-black text-white px-4 py-2 rounded-xl font-bold"
-                      >
-                        Générer BS
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+                  </label>
+                ))}
+              </div>
+            </>
           )}
         </div>
 
