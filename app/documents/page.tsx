@@ -25,8 +25,15 @@ export default function DocumentsPage() {
   /* Désactivée par défaut : l'historique n'a pas à se mêler au dernier import. */
   const [avecHistorique, setAvecHistorique] = useState(false);
   const [dernierImport, setDernierImport] = useState<any>(null);
-  const [selectionMvt, setSelectionMvt] = useState<Set<number>>(new Set());
+  /* La sélection porte des clés composites « ev:12 » / « mv:34 » : en mode
+     historique, événements d'import et anciens mouvements coexistent dans la
+     même liste, et leurs identifiants numériques se recouvrent. */
+  const [selectionMvt, setSelectionMvt] = useState<Set<string>>(new Set());
   const [generation, setGeneration] = useState(false);
+  /* Vrai quand la liste vient des événements d'import et non des mouvements.
+     Les deux ne se génèrent pas par la même route : un événement porte sa
+     propre quantité, un mouvement consolidé porte leur somme. */
+  const [parEvenement, setParEvenement] = useState(false);
 
   const authHeaders = () => ({
     Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
@@ -43,12 +50,45 @@ export default function DocumentsPage() {
          déjà un document actif. L'écran ne devine plus rien à partir du texte
          d'une observation — c'est ce rapprochement approximatif qui mélangeait
          l'ancienne sortie de 20 avec la nouvelle de 10. */
-      const url = "/api/documents/pending-movements"
-        + (avecHistorique ? "?historique=1" : "");
-      const mvtRes = await fetch(url, { headers: authHeaders() });
-      const mvtData = await mvtRes.json();
-      setMovements(Array.isArray(mvtData?.mouvements) ? mvtData.mouvements : []);
-      setDernierImport(mvtData?.dernierImport || null);
+      /* Les ÉVÉNEMENTS d'abord. Un mouvement peut consolider plusieurs
+         sorties : celui de STADE 4 AOUT vaut 20 alors qu'il y a eu trois
+         sorties de 7, 7 et 6. Afficher les mouvements montre donc un 20 que
+         personne n'a sorti en une fois et qu'aucun bon ne peut porter. Quand
+         l'import a produit ses événements, c'est eux qu'on liste, une fiche
+         par sortie réelle. */
+      const suffixe = avecHistorique ? "?historique=1" : "";
+      const evtRes = await fetch(`/api/documents/pending-events${suffixe}`,
+        { headers: authHeaders() });
+      const evtData = await evtRes.json().catch(() => null);
+      const evts = Array.isArray(evtData?.evenements) ? evtData.evenements : [];
+
+      const mvtRes = await fetch(`/api/documents/pending-movements${suffixe}`,
+        { headers: authHeaders() });
+      const mvtData = await mvtRes.json().catch(() => null);
+      const mvts = Array.isArray(mvtData?.mouvements) ? mvtData.mouvements : [];
+
+      /* Le repli sur les mouvements ne vaut que si l'import n'a JAMAIS produit
+         d'événements — un import ancien, une saisie manuelle. Une fois les 21
+         bons émis, la liste des événements est vide sans que rien ne soit à
+         reprendre : retomber alors sur les mouvements ferait réapparaître les
+         lignes consolidées de 20 qu'on vient de remplacer. */
+      const modeEvenement = Boolean(evtData?.importAvecEvenements) || evts.length > 0;
+      setParEvenement(modeEvenement);
+
+      /* Chaque ligne dit ce qu'elle est. En historique, les deux familles se
+         côtoient : les sorties reconstruites du dernier import, et les anciens
+         mouvements consolidés que l'on ne documente plus par défaut. */
+      const fiches = modeEvenement
+        ? [
+          ...evts.map((e: any) => ({ ...e, _kind: "ev", _cle: `ev:${e.id}` })),
+          ...(avecHistorique
+            ? mvts.map((m: any) => ({ ...m, _kind: "mv", _cle: `mv:${m.id}` }))
+            : []),
+        ]
+        : mvts.map((m: any) => ({ ...m, _kind: "mv", _cle: `mv:${m.id}` }));
+
+      setMovements(fiches);
+      setDernierImport(evtData?.dernierImport || mvtData?.dernierImport || null);
       setSelectionMvt(new Set());
     } catch (error) {
       console.error(error);
@@ -117,6 +157,16 @@ export default function DocumentsPage() {
     return "Document stock";
   };
 
+  /* Un événement d'import dit son sens en anglais technique (OUT), un
+     mouvement en français métier (Sortie). L'écran, lui, parle français. */
+  const sensDe = (ligne: any) => {
+    if (ligne.type) return ligne.type;
+    if (ligne.direction === "OUT") return "Sortie";
+    if (ligne.direction === "IN") return "Entrée";
+    if (String(ligne.direction || "").startsWith("TRANSFER")) return "Transfert";
+    return "Mouvement";
+  };
+
   const getDocumentButtonLabel = (movement: any) => {
     if (movement.type === "Entrée") return "Générer BR";
     if (movement.type === "Sortie") return "Générer BS";
@@ -132,28 +182,52 @@ export default function DocumentsPage() {
     if (selectionMvt.size === 0) return;
     setGeneration(true);
     try {
-      const r = await fetch("/api/documents/from-movements", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ movement_ids: [...selectionMvt] }),
-      });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) {
-        setMessage(d?.error || "La génération groupée a été refusée.");
+      /* Un événement et un mouvement ne se documentent pas par la même route :
+         l'un porte sa quantité propre, l'autre la somme consolidée. Une
+         sélection mixte part donc en deux envois. */
+      const evIds = [...selectionMvt].filter((c) => c.startsWith("ev:"))
+        .map((c) => Number(c.slice(3)));
+      const mvIds = [...selectionMvt].filter((c) => c.startsWith("mv:"))
+        .map((c) => Number(c.slice(3)));
+
+      let crees = 0;
+      let refuses = 0;
+      const erreurs: string[] = [];
+
+      for (const [url, corps] of [
+        ["/api/documents/from-events", { event_ids: evIds }],
+        ["/api/documents/from-movements", { movement_ids: mvIds }],
+      ] as [string, any][]) {
+        const ids = Object.values(corps)[0] as number[];
+        if (ids.length === 0) continue;
+        const r = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...authHeaders() },
+          body: JSON.stringify(corps),
+        });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) { erreurs.push(d?.error || "génération refusée"); continue; }
+        crees += Number(d.crees || 0);
+        refuses += Number(d.refuses || 0);
+      }
+
+      if (erreurs.length && crees === 0) {
+        setMessage(erreurs[0]);
         return;
       }
-      const refuses = d.refuses > 0 ? ` — ${d.refuses} refusé(s)` : "";
-      setMessage(`${d.crees} document(s) généré(s)${refuses}.`);
+      setMessage(`${crees} document(s) généré(s)`
+        + (refuses > 0 ? ` — ${refuses} refusé(s)` : "")
+        + (erreurs.length ? ` — ${erreurs.length} envoi(s) refusé(s)` : "") + ".");
       await fetchData();
     } finally {
       setGeneration(false);
     }
   };
 
-  const basculerMvt = (id: number) => {
+  const basculerMvt = (cle: string) => {
     setSelectionMvt((s) => {
       const n = new Set(s);
-      if (n.has(id)) n.delete(id); else n.add(id);
+      if (n.has(cle)) n.delete(cle); else n.add(cle);
       return n;
     });
   };
@@ -277,27 +351,51 @@ export default function DocumentsPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8">
         <div className="bg-white rounded-2xl shadow p-4 sm:p-6 print:hidden">
           <h2 className="text-xl sm:text-2xl font-bold text-black mb-1">
-            Mouvements à documenter
+            {parEvenement ? "Sorties à documenter" : "Mouvements à documenter"}
           </h2>
 
-          {/* D'où viennent ces mouvements, dit noir sur blanc. Sans cela, rien
-              ne distingue une sortie du dernier import d'une sortie de l'an
+          {/* D'où viennent ces lignes, dit noir sur blanc. Sans cela, rien ne
+              distingue une sortie du dernier import d'une sortie de l'an
               dernier — et c'est ainsi qu'un bon finissait par porter 30 au
               lieu de 10. */}
           <p className="text-sm text-gray-600 mb-3">
             {avecHistorique ? (
               <>
-                <b>Historique complet.</b> Les anciens mouvements sont affichés
-                à côté de ceux du dernier import.
+                <b>Historique complet.</b> Les anciennes lignes sont affichées
+                à côté de celles du dernier import.
               </>
             ) : (
               <>
-                <b>Nouveaux mouvements du dernier import</b>
+                <b>
+                  {parEvenement
+                    ? "Nouvelles sorties du dernier import"
+                    : "Nouveaux mouvements du dernier import"}
+                </b>
                 {dernierImport?.file_name ? ` — ${dernierImport.file_name}` : ""}.
-                Les anciens mouvements ne sont pas listés.
+                Les anciens mouvements ne sont accessibles que dans l&apos;historique.
               </>
             )}
           </p>
+
+          {/* Le compte et le total, visibles sans compter à la main : c'est ce
+              qui permet de dire d'un coup d'œil « 21 sorties, 739 unités » —
+              et de voir immédiatement si un chiffre a dérivé. */}
+          {movements.length > 0 && (
+            <p className="mb-3 rounded-xl bg-gray-900 px-3 py-2 text-sm font-bold text-white">
+              {movements.length} {parEvenement ? "sortie(s)" : "mouvement(s)"}
+              {" · "}
+              {movements.reduce((s: number, m: any) => s + Number(m.quantity || 0), 0)} unités
+            </p>
+          )}
+
+          {parEvenement && (
+            <p className="mb-3 rounded-xl bg-amber-50 p-3 text-xs text-amber-900">
+              Une fiche par sortie réelle, avec sa date et sa quantité propres.
+              Un même mouvement de stock peut en porter plusieurs — trois
+              sorties de 7, 7 et 6 le même jour font un mouvement de 20, mais
+              trois bons distincts.
+            </p>
+          )}
 
           <label className="mb-4 flex items-start gap-3 rounded-xl bg-gray-50 p-3 text-sm">
             <input
@@ -317,7 +415,15 @@ export default function DocumentsPage() {
 
           {movements.length === 0 ? (
             <p className="text-gray-500">
-              Aucun mouvement à documenter.
+              {parEvenement
+                ? "Toutes les sorties du dernier import portent leur bon."
+                : "Aucun mouvement à documenter."}
+              {!avecHistorique && (
+                <span className="mt-1 block text-xs">
+                  Les anciens mouvements restent accessibles par l&apos;historique
+                  ci-dessus.
+                </span>
+              )}
             </p>
           ) : (
             <>
@@ -328,7 +434,7 @@ export default function DocumentsPage() {
                     setSelectionMvt(
                       selectionMvt.size === movements.length
                         ? new Set()
-                        : new Set(movements.map((m: any) => m.id))
+                        : new Set(movements.map((m: any) => m._cle))
                     )
                   }
                   className="min-h-[44px] rounded-xl bg-gray-100 px-4 py-2.5 text-sm font-bold text-gray-800"
@@ -353,17 +459,17 @@ export default function DocumentsPage() {
               <div className="space-y-3">
                 {movements.map((movement: any) => (
                   <label
-                    key={movement.id}
+                    key={movement._cle}
                     className={`flex items-start gap-3 rounded-xl border p-3 ${
-                      selectionMvt.has(movement.id)
+                      selectionMvt.has(movement._cle)
                         ? "border-black bg-gray-50"
                         : "border-gray-200"
                     }`}
                   >
                     <input
                       type="checkbox"
-                      checked={selectionMvt.has(movement.id)}
-                      onChange={() => basculerMvt(movement.id)}
+                      checked={selectionMvt.has(movement._cle)}
+                      onChange={() => basculerMvt(movement._cle)}
                       className="mt-1 h-5 w-5 shrink-0"
                     />
 
@@ -372,47 +478,74 @@ export default function DocumentsPage() {
                         <b className="text-black">{movement.product_name}</b>
                         <span
                           className={`rounded-full px-2 py-0.5 text-xs font-bold ${
-                            movement.type === "Sortie"
+                            sensDe(movement) === "Sortie"
                               ? "bg-red-100 text-red-900"
-                              : movement.type === "Entrée"
+                              : sensDe(movement) === "Entrée"
                                 ? "bg-amber-100 text-amber-900"
                                 : "bg-gray-100 text-gray-800"
                           }`}
                         >
-                          {movement.type} {Number(movement.quantity)}
+                          {sensDe(movement)} {Number(movement.quantity)}
                         </span>
                         {!movement.du_dernier_import && (
                           <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-bold text-gray-700">
                             ancien
                           </span>
                         )}
+                        {/* Une sortie qu'aucun mouvement ne porte : on le dit
+                            plutôt que d'inventer un rattachement. */}
+                        {movement._kind === "ev" && !movement.movement_id && (
+                          <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-bold text-orange-900">
+                            sans mouvement rattaché
+                          </span>
+                        )}
                       </span>
 
                       <span className="mt-1 block text-xs text-gray-600">
-                        {afficherDate(
-                          movement.operation_effective_at || movement.created_at
-                        )}
+                        {movement._kind === "ev"
+                          ? afficherDate(`${movement.effective_date}T12:00:00Z`)
+                          : afficherDate(
+                            movement.operation_effective_at || movement.created_at
+                          )}
                         {movement.entrepot ? ` · ${movement.entrepot}` : ""}
                         {movement.location_code ? ` · ${movement.location_code}` : ""}
                       </span>
 
+                      {/* La provenance exacte : c'est elle qui permet de
+                          retrouver la cellule d'origine quand un chiffre est
+                          contesté. */}
                       <span className="mt-0.5 block text-xs text-gray-400">
-                        import{" "}
-                        {movement.import_fichier
-                          || (movement.import_id ? `#${movement.import_id}` : "—")}
+                        {movement._kind === "ev" ? (
+                          <>
+                            {movement.import_fichier || "import"} · ligne{" "}
+                            {movement.excel_row} · cellule {movement.excel_cell}
+                            {movement.movement_id
+                              && Number(movement.quantite_mouvement) !== Number(movement.quantity)
+                              ? ` · mouvement #${movement.movement_id} consolidé à ${Number(movement.quantite_mouvement)}`
+                              : ""}
+                          </>
+                        ) : (
+                          <>
+                            import{" "}
+                            {movement.import_fichier
+                              || (movement.import_id ? `#${movement.import_id}` : "—")}
+                          </>
+                        )}
                       </span>
                     </span>
 
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        generateDocument(movement);
-                      }}
-                      className="min-h-[44px] shrink-0 rounded-xl bg-black px-3 py-2.5 text-xs font-bold text-white"
-                    >
-                      {getDocumentButtonLabel(movement)}
-                    </button>
+                    {movement._kind === "mv" && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          generateDocument(movement);
+                        }}
+                        className="min-h-[44px] shrink-0 rounded-xl bg-black px-3 py-2.5 text-xs font-bold text-white"
+                      >
+                        {getDocumentButtonLabel(movement)}
+                      </button>
+                    )}
                   </label>
                 ))}
               </div>
