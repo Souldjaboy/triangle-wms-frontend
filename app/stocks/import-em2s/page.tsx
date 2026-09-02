@@ -623,21 +623,21 @@ function GrilleRepartition({
     <section className={`${CARTE} mt-4`}>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-black">Grille de répartition</p>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {([["MULTI_BIN", "Stock par bac"], ["MOUVEMENT", "Mouvement par bac"],
              ["DATES_MULTIPLES", "Par date"]] as const).map(([v, label]) => (
             <button key={v} onClick={() => setType(v)}
-                    className={`rounded-full px-3 py-1.5 text-xs font-bold ${
+                    className={`rounded-full px-4 py-2.5 text-xs font-bold whitespace-nowrap ${
                       type === v ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-700"}`}>
               {label}
             </button>
           ))}
           <button onClick={enregistrerLot} disabled={lot}
-                  className="rounded-full bg-gray-900 px-3 py-1.5 text-xs font-bold text-white disabled:bg-gray-300">
+                  className="rounded-full bg-gray-900 px-4 py-2.5 text-xs font-bold text-white disabled:bg-gray-300">
             {lot ? "Enregistrement…" : "Enregistrer les lignes complètes"}
           </button>
           <button onClick={onCharger}
-                  className="rounded-full bg-gray-100 px-3 py-1.5 text-xs font-bold text-gray-700">
+                  className="rounded-full bg-gray-100 px-4 py-2.5 text-xs font-bold text-gray-700">
             Actualiser
           </button>
         </div>
@@ -656,7 +656,78 @@ function GrilleRepartition({
           Rien à répartir ici pour l&apos;instant. Lancez « Actualiser » après un import.
         </p>
       ) : (
-        <div className="max-h-[32rem] overflow-auto">
+        <>
+        {/* Sur téléphone, un tableau de dix colonnes oblige à défiler
+            latéralement pour atteindre le bouton d'enregistrement — il tombait
+            à 626 px d'un écran de 375. Chaque ligne devient donc une fiche
+            empilée, où tout est à portée de pouce. */}
+        <div className="space-y-3 sm:hidden">
+          {visibles.map((a) => {
+            const r = reste(a);
+            const exact = r === 0 && somme(a) > 0;
+            return (
+              <div key={a.id} className={`rounded-xl border p-3 ${
+                exact ? "border-green-300 bg-green-50" : "border-gray-200 bg-white"}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm font-black leading-tight">{a.description}</p>
+                  <span className="shrink-0 text-xs text-gray-400">L{a.excel_row}</span>
+                </div>
+                <p className="mt-1 text-xs text-gray-600">
+                  {[a.payload?.entrepot || "A", a.payload?.rayon, a.payload?.location,
+                    a.payload?.niveau].filter(Boolean).join(" / ") || "—"}
+                </p>
+                <p className="mt-1 flex flex-wrap items-center gap-1 text-xs">
+                  {Number(a.payload?.entrees || 0) > 0 && (
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 font-bold text-amber-900">
+                      Entrée {n(a.payload.entrees)}
+                    </span>
+                  )}
+                  {Number(a.payload?.sorties || 0) > 0 && (
+                    <span className="rounded-full bg-red-100 px-2 py-0.5 font-bold text-red-900">
+                      Sortie {n(a.payload.sorties)}
+                    </span>
+                  )}
+                  <span className="text-gray-500">{a.payload?.dateUnique || "sans date"}</span>
+                </p>
+
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  {clefs(a).map((k) => (
+                    <label key={k} className="text-xs font-bold text-gray-700">
+                      {k}
+                      <input type="number" min={0} inputMode="numeric"
+                             value={saisies[cleSaisie(a)]?.[k] ?? ""}
+                             onChange={(e) => noter({
+                               ...saisies,
+                               [cleSaisie(a)]: { ...(saisies[cleSaisie(a)] || {}), [k]: e.target.value },
+                             })}
+                             className="mt-0.5 w-full rounded-lg border border-gray-300 px-2 py-2.5 text-sm" />
+                    </label>
+                  ))}
+                </div>
+
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <span>
+                    attendu <b>{n(attendue(a))}</b> · reste{" "}
+                    <b className={r === 0 ? "text-green-700" : "text-amber-800"}>{n(r)}</b>
+                  </span>
+                  <span className={`rounded-full px-2 py-0.5 font-bold ${
+                    exact ? "bg-green-100 text-green-800" : "bg-rose-100 text-rose-800"}`}>
+                    {exact ? "exact" : "à compléter"}
+                  </span>
+                </div>
+
+                <button type="button" onClick={() => enregistrer(a)}
+                        disabled={!exact || enCours === a.id}
+                        title={exact ? undefined : "La somme doit égaler la quantité attendue."}
+                        className="mt-2 w-full rounded-lg bg-gray-900 py-3 text-sm font-bold text-white disabled:bg-gray-300">
+                  {enCours === a.id ? "…" : "Enregistrer cette ligne"}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="hidden max-h-[32rem] overflow-auto sm:block">
           <table className="w-full text-xs">
             <thead className="sticky top-0 bg-white text-left text-gray-500">
               <tr>
@@ -739,6 +810,7 @@ function GrilleRepartition({
             </tbody>
           </table>
         </div>
+        </>
       )}
     </section>
   );
