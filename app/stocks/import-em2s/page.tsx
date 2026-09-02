@@ -531,31 +531,63 @@ function GrilleRepartition({
   onCharger: () => Promise<void>;
   onMessage: (texte: string, type?: "ok" | "erreur") => void;
 }) {
-  const [saisies, setSaisies] = useState<Record<number, Record<string, string>>>({});
+  const BROUILLON = "em2s-repartitions";
+
+  /* Le brouillon survit à un rechargement : cent soixante-cinq lignes ne se
+     saisissent pas d'une traite, et perdre la moitié du travail parce qu'on a
+     fermé l'onglet serait insupportable. */
+  const [saisies, setSaisies] = useState<Record<string, Record<string, string>>>(() => {
+    if (typeof window === "undefined") return {};
+    try { return JSON.parse(localStorage.getItem(BROUILLON) || "{}"); } catch { return {}; }
+  });
   const [enCours, setEnCours] = useState<number | null>(null);
-  const [type, setType] = useState<"MULTI_BIN" | "DATES_MULTIPLES">("MULTI_BIN");
+  const [lot, setLot] = useState(false);
+  const [type, setType] = useState<"MULTI_BIN" | "MOUVEMENT" | "DATES_MULTIPLES">("MULTI_BIN");
 
-  const visibles = anomalies.filter((a) => a.anomaly_type === type);
+  const noter = (maj: Record<string, Record<string, string>>) => {
+    setSaisies(maj);
+    try { localStorage.setItem(BROUILLON, JSON.stringify(maj)); } catch { /* onglet privé */ }
+  };
 
-  const attendue = (a: Anomalie) =>
-    type === "MULTI_BIN"
-      ? Number(a.payload?.quantiteAttendue ?? 0)
-      : Number(a.payload?.sorties || a.payload?.entrees || 0);
+  /* La répartition du MOUVEMENT vit sur les mêmes anomalies multi-bacs, mais
+     répond à une autre question : par quel bac les unités sont-elles passées ?
+     Les deux saisies sont donc gardées sous des clés distinctes. */
+  const cleSaisie = (a: Anomalie) => `${type}:${a.id}`;
+  const visibles = anomalies.filter((a) =>
+    a.anomaly_type === (type === "MOUVEMENT" ? "MULTI_BIN" : type));
+
+  /** Ce que la somme doit valoir, et ce n'est pas la même chose selon la question posée. */
+  const attendue = (a: Anomalie) => {
+    if (type === "MULTI_BIN") return Number(a.payload?.quantiteAttendue ?? 0);
+    /* Mouvement et dates portent tous deux sur la quantité qui a bougé, pas
+       sur le stock présent. */
+    return Number(a.payload?.sorties || a.payload?.entrees || 0);
+  };
 
   const clefs = (a: Anomalie): string[] =>
-    type === "MULTI_BIN" ? (a.payload?.bins || []) : (a.payload?.dates || []);
+    type === "DATES_MULTIPLES" ? (a.payload?.dates || []) : (a.payload?.bins || []);
 
   const somme = (a: Anomalie) =>
-    clefs(a).reduce((s, k) => s + Number(saisies[a.id]?.[k] || 0), 0);
+    clefs(a).reduce((s, k) => s + Number(saisies[cleSaisie(a)]?.[k] || 0), 0);
 
   const reste = (a: Anomalie) => attendue(a) - somme(a);
 
-  const enregistrer = async (a: Anomalie) => {
+  const resolutionDe = (a: Anomalie) => {
     const valeurs = Object.fromEntries(
-      clefs(a).map((k) => [k, Number(saisies[a.id]?.[k] || 0)]));
-    const resolution = type === "MULTI_BIN"
-      ? { parBin: valeurs }
-      : { parDate: valeurs, quantiteTotale: attendue(a) };
+      clefs(a).map((k) => [k, Number(saisies[cleSaisie(a)]?.[k] || 0)]));
+    if (type === "MULTI_BIN") return { parBin: valeurs };
+    if (type === "MOUVEMENT") {
+      /* La répartition du stock doit accompagner celle du mouvement : le
+         serveur exige les deux, et l'une ne se déduit jamais de l'autre. */
+      const stock = Object.fromEntries((a.payload?.bins || []).map((b: string) =>
+        [b, Number(saisies[`MULTI_BIN:${a.id}`]?.[b] || 0)]));
+      return { parBin: stock, parBinMouvement: valeurs, quantiteMouvement: attendue(a) };
+    }
+    return { parDate: valeurs, quantiteTotale: attendue(a) };
+  };
+
+  const enregistrer = async (a: Anomalie) => {
+    const resolution = resolutionDe(a);
 
     setEnCours(a.id);
     try {
@@ -570,24 +602,54 @@ function GrilleRepartition({
     } finally { setEnCours(null); }
   };
 
+  /** Tout le lot passe, ou rien : le serveur refuse en bloc. */
+  const enregistrerLot = async () => {
+    const prets = visibles.filter((a) => reste(a) === 0 && somme(a) > 0);
+    if (prets.length === 0) return onMessage("Aucune ligne complète à enregistrer.", "erreur");
+    setLot(true);
+    try {
+      const r = await authFetch("/stock/import-em2s/anomalies/bulk-resolve", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resolutions: prets.map((a) => ({ id: a.id, resolution: resolutionDe(a) })) }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) return onMessage(d?.error || "Le lot a été refusé en entier.", "erreur");
+      onMessage(`${d.tranchees} ligne(s) enregistrées d'un coup.`);
+      await onCharger();
+    } finally { setLot(false); }
+  };
+
   return (
     <section className={`${CARTE} mt-4`}>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-black">Grille de répartition</p>
         <div className="flex gap-2">
-          {([["MULTI_BIN", "Par bac"], ["DATES_MULTIPLES", "Par date"]] as const).map(([v, label]) => (
+          {([["MULTI_BIN", "Stock par bac"], ["MOUVEMENT", "Mouvement par bac"],
+             ["DATES_MULTIPLES", "Par date"]] as const).map(([v, label]) => (
             <button key={v} onClick={() => setType(v)}
                     className={`rounded-full px-3 py-1.5 text-xs font-bold ${
                       type === v ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-700"}`}>
               {label}
             </button>
           ))}
+          <button onClick={enregistrerLot} disabled={lot}
+                  className="rounded-full bg-gray-900 px-3 py-1.5 text-xs font-bold text-white disabled:bg-gray-300">
+            {lot ? "Enregistrement…" : "Enregistrer les lignes complètes"}
+          </button>
           <button onClick={onCharger}
                   className="rounded-full bg-gray-100 px-3 py-1.5 text-xs font-bold text-gray-700">
             Actualiser
           </button>
         </div>
       </div>
+
+      <p className="mb-2 text-xs text-gray-600">
+        {type === "MULTI_BIN"
+          ? "Où reposent aujourd'hui les unités de cette ligne ? La somme doit égaler le stock final."
+          : type === "MOUVEMENT"
+            ? "Par quel bac les unités de ce mouvement sont-elles passées ? Ce n'est pas la même question que ci-contre : la somme doit égaler la quantité du mouvement, pas le stock. Renseignez d'abord « Stock par bac »."
+            : "Combien d'unités pour chaque date ? La somme doit égaler la quantité du mouvement."}
+      </p>
 
       {visibles.length === 0 ? (
         <p className="text-sm text-gray-500">
@@ -599,9 +661,9 @@ function GrilleRepartition({
             <thead className="sticky top-0 bg-white text-left text-gray-500">
               <tr>
                 <th className="py-1">Ligne</th><th>Article</th>
-                <th>Rayon / Location / Niveau</th>
+                <th>Emplacement</th><th>Mouvement</th><th>Date réelle</th>
                 <th className="text-right">Attendu</th>
-                <th>{type === "MULTI_BIN" ? "Quantité par bac" : "Quantité par date"}</th>
+                <th>{type === "DATES_MULTIPLES" ? "Quantité par date" : "Quantité par bac"}</th>
                 <th className="text-right">Reste</th><th>Statut</th><th />
               </tr>
             </thead>
@@ -614,9 +676,25 @@ function GrilleRepartition({
                     <td className="py-2 text-gray-400">{a.excel_row}</td>
                     <td className="pr-2 font-bold">{a.description}</td>
                     <td className="text-gray-600">
-                      {[a.payload?.rayon, a.payload?.location, a.payload?.niveau]
-                        .filter(Boolean).join(" / ") || "—"}
+                      {[a.payload?.entrepot || "A", a.payload?.rayon, a.payload?.location,
+                        a.payload?.niveau].filter(Boolean).join(" / ") || "—"}
                     </td>
+                    <td>
+                      {Number(a.payload?.entrees || 0) > 0 && (
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 font-bold text-amber-900">
+                          Entrée {n(a.payload.entrees)}
+                        </span>
+                      )}
+                      {Number(a.payload?.sorties || 0) > 0 && (
+                        <span className="ml-1 rounded-full bg-red-100 px-2 py-0.5 font-bold text-red-900">
+                          Sortie {n(a.payload.sorties)}
+                        </span>
+                      )}
+                      {!a.payload?.entrees && !a.payload?.sorties && (
+                        <span className="text-gray-400">aucun</span>
+                      )}
+                    </td>
+                    <td className="text-gray-600">{a.payload?.dateUnique || "—"}</td>
                     <td className="text-right font-bold">{n(attendue(a))}</td>
                     <td>
                       <div className="flex flex-wrap gap-1">
@@ -624,8 +702,10 @@ function GrilleRepartition({
                           <label key={k} className="flex items-center gap-1">
                             <span className="text-gray-500">{k}</span>
                             <input type="number" min={0} value={saisies[a.id]?.[k] ?? ""}
-                                   onChange={(e) => setSaisies((s) => ({
-                                     ...s, [a.id]: { ...(s[a.id] || {}), [k]: e.target.value } }))}
+                                   onChange={(e) => noter({
+                                     ...saisies,
+                                     [cleSaisie(a)]: { ...(saisies[cleSaisie(a)] || {}), [k]: e.target.value },
+                                   })}
                                    className="w-20 rounded border border-gray-300 px-1 py-0.5" />
                           </label>
                         ))}
