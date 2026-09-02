@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { formatFCFA } from "../lib/format";
+import { authFetch, authHeaders as sharedAuthHeaders } from "../lib/api";
 
 const RADIUS_OPTIONS = [50, 100, 150, 200];
 
@@ -59,23 +60,22 @@ export default function ParametresPointagePage() {
     allow_out_of_zone: false,
   });
 
-  const authHeaders = () => ({
-    Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
-  });
+  const authHeaders = () => sharedAuthHeaders();
 
-  const jsonHeaders = () => ({
-    "Content-Type": "application/json",
-    ...authHeaders(),
-  });
+  const jsonHeaders = () => {
+    const headers = authHeaders();
+    headers.set("Content-Type", "application/json");
+    return headers;
+  };
 
   const fetchData = async () => {
     const [groupsRes, usersRes, gpsRes, sitesRes, workforceRes, organizationRes] = await Promise.all([
-      fetch("/api/attendance/settings/schedule-groups", { headers: authHeaders() }),
-      fetch("/api/users", { headers: authHeaders() }),
-      fetch("/api/attendance/settings/gps", { headers: authHeaders() }),
-      fetch("/api/attendance-sites", { headers: authHeaders() }),
-      fetch("/api/attendance-v2/employees", { headers: authHeaders() }),
-      fetch("/api/attendance-v2/organization", { headers: authHeaders() }),
+      authFetch("/attendance/settings/schedule-groups"),
+      authFetch("/users"),
+      authFetch("/attendance/settings/gps"),
+      authFetch("/attendance-sites"),
+      authFetch("/attendance-v2/employees"),
+      authFetch("/attendance-v2/organization"),
     ]);
 
     const groupsData = await groupsRes.json().catch(() => []);
@@ -369,7 +369,7 @@ export default function ParametresPointagePage() {
         </section>
       )}
 
-      <div className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-2">
+      <div className={`${workforce.length ? "hidden" : "grid"} mb-8 grid-cols-1 gap-6 xl:grid-cols-2`}>
         <form onSubmit={createGroup} className="rounded-2xl bg-white p-6 shadow">
           <h2 className="mb-4 text-2xl font-bold">Créer un groupe horaire</h2>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -423,7 +423,7 @@ export default function ParametresPointagePage() {
         </form>
       </div>
 
-      <form onSubmit={saveGpsSettings} className="mb-8 rounded-2xl bg-white p-6 shadow">
+      <form onSubmit={saveGpsSettings} className={`${workforce.length ? "hidden" : "block"} mb-8 rounded-2xl bg-white p-6 shadow`}>
         <h2 className="mb-2 text-2xl font-bold">Section 1 : Paramètres généraux</h2>
         <p className="mb-4 text-gray-500">Le contrôle de distance est effectué côté backend.</p>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -437,7 +437,7 @@ export default function ParametresPointagePage() {
         </button>
       </form>
 
-      <section className="mb-8 rounded-2xl bg-white p-6 shadow">
+      <section className={`${workforce.length ? "hidden" : "block"} mb-8 rounded-2xl bg-white p-6 shadow`}>
         <div className="mb-4">
           <h2 className="text-2xl font-bold">Section 2 : Sites de pointage</h2>
           <p className="text-gray-500">Bureau, entrepôt, chantier, site client ou site mobile.</p>
@@ -501,7 +501,7 @@ export default function ParametresPointagePage() {
         </div>
       </section>
 
-      <section className="mb-8 rounded-2xl bg-white p-6 shadow">
+      <section className={`${workforce.length ? "hidden" : "block"} mb-8 rounded-2xl bg-white p-6 shadow`}>
         <h2 className="mb-2 text-2xl font-bold">Section 3 : Affectation employés</h2>
         <p className="mb-4 text-gray-500">Un employé ne peut pointer que sur les sites qui lui sont affectés.</p>
 
@@ -539,7 +539,7 @@ export default function ParametresPointagePage() {
         </form>
       </section>
 
-      <div className="grid grid-cols-1 gap-8 xl:grid-cols-2">
+      <div className={`${workforce.length ? "hidden" : "grid"} grid-cols-1 gap-8 xl:grid-cols-2`}>
         <section className="rounded-2xl bg-white p-6 shadow">
           <h2 className="mb-5 text-2xl font-bold">Groupes horaires existants</h2>
           {groups.length === 0 ? <p className="text-gray-500">Aucun groupe horaire.</p> : (

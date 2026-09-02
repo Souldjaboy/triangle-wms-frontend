@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { authFetch } from "../lib/api";
 
 type Employee = { id:number; employee_id?:number; employee_number:number; full_name:string; user_id?:number|null; site_name:string; schedule_name:string; daily_rate?:number|null };
 type Attendance = Employee & { attendance_id?:number|null; check_in?:string|null; break_out?:string|null; break_in?:string|null; check_out?:string|null; status:string; late_minutes:number };
@@ -21,12 +22,10 @@ export default function PointagePage() {
   const [message,setMessage]=useState("");
   const [error,setError]=useState("");
   const [busy,setBusy]=useState(false);
-  const headers=()=>({Authorization:`Bearer ${localStorage.getItem("token")||""}`});
-
   const load=useCallback(async()=>{
     const [er,tr]=await Promise.all([
-      fetch("/api/attendance-v2/employees",{headers:headers(),cache:"no-store"}),
-      fetch("/api/attendance-v2/today",{headers:headers(),cache:"no-store"}),
+      authFetch("/attendance-v2/employees",{cache:"no-store"}),
+      authFetch("/attendance-v2/today",{cache:"no-store"}),
     ]);
     const ed=await er.json().catch(()=>({})); const td=await tr.json().catch(()=>({}));
     if(!er.ok||!tr.ok){setError(ed.error||td.error||"Impossible de charger le pointage.");return;}
@@ -39,7 +38,7 @@ export default function PointagePage() {
   const selected=useMemo(()=>records.find(i=>String(i.employee_id||i.id)===selectedId)||employees.find(i=>String(i.id)===selectedId),[employees,records,selectedId]);
   const punch=async(actionType:string)=>{
     if(!selectedId||busy)return; setBusy(true);setMessage("");setError("");
-    const response=await fetch("/api/attendance-v2/check",{method:"POST",headers:{"Content-Type":"application/json",...headers()},body:JSON.stringify({employee_id:Number(selectedId),action_type:actionType})});
+    const response=await authFetch("/attendance-v2/check",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({employee_id:Number(selectedId),action_type:actionType})});
     const data=await response.json().catch(()=>({}));
     if(!response.ok)setError(data.error||"Pointage refusé.");
     else{setMessage(`Pointage enregistré pour ${data.employee?.full_name||selected?.full_name}.`);await load();}

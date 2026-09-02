@@ -43,7 +43,13 @@ export default function CompanySwitcher() {
         setCompanies(list);
 
         if (!companyId && list.length > 0) {
-          setCurrent(String(list[0].id));
+          const firstCompanyId = String(list[0].id);
+          localStorage.setItem("active_company_id", firstCompanyId);
+          setCurrent(firstCompanyId);
+          // Les pages ont pu lancer leurs appels avant que la liste des
+          // entreprises arrive. Le rechargement garantit que tous les appels
+          // suivants portent l'entreprise active dans leur en-tête.
+          window.location.reload();
         }
       })
       .catch((error) => {
