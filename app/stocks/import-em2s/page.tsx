@@ -64,7 +64,15 @@ type Apercu = {
 type Anomalie = {
   id: number; anomaly_type: string; status: string; excel_row: number;
   excel_sheet: string; description: string; message: string;
+  file_sha256: string;
   payload: Record<string, any>;
+};
+
+type EvenementMouvement = {
+  id: number; excel_sheet: string; excel_row: number; direction: "IN" | "OUT";
+  effective_date: string; event_sequence: number; quantity: number;
+  allowed_bins: string[]; source_context: Record<string, any>;
+  allocation: Record<string, number>; allocation_status: string; version: number;
 };
 
 const CARTE = "rounded-2xl bg-white p-4 shadow";
@@ -95,6 +103,7 @@ export default function ImportEm2sPage() {
   const [fichier, setFichier] = useState<File | null>(null);
   const [apercu, setApercu] = useState<Apercu | null>(null);
   const [anomalies, setAnomalies] = useState<Anomalie[]>([]);
+  const [evenements, setEvenements] = useState<EvenementMouvement[]>([]);
   const [chargement, setChargement] = useState(false);
   const [message, setMessage] = useState<{ texte: string; type: "ok" | "erreur" } | null>(null);
   const [onglet, setOnglet] = useState<"conteneurs" | "mouvements" | "anomalies">("conteneurs");
@@ -161,6 +170,9 @@ export default function ImportEm2sPage() {
     if (!r.ok) return;
     const d = await r.json().catch(() => ({}));
     setAnomalies(d.anomalies || []);
+    const suffixe = apercu?.fichier.sha256 ? `?sha=${apercu.fichier.sha256}` : "";
+    const re = await authFetch(`/stock/import-em2s/repartitions${suffixe}`, { cache: "no-store" });
+    if (re.ok) setEvenements((await re.json().catch(() => ({}))).evenements || []);
   };
 
   /* ─────────────────────────────────────────────────── filtres ── */
@@ -512,6 +524,10 @@ export default function ImportEm2sPage() {
         <GrilleRepartition anomalies={anomalies} onCharger={chargerAnomalies}
                            onMessage={notifier} />
       )}
+      {peutResoudre && (
+        <GrilleEvenements evenements={evenements} anomalies={anomalies}
+          onCharger={chargerAnomalies} onMessage={notifier} />
+      )}
     </div>
   );
 }
@@ -542,7 +558,7 @@ function GrilleRepartition({
   });
   const [enCours, setEnCours] = useState<number | null>(null);
   const [lot, setLot] = useState(false);
-  const [type, setType] = useState<"MULTI_BIN" | "MOUVEMENT" | "DATES_MULTIPLES">("MULTI_BIN");
+  const type = "MULTI_BIN" as const;
 
   const noter = (maj: Record<string, Record<string, string>>) => {
     setSaisies(maj);
@@ -553,19 +569,15 @@ function GrilleRepartition({
      répond à une autre question : par quel bac les unités sont-elles passées ?
      Les deux saisies sont donc gardées sous des clés distinctes. */
   const cleSaisie = (a: Anomalie) => `${type}:${a.id}`;
-  const visibles = anomalies.filter((a) =>
-    a.anomaly_type === (type === "MOUVEMENT" ? "MULTI_BIN" : type));
+  const visibles = anomalies.filter((a) => a.anomaly_type === "MULTI_BIN");
 
   /** Ce que la somme doit valoir, et ce n'est pas la même chose selon la question posée. */
   const attendue = (a: Anomalie) => {
-    if (type === "MULTI_BIN") return Number(a.payload?.quantiteAttendue ?? 0);
-    /* Mouvement et dates portent tous deux sur la quantité qui a bougé, pas
-       sur le stock présent. */
-    return Number(a.payload?.sorties || a.payload?.entrees || 0);
+    return Number(a.payload?.quantiteAttendue ?? 0);
   };
 
   const clefs = (a: Anomalie): string[] =>
-    type === "DATES_MULTIPLES" ? (a.payload?.dates || []) : (a.payload?.bins || []);
+    a.payload?.bins || [];
 
   const somme = (a: Anomalie) =>
     clefs(a).reduce((s, k) => s + Number(saisies[cleSaisie(a)]?.[k] || 0), 0);
@@ -575,15 +587,7 @@ function GrilleRepartition({
   const resolutionDe = (a: Anomalie) => {
     const valeurs = Object.fromEntries(
       clefs(a).map((k) => [k, Number(saisies[cleSaisie(a)]?.[k] || 0)]));
-    if (type === "MULTI_BIN") return { parBin: valeurs };
-    if (type === "MOUVEMENT") {
-      /* La répartition du stock doit accompagner celle du mouvement : le
-         serveur exige les deux, et l'une ne se déduit jamais de l'autre. */
-      const stock = Object.fromEntries((a.payload?.bins || []).map((b: string) =>
-        [b, Number(saisies[`MULTI_BIN:${a.id}`]?.[b] || 0)]));
-      return { parBin: stock, parBinMouvement: valeurs, quantiteMouvement: attendue(a) };
-    }
-    return { parDate: valeurs, quantiteTotale: attendue(a) };
+    return { parBin: valeurs };
   };
 
   const enregistrer = async (a: Anomalie) => {
@@ -591,9 +595,11 @@ function GrilleRepartition({
 
     setEnCours(a.id);
     try {
-      const r = await authFetch(`/stock/import-em2s/anomalies/${a.id}/resolve`, {
+      const r = await authFetch("/stock/import-em2s/repartitions/stock", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ resolution }),
+        body: JSON.stringify({ sha: a.file_sha256, feuille: a.excel_sheet,
+          ligne: a.excel_row, attendu: attendue(a), bins: clefs(a),
+          allocation: resolution.parBin }),
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) return onMessage(d?.error || "Enregistrement refusé.", "erreur");
@@ -624,14 +630,9 @@ function GrilleRepartition({
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-black">Grille de répartition</p>
         <div className="flex flex-wrap gap-2">
-          {([["MULTI_BIN", "Stock par bac"], ["MOUVEMENT", "Mouvement par bac"],
-             ["DATES_MULTIPLES", "Par date"]] as const).map(([v, label]) => (
-            <button key={v} onClick={() => setType(v)}
-                    className={`rounded-full px-4 py-2.5 text-xs font-bold whitespace-nowrap ${
-                      type === v ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-700"}`}>
-              {label}
-            </button>
-          ))}
+          <span className="rounded-full bg-gray-900 px-4 py-2.5 text-xs font-bold text-white">
+            Stock actuel par bin
+          </span>
           <button onClick={enregistrerLot} disabled={lot}
                   className="rounded-full bg-gray-900 px-4 py-2.5 text-xs font-bold text-white disabled:bg-gray-300">
             {lot ? "Enregistrement…" : "Enregistrer les lignes complètes"}
@@ -644,11 +645,7 @@ function GrilleRepartition({
       </div>
 
       <p className="mb-2 text-xs text-gray-600">
-        {type === "MULTI_BIN"
-          ? "Où reposent aujourd'hui les unités de cette ligne ? La somme doit égaler le stock final."
-          : type === "MOUVEMENT"
-            ? "Par quel bac les unités de ce mouvement sont-elles passées ? Ce n'est pas la même question que ci-contre : la somme doit égaler la quantité du mouvement, pas le stock. Renseignez d'abord « Stock par bac »."
-            : "Combien d'unités pour chaque date ? La somme doit égaler la quantité du mouvement."}
+        Où repose actuellement le stock final de cette ligne ? Cette réponse est unique par ligne Excel.
       </p>
 
       {visibles.length === 0 ? (
@@ -734,7 +731,7 @@ function GrilleRepartition({
                 <th className="py-1">Ligne</th><th>Article</th>
                 <th>Emplacement</th><th>Mouvement</th><th>Date réelle</th>
                 <th className="text-right">Attendu</th>
-                <th>{type === "DATES_MULTIPLES" ? "Quantité par date" : "Quantité par bac"}</th>
+                <th>Quantité par bin</th>
                 <th className="text-right">Reste</th><th>Statut</th><th />
               </tr>
             </thead>
@@ -772,7 +769,7 @@ function GrilleRepartition({
                         {clefs(a).map((k) => (
                           <label key={k} className="flex items-center gap-1">
                             <span className="text-gray-500">{k}</span>
-                            <input type="number" min={0} value={saisies[a.id]?.[k] ?? ""}
+                            <input type="number" min={0} value={saisies[cleSaisie(a)]?.[k] ?? ""}
                                    onChange={(e) => noter({
                                      ...saisies,
                                      [cleSaisie(a)]: { ...(saisies[cleSaisie(a)] || {}), [k]: e.target.value },
@@ -812,6 +809,132 @@ function GrilleRepartition({
         </div>
         </>
       )}
+    </section>
+  );
+}
+
+function GrilleEvenements({ evenements, anomalies, onCharger, onMessage }: {
+  evenements: EvenementMouvement[]; anomalies: Anomalie[];
+  onCharger: () => Promise<void>;
+  onMessage: (texte: string, type?: "ok" | "erreur") => void;
+}) {
+  const [saisies, setSaisies] = useState<Record<string, Record<string, string>>>(() => {
+    if (typeof window === "undefined") return {};
+    try { return JSON.parse(localStorage.getItem("em2s-evenements") || "{}"); } catch { return {}; }
+  });
+  const [dates, setDates] = useState<Record<string, Record<string, string>>>({});
+  const [enCours, setEnCours] = useState<string | null>(null);
+  const noter = (id: string, cle: string, valeur: string) => {
+    const maj = { ...saisies, [id]: { ...(saisies[id] || {}), [cle]: valeur } };
+    setSaisies(maj);
+    try { localStorage.setItem("em2s-evenements", JSON.stringify(maj)); } catch { /* privé */ }
+  };
+
+  const valider = async (e: EvenementMouvement) => {
+    const allocation = Object.fromEntries((e.allowed_bins || []).map((b) => [b, Number(saisies[String(e.id)]?.[b] || 0)]));
+    setEnCours(`e${e.id}`);
+    try {
+      const r = await authFetch(`/stock/import-em2s/movement-events/${e.id}/allocation`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ allocation, version: e.version }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) return onMessage(d.error || "Répartition refusée.", "erreur");
+      onMessage(`${e.direction === "IN" ? "Entrée" : "Sortie"} de la ligne ${e.excel_row} validée.`);
+      await onCharger();
+    } finally { setEnCours(null); }
+  };
+
+  const ventiler = async (a: Anomalie, direction: "IN" | "OUT") => {
+    const cle = `${a.id}:${direction}`;
+    const fractions = (a.payload?.dates || []).map((date: string, i: number) => ({
+      date, sequence: i + 1, quantity: Number(dates[cle]?.[date] || 0),
+    })).filter((f: { quantity: number }) => f.quantity > 0);
+    setEnCours(cle);
+    try {
+      const r = await authFetch(`/stock/import-em2s/anomalies/${a.id}/date-split`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ direction, fractions }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) return onMessage(d.error || "Ventilation refusée.", "erreur");
+      onMessage(`${direction === "IN" ? "Entrée" : "Sortie"} ventilée en ${d.evenements.length} événement(s).`);
+      await onCharger();
+    } finally { setEnCours(null); }
+  };
+
+  const multiDates = anomalies.filter((a) => a.anomaly_type === "DATES_MULTIPLES");
+  return (
+    <section className={`${CARTE} mt-4`}>
+      <h2 className="text-sm font-black">Mouvements par événement</h2>
+      <p className="mt-1 text-xs text-gray-600">
+        Une entrée et une sortie de la même ligne sont deux fiches indépendantes. Une fiche par date est créée seulement après ventilation.
+      </p>
+
+      {multiDates.flatMap((a) => ([
+        Number(a.payload?.entrees || 0) > 0 ? "IN" as const : null,
+        Number(a.payload?.sorties || 0) > 0 ? "OUT" as const : null,
+      ].filter(Boolean) as Array<"IN" | "OUT">)
+        .filter((direction) => !evenements.some((e) => e.excel_sheet === a.excel_sheet
+          && e.excel_row === a.excel_row && e.direction === direction))
+        .map((direction) => {
+        const cle = `${a.id}:${direction}`;
+        const attendu = Number(direction === "IN" ? a.payload.entrees : a.payload.sorties);
+        const total = (a.payload?.dates || []).reduce((s: number, d: string) => s + Number(dates[cle]?.[d] || 0), 0);
+        return (
+          <div key={cle} className={`mt-3 rounded-xl border p-3 ${direction === "IN" ? "border-amber-300 bg-amber-50" : "border-red-300 bg-red-50"}`}>
+            <p className="font-black">
+              {direction === "IN" ? `Entrée +${n(attendu)} — ventiler par date` : `Sortie −${n(attendu)} — ventiler par date`}
+            </p>
+            <p className="text-xs text-gray-600">{a.description} · ligne {a.excel_row}</p>
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {(a.payload?.dates || []).map((date: string) => (
+                <label key={date} className="text-xs font-bold">{date}
+                  <input type="number" min={0} inputMode="numeric" value={dates[cle]?.[date] || ""}
+                    onChange={(ev) => setDates({ ...dates, [cle]: { ...(dates[cle] || {}), [date]: ev.target.value } })}
+                    className="mt-1 w-full rounded-lg border bg-white px-3 py-2.5" />
+                </label>
+              ))}
+            </div>
+            <button onClick={() => ventiler(a, direction)} disabled={total !== attendu || enCours === cle}
+              className="mt-2 w-full rounded-lg bg-gray-900 py-3 text-sm font-bold text-white disabled:bg-gray-300 sm:w-auto sm:px-5">
+              Créer les fiches par date · reste {n(attendu - total)}
+            </button>
+          </div>
+        );
+      }))}
+
+      <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+        {evenements.filter((e) => e.allocation_status !== "VALIDATED" && (e.allowed_bins || []).length > 0).map((e) => {
+          const id = String(e.id);
+          const total = (e.allowed_bins || []).reduce((s, b) => s + Number(saisies[id]?.[b] || 0), 0);
+          const entree = e.direction === "IN";
+          return (
+            <article key={e.id} className={`rounded-xl border p-3 ${entree ? "border-amber-300" : "border-red-300"}`}>
+              <h3 className="font-black">
+                {entree ? `Entrée +${n(e.quantity)} — sélectionner le ou les bins de destination`
+                         : `Sortie −${n(e.quantity)} — sélectionner le ou les bins sources`}
+              </h3>
+              <p className="mt-1 text-xs text-gray-600">
+                {e.source_context?.description} · ligne {e.excel_row} · {String(e.effective_date).slice(0, 10)}
+              </p>
+              <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {(e.allowed_bins || []).map((b) => (
+                  <label key={b} className="text-xs font-bold">{b}
+                    <input type="number" min={0} inputMode="numeric" value={saisies[id]?.[b] || ""}
+                      onChange={(ev) => noter(id, b, ev.target.value)}
+                      className="mt-1 w-full rounded-lg border px-3 py-2.5" />
+                  </label>
+                ))}
+              </div>
+              <button onClick={() => valider(e)} disabled={total !== Number(e.quantity) || enCours === `e${e.id}`}
+                className="mt-3 w-full rounded-lg bg-gray-900 py-3 text-sm font-bold text-white disabled:bg-gray-300">
+                Valider uniquement cette {entree ? "entrée" : "sortie"} · reste {n(Number(e.quantity) - total)}
+              </button>
+            </article>
+          );
+        })}
+      </div>
     </section>
   );
 }
