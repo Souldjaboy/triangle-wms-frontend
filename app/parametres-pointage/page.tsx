@@ -13,6 +13,9 @@ export default function ParametresPointagePage() {
   const [gpsTestMessage, setGpsTestMessage] = useState("");
   const [canSeeSalary, setCanSeeSalary] = useState(false);
   const [canManageGps, setCanManageGps] = useState(false);
+  const [canManageWorkforce, setCanManageWorkforce] = useState(false);
+  const [workforce, setWorkforce] = useState<any[]>([]);
+  const [workOrganization, setWorkOrganization] = useState<any>({ sites: [], schedules: [], operators: [] });
   const [editingSiteId, setEditingSiteId] = useState<number | null>(null);
 
   const [groupForm, setGroupForm] = useState({
@@ -66,21 +69,28 @@ export default function ParametresPointagePage() {
   });
 
   const fetchData = async () => {
-    const [groupsRes, usersRes, gpsRes, sitesRes] = await Promise.all([
+    const [groupsRes, usersRes, gpsRes, sitesRes, workforceRes, organizationRes] = await Promise.all([
       fetch("/api/attendance/settings/schedule-groups", { headers: authHeaders() }),
       fetch("/api/users", { headers: authHeaders() }),
       fetch("/api/attendance/settings/gps", { headers: authHeaders() }),
       fetch("/api/attendance-sites", { headers: authHeaders() }),
+      fetch("/api/attendance-v2/employees", { headers: authHeaders() }),
+      fetch("/api/attendance-v2/organization", { headers: authHeaders() }),
     ]);
 
     const groupsData = await groupsRes.json().catch(() => []);
     const usersData = await usersRes.json().catch(() => []);
     const gpsData = await gpsRes.json().catch(() => ({}));
     const sitesData = await sitesRes.json().catch(() => []);
+    const workforceData = await workforceRes.json().catch(() => ({}));
+    const organizationData = await organizationRes.json().catch(() => ({}));
 
     setGroups(Array.isArray(groupsData) ? groupsData : []);
     setUsers(Array.isArray(usersData) ? usersData : []);
     setSites(Array.isArray(sitesData) ? sitesData : []);
+    setWorkforce(Array.isArray(workforceData.employees) ? workforceData.employees : []);
+    if (workforceData.permissions?.can_view_all_salaries === true) setCanSeeSalary(true);
+    if (organizationRes.ok) setWorkOrganization(organizationData);
     setGpsForm({
       gps_required: gpsData.gps_required === true,
       allow_remote_attendance: gpsData.allow_remote_attendance === true,
@@ -95,8 +105,9 @@ export default function ParametresPointagePage() {
     if (savedUser) {
       const user = JSON.parse(savedUser);
       const role = String(user.role || "").toLowerCase();
-      setCanSeeSalary(user.is_super_admin === true || role === "super_admin" || role === "direction");
+      setCanSeeSalary(user.is_super_admin === true || role === "super_admin" || role === "comptable");
       setCanManageGps(user.is_super_admin === true || role === "super_admin" || role === "admin" || role === "admin_entreprise");
+      setCanManageWorkforce(user.is_super_admin === true || role === "super_admin");
     }
     fetchData();
   }, []);
@@ -316,6 +327,15 @@ export default function ParametresPointagePage() {
     }
   };
 
+  const transferWorkforceEmployee = async (employeeId: number, siteId: string, scheduleId: string) => {
+    const response = await fetch(`/api/attendance-v2/employees/${employeeId}/assignment`, {
+      method: "PUT", headers: jsonHeaders(), body: JSON.stringify({ site_id: Number(siteId), schedule_id: Number(scheduleId) }),
+    });
+    const data = await response.json().catch(() => ({}));
+    setMessage(response.ok ? "Nouvelle affectation enregistrée." : data.error || "Erreur de transfert.");
+    if (response.ok) fetchData();
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 p-4 text-black md:p-8">
       <div className="mb-8">
@@ -329,6 +349,24 @@ export default function ParametresPointagePage() {
         <div className="mb-6 rounded-xl bg-green-100 p-4 font-bold text-green-700">
           {message}
         </div>
+      )}
+
+      {canManageWorkforce && workforce.length > 0 && (
+        <section className="mb-8 rounded-2xl border-2 border-emerald-200 bg-white p-6 shadow">
+          <h2 className="text-2xl font-bold">Nouvel effectif opérationnel</h2>
+          <p className="mb-4 text-gray-500">27 employés à partir du 3 septembre 2026. Vous pouvez transférer une personne entre les sites sans modifier son compte.</p>
+          <div className="mb-4 grid gap-3 md:grid-cols-3">
+            {(workOrganization.operators || []).map((operator: any) => (
+              <div key={operator.id} className="rounded-xl bg-emerald-50 p-3"><b>{operator.site_name}</b><br/><span className="text-sm">Opérateur : {operator.fullname}</span></div>
+            ))}
+          </div>
+          <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left">
+            <thead className="bg-gray-100"><tr><th className="p-3">N°</th><th>Employé</th><th>Site</th><th>Horaire</th><th>Transfert</th></tr></thead>
+            <tbody>{workforce.map((employee: any) => (
+              <WorkforceRow key={employee.id} employee={employee} organization={workOrganization} onSave={transferWorkforceEmployee}/>
+            ))}</tbody>
+          </table></div>
+        </section>
       )}
 
       <div className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-2">
@@ -561,5 +599,23 @@ function Toggle({ label, checked, onChange, disabled = false }: { label: string;
       />
       {label}
     </label>
+  );
+}
+
+function WorkforceRow({ employee, organization, onSave }: any) {
+  const [siteId, setSiteId] = useState(String(employee.site_id || ""));
+  const [scheduleId, setScheduleId] = useState(String(employee.schedule_id || ""));
+  return (
+    <tr className="border-t">
+      <td className="p-3 font-bold">{employee.employee_number}</td>
+      <td className="font-bold">{employee.full_name}</td>
+      <td><select className="rounded-lg border p-2" value={siteId} onChange={(event) => setSiteId(event.target.value)}>
+        {(organization.sites || []).map((site: any) => <option key={site.id} value={site.id}>{site.name}</option>)}
+      </select></td>
+      <td><select className="rounded-lg border p-2" value={scheduleId} onChange={(event) => setScheduleId(event.target.value)}>
+        {(organization.schedules || []).map((schedule: any) => <option key={schedule.id} value={schedule.id}>{schedule.name}</option>)}
+      </select></td>
+      <td><button type="button" onClick={() => onSave(employee.id, siteId, scheduleId)} className="rounded-lg bg-black px-3 py-2 font-bold text-white">Enregistrer</button></td>
+    </tr>
   );
 }
