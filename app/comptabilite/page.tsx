@@ -57,6 +57,9 @@ export default function ComptabilitePage() {
   const [expenses, setExpenses] = useState<any[]>([]);
   const [accounts, setAccounts] = useState<any[]>([]);
   const [journalEntries, setJournalEntries] = useState<any[]>([]);
+  const [payroll, setPayroll] = useState<any>(null);
+  const [payrollMonth, setPayrollMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [payrollPayment, setPayrollPayment] = useState({ payment_method: "CASH", bank_id: "", caisse_id: "", payment_reference: "" });
   const [statements, setStatements] = useState<any>(null);
   const [bankForm, setBankForm] = useState(emptyBank);
   const [transactionForm, setTransactionForm] = useState(emptyTransaction);
@@ -80,6 +83,30 @@ export default function ComptabilitePage() {
     role === "direction" ||
     role === "directeur";
   const canViewFullModule = canManage || canApprove;
+  const canPaySalary = isSuperAdmin || role === "comptable";
+
+  const loadPayroll = async (month = payrollMonth) => {
+    const response = await authFetch(`/attendance-v2/payroll?month=${encodeURIComponent(month)}`);
+    const data = await response.json().catch(() => null);
+    if (response.ok) setPayroll(data);
+    else setMessage(data?.error || "Impossible de lire la paie.");
+  };
+
+  const generatePayroll = async () => {
+    const response = await authFetch(`/attendance-v2/payroll/${payrollMonth}/generate`, { method: "POST" });
+    const data = await response.json().catch(() => ({}));
+    setMessage(response.ok ? "Paie mensuelle calculée et enregistrée." : data.error || "Erreur de génération.");
+    if (response.ok) await loadPayroll();
+  };
+
+  const paySalary = async (itemId: number) => {
+    const response = await authFetch(`/attendance-v2/payroll-items/${itemId}/pay`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payrollPayment),
+    });
+    const data = await response.json().catch(() => ({}));
+    setMessage(response.ok ? "Salaire marqué payé avec traçabilité." : data.error || "Paiement impossible.");
+    if (response.ok) await loadPayroll();
+  };
 
   const loadAll = async () => {
     setLoading(true);
@@ -125,6 +152,10 @@ export default function ComptabilitePage() {
   useEffect(() => {
     loadAll();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === "payroll" && canViewFullModule) loadPayroll();
+  }, [activeTab, payrollMonth]);
 
   const submitJson = async (path: string, body: any, success: string) => {
     setMessage("");
@@ -440,26 +471,40 @@ export default function ComptabilitePage() {
           )}
 
           {activeTab === "payroll" && canViewFullModule && (
-            <section className="grid gap-6 lg:grid-cols-2">
-              <Panel title="Paie connectée au pointage">
-                <p className="text-gray-700">
-                  La structure paie est prête : salaires bruts, retenues, avances, net à payer,
-                  paiement par banque, caisse ou mobile money.
-                </p>
-                <div className="mt-4 rounded-lg bg-yellow-50 p-4 font-bold">
-                  Prochaine étape : génération automatique depuis jours travaillés, retards,
-                  absences et heures supplémentaires.
+            <section className="grid gap-6">
+              <Panel title="Salaires mensuels connectés au pointage">
+                <div className="mb-5 flex flex-wrap items-end gap-3">
+                  <label className="grid gap-1 text-sm font-bold">Mois
+                    <input type="month" value={payrollMonth} onChange={(e)=>setPayrollMonth(e.target.value)} className="rounded-lg border p-3" />
+                  </label>
+                  {canPaySalary && <button onClick={generatePayroll} className="rounded-lg bg-black px-5 py-3 font-bold text-white">Calculer la paie</button>}
+                  <span className="rounded-lg bg-blue-50 p-3 text-sm text-blue-900">Base mensuelle − absences × salaire/jour + ajustements justifiés</span>
                 </div>
-              </Panel>
-              <Panel title="Règles de paiement salaire">
-                <DataTable
-                  headers={["Débit", "Crédit", "Effet"]}
-                  rows={[
-                    ["64 Charges de personnel", "52 Banque", "Paiement salaire par banque"],
-                    ["64 Charges de personnel", "57 Caisse", "Paiement salaire espèces"],
-                    ["42 Personnel", "57 Caisse", "Avance employé"],
-                  ]}
-                />
+                {payroll?.run && <div className="mb-5 grid gap-3 md:grid-cols-4">
+                  <Metric title="Brut" value={formatFCFA(payroll.run.gross_amount)} />
+                  <Metric title="Retenues absences" value={formatFCFA(payroll.run.deductions_amount)} />
+                  <Metric title="Ajustements" value={formatFCFA(payroll.run.adjustments_amount)} />
+                  <Metric title="Net à payer" value={formatFCFA(payroll.run.net_amount)} />
+                </div>}
+                {canPaySalary && payroll?.run && <div className="mb-5 grid gap-3 rounded-xl bg-gray-50 p-4 md:grid-cols-4">
+                  <select value={payrollPayment.payment_method} onChange={(e)=>setPayrollPayment({...payrollPayment,payment_method:e.target.value})} className="rounded-lg border p-3">
+                    <option value="CASH">Espèces</option><option value="CASHBOX">Caisse</option><option value="BANK">Banque</option>
+                    <option value="TRANSFER">Virement</option><option value="CHECK">Chèque</option><option value="MOBILE_MONEY">Mobile money</option>
+                  </select>
+                  <BankSelect banks={banks} value={payrollPayment.bank_id} onChange={(v)=>setPayrollPayment({...payrollPayment,bank_id:v})} />
+                  <CaisseSelect caisses={caisses} value={payrollPayment.caisse_id} onChange={(v)=>setPayrollPayment({...payrollPayment,caisse_id:v})} />
+                  <input value={payrollPayment.payment_reference} onChange={(e)=>setPayrollPayment({...payrollPayment,payment_reference:e.target.value})} placeholder="Référence (facultatif)" className="rounded-lg border p-3" />
+                </div>}
+                <div className="overflow-x-auto"><table className="w-full min-w-[920px] text-left text-sm">
+                  <thead className="bg-gray-100"><tr><th className="p-3">Employé</th><th>Base</th><th>Présences</th><th>Absences</th><th>Retenue</th><th>Ajustements</th><th>Net</th><th>Statut</th><th>Action</th></tr></thead>
+                  <tbody>{(payroll?.items?.length ? payroll.items : payroll?.employees || []).map((item:any)=><tr key={item.id || item.employee_number} className="border-t">
+                    <td className="p-3 font-bold">{item.employee_name || item.full_name}</td>
+                    <td>{item.monthly_salary==null?"À renseigner":formatFCFA(item.monthly_salary)}</td><td>{item.attended_days}/{item.expected_days}</td><td>{item.absence_days}</td>
+                    <td>{formatFCFA(item.absence_deduction)}</td><td>{formatFCFA(item.adjustments)}</td><td className="font-bold">{item.net_salary==null?"Bloqué":formatFCFA(item.net_salary)}</td>
+                    <td>{item.status || "APERÇU"}</td><td>{canPaySalary && item.status==="TO_PAY"?<button onClick={()=>paySalary(item.id)} className="rounded bg-emerald-600 px-3 py-2 font-bold text-white">Payer</button>:"—"}</td>
+                  </tr>)}</tbody>
+                </table></div>
+                {!payroll?.run && <p className="mt-4 text-sm text-gray-500">Aucun bulletin figé pour ce mois. L’aperçu reste recalculé depuis le pointage jusqu’à la génération.</p>}
               </Panel>
             </section>
           )}
