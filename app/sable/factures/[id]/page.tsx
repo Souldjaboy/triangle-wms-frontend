@@ -26,6 +26,9 @@ type Invoice = {
   sale_number: string | null; quantity_m3: string | null;
   client_name: string | null; client_address: string | null;
   sale_notes: string | null; notes: string | null;
+  status?: string; cancelled_at?: string | null; cancelled_by_name?: string | null;
+  cancellation_reason?: string | null; replaced_by_invoice_id?: number | null;
+  print_count?: number;
 };
 type Pricing = { quantity_reference: number; reference_price: number | null; label: string };
 type Company = Record<string, unknown>;
@@ -62,11 +65,18 @@ export default function FactureSablePage() {
   }, [id]);
   useEffect(() => { if (id) load(); }, [id, load]);
 
+  /* Une impression réelle se déclare au serveur : c'est ce qui permet à une
+     correction ultérieure de savoir qu'un exemplaire a pu partir chez le
+     client avant d'être annulé. */
+  const declarerImpression = useCallback(() => {
+    authFetch(`/sand/invoices/${id}/printed`, { method: "POST" }).catch(() => {});
+  }, [id]);
+
   useEffect(() => {
     if (!invoice || search?.get("print") !== "1") return;
-    const t = setTimeout(() => window.print(), 300);
+    const t = setTimeout(() => { window.print(); declarerImpression(); }, 300);
     return () => clearTimeout(t);
-  }, [invoice, search]);
+  }, [invoice, search, declarerImpression]);
 
   if (error) return <div className="p-8 font-semibold text-red-700">{error}</div>;
   if (!invoice) return <div className="p-8 text-gray-600">Chargement de la facture…</div>;
@@ -74,17 +84,43 @@ export default function FactureSablePage() {
   const total = Number(invoice.total_amount || 0);
   const site = invoice.sale_destination || invoice.destination || "—";
   const observation = invoice.notes || invoice.sale_notes || "";
+  const estAnnulee = invoice.status === "ANNULEE";
 
   return (
     <div className="min-h-screen bg-gray-200 py-6 print:bg-white print:py-0">
       <div className="mx-auto mb-4 flex max-w-[210mm] items-center justify-between gap-2 px-4 print:hidden">
         <Link href="/sable/factures" className="font-bold text-blue-700">← Factures sable</Link>
-        <button onClick={() => window.print()} className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white">
+        <button
+          onClick={() => { window.print(); declarerImpression(); }}
+          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white"
+        >
           Imprimer
         </button>
       </div>
 
-      <div className="doc-sheet mx-auto w-[210mm] min-h-[297mm] bg-white p-[14mm] text-black shadow print:w-auto print:min-h-0 print:p-0 print:shadow-none">
+      {estAnnulee && (
+        <div className="mx-auto mb-4 w-[210mm] max-w-full rounded-xl bg-red-50 p-4 text-sm text-red-900 print:hidden">
+          <p className="font-black">Cette facture est ANNULÉE.</p>
+          {invoice.cancellation_reason && <p>Motif : {invoice.cancellation_reason}</p>}
+          {invoice.cancelled_by_name && <p>Par : {invoice.cancelled_by_name}</p>}
+          {invoice.cancelled_at && <p>Le : {fdate(invoice.cancelled_at)}</p>}
+          {invoice.replaced_by_invoice_id && (
+            <p>Remplacée par la facture n° {invoice.replaced_by_invoice_id}.</p>
+          )}
+        </div>
+      )}
+
+      <div className="doc-sheet relative mx-auto w-[210mm] min-h-[297mm] bg-white p-[14mm] text-black shadow print:w-auto print:min-h-0 print:p-0 print:shadow-none">
+        {/* Filigrane ANNULÉ — visible à l'écran ET à l'impression : un
+            document annulé ne doit jamais pouvoir être imprimé sans que ça se
+            voie, y compris sur un exemplaire déjà tiré avant l'annulation. */}
+        {estAnnulee && (
+          <div aria-hidden className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center overflow-hidden">
+            <span className="rotate-[-30deg] select-none text-[110px] font-black tracking-widest text-red-600/25 print:text-red-600/35">
+              ANNULÉ
+            </span>
+          </div>
+        )}
         {/* Identité de l'entreprise active — l'e-mail n'est pas transmis : il ne
             doit pas figurer sur une facture. */}
         <PrintableCompanyHeader

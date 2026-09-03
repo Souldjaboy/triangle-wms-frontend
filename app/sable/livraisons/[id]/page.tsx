@@ -21,6 +21,8 @@ type Delivery = {
   notes: string | null; voucher_number: string | null;
   sale_number: string | null; customer_name: string | null;
   customer_address: string | null; product_name: string | null;
+  cancelled_at?: string | null; cancelled_by_name?: string | null;
+  cancellation_reason?: string | null; replaced_by_delivery_id?: number | null;
 };
 type Company = Record<string, unknown>;
 
@@ -49,25 +51,50 @@ export default function BonLivraisonSablePage() {
   }, [id]);
   useEffect(() => { if (id) load(); }, [id, load]);
 
+  const declarerImpression = useCallback(() => {
+    authFetch(`/sand/deliveries/${id}/printed`, { method: "POST" }).catch(() => {});
+  }, [id]);
+
   useEffect(() => {
     if (!d || search?.get("print") !== "1") return;
-    const t = setTimeout(() => window.print(), 300);
+    const t = setTimeout(() => { window.print(); declarerImpression(); }, 300);
     return () => clearTimeout(t);
-  }, [d, search]);
+  }, [d, search, declarerImpression]);
 
   if (error) return <div className="p-8 font-semibold text-red-700">{error}</div>;
   if (!d) return <div className="p-8 text-gray-600">Chargement du bon de livraison…</div>;
+  const estAnnule = Boolean(d.cancelled_at);
 
   return (
     <div className="min-h-screen bg-gray-200 py-6 print:bg-white print:py-0">
       <div className="mx-auto mb-4 flex max-w-[210mm] items-center justify-between gap-2 px-4 print:hidden">
         <Link href="/sable/livraisons" className="font-bold text-blue-700">← Livraisons sable</Link>
-        <button onClick={() => window.print()} className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white">
+        <button
+          onClick={() => { window.print(); declarerImpression(); }}
+          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white"
+        >
           Imprimer
         </button>
       </div>
 
-      <div className="doc-sheet mx-auto w-[210mm] min-h-[297mm] bg-white p-[14mm] text-black shadow print:w-auto print:min-h-0 print:p-0 print:shadow-none">
+      {estAnnule && (
+        <div className="mx-auto mb-4 w-[210mm] max-w-full rounded-xl bg-red-50 p-4 text-sm text-red-900 print:hidden">
+          <p className="font-black">Ce bon de livraison est ANNULÉ.</p>
+          {d.cancellation_reason && <p>Motif : {d.cancellation_reason}</p>}
+          {d.cancelled_by_name && <p>Par : {d.cancelled_by_name}</p>}
+          {d.cancelled_at && <p>Le : {fdate(d.cancelled_at)}</p>}
+          {d.replaced_by_delivery_id && <p>Remplacé par le BL n° {d.replaced_by_delivery_id}.</p>}
+        </div>
+      )}
+
+      <div className="doc-sheet relative mx-auto w-[210mm] min-h-[297mm] bg-white p-[14mm] text-black shadow print:w-auto print:min-h-0 print:p-0 print:shadow-none">
+        {estAnnule && (
+          <div aria-hidden className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center overflow-hidden">
+            <span className="rotate-[-30deg] select-none text-[110px] font-black tracking-widest text-red-600/25 print:text-red-600/35">
+              ANNULÉ
+            </span>
+          </div>
+        )}
         <PrintableCompanyHeader
           company={{ ...company, email: undefined }}
           documentTitle="Bon de livraison"

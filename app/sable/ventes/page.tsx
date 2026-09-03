@@ -84,14 +84,22 @@ export default function SandSalesPage() {
                   <td className="p-3">{money(v.remaining_amount)}</td>
                   <td className="p-3">{v.status}</td>
                   <td className="p-3">
-                    {v.status === "BROUILLON" && (
-                      <button
-                        onClick={()=>validateSale(v.id)}
-                        className="rounded bg-green-600 px-3 py-2 font-bold text-white"
+                    <div className="flex flex-wrap gap-2">
+                      {v.status === "BROUILLON" && (
+                        <button
+                          onClick={()=>validateSale(v.id)}
+                          className="min-h-[40px] rounded bg-green-600 px-3 py-2 font-bold text-white"
+                        >
+                          Valider
+                        </button>
+                      )}
+                      <Link
+                        href={`/sable/ventes/${v.id}`}
+                        className="flex min-h-[40px] items-center rounded border-2 border-black px-3 py-2 font-bold"
                       >
-                        Valider
-                      </button>
-                    )}
+                        Voir
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               ))}
