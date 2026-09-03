@@ -425,7 +425,10 @@ export default function DocumentDetailPage() {
           Total : {formatFCFA(doc.total_amount)}
         </div>
 
-        {doc.observation && (
+        {/* Une observation faite d'espaces n'est pas une observation : sans
+            le trim, un bon « nettoyé » côté serveur pouvait encore afficher
+            un bloc « Observation » vide, ou ne contenant que des blancs. */}
+        {doc.observation && doc.observation.trim() && (
           <p className="mt-6 rounded-xl bg-gray-50 p-4 text-gray-700">
             <strong>Observation :</strong> {doc.observation}
           </p>

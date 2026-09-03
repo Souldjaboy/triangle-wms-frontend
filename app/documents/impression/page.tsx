@@ -168,7 +168,7 @@ function Impression() {
             </table>
           )}
 
-          {doc.observation && (
+          {doc.observation && doc.observation.trim() && (
             <section className="mt-4 text-[11px]">
               <p className="font-bold">Observations</p>
               <p className="whitespace-pre-wrap">{doc.observation}</p>
