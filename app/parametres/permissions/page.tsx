@@ -31,6 +31,9 @@ type ActionRef = { action_key: string; label: string; description: string; is_wr
 type Utilisateur = {
   id: number; fullname: string; email: string; role: string;
   badge_number: string | null; is_active: boolean; is_super_admin: boolean; exceptions: number;
+  /* Faux pour un compte qui travaille ici sans y avoir son origine : le
+     comptable et le directeur des deux sociétés sont dans ce cas. */
+  societe_origine?: boolean;
 };
 type Override = { module_key: string; action: string; effect: "ALLOW" | "DENY" };
 type Journal = {
@@ -69,8 +72,34 @@ export default function CentrePermissions() {
 
   /* ─────────────────────────── Chargement ─────────────────────────── */
 
+  /* L'entreprise active fait partie de ce qui est chargé : changer de société
+     change la LISTE des comptes administrables et leurs exceptions. Réutiliser
+     celles de la société précédente ferait afficher, puis enregistrer, des
+     droits qui n'ont rien à voir avec l'écran qu'on croit être en train de
+     configurer. */
+  const [societeActive, setSocieteActive] = useState<string>("");
+
+  useEffect(() => {
+    const lire = () => setSocieteActive(localStorage.getItem("active_company_id") || "");
+    lire();
+    const surStorage = (e: StorageEvent) => { if (!e.key || e.key === "active_company_id") lire(); };
+    window.addEventListener("storage", surStorage);
+    window.addEventListener("triangle-entreprise-changee", lire);
+    return () => {
+      window.removeEventListener("storage", surStorage);
+      window.removeEventListener("triangle-entreprise-changee", lire);
+    };
+  }, []);
+
   useEffect(() => {
     (async () => {
+      /* On repart d'une ardoise nette : sans cela, les exceptions de la
+         société précédente resteraient affichées le temps du chargement. */
+      setOverrides(new Map());
+      setEffectifs({});
+      setEnAttente(new Map());
+      setErreur("");
+
       const [rm, ru] = await Promise.all([
         authFetch("/permissions/modules"),
         authFetch("/permissions/users"),
@@ -95,7 +124,7 @@ export default function CentrePermissions() {
         setErreur(d.error || "Impossible de charger la liste des employés.");
       }
     })();
-  }, []);
+  }, [societeActive]);
 
   const chargerCible = useCallback(async (id: number) => {
     if (!id) return;
@@ -336,16 +365,33 @@ export default function CentrePermissions() {
                 <option key={u.id} value={u.id}>
                   {u.fullname} — {u.role || "sans rôle"} — {u.email}
                   {u.badge_number ? ` — ${u.badge_number}` : ""}
+                  {/* Un compte peut travailler ici sans y avoir son origine :
+                      le dire évite de croire qu'on configure « son » compte
+                      alors qu'on ne touche que ses droits dans CETTE société. */}
+                  {u.societe_origine === false ? " — accès secondaire" : ""}
                   {u.is_active ? "" : " (inactif)"}
                 </option>
               ))}
             </select>
           </label>
 
+          {utilisateurCible?.societe_origine === false && (
+            <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+              Ce compte a sa société d’origine ailleurs et travaille ici par
+              habilitation. Ce que vous réglez ne vaut que pour l’entreprise
+              active : ses droits dans son entreprise d’origine ne changent pas.
+            </p>
+          )}
+
           <div>
             <span className="text-sm font-bold">Rôle actuel</span>
             <p className="mt-1 rounded-xl bg-gray-50 p-3 font-black">
               {utilisateurCible?.role || "—"}
+              {utilisateurCible?.societe_origine === false && (
+                <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-900">
+                  accès secondaire
+                </span>
+              )}
               {utilisateurCible?.is_super_admin && (
                 <span className="ml-2 rounded-full bg-slate-900 px-2 py-0.5 text-xs text-white">
                   super admin
