@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { authFetch } from "../lib/api";
+import { signalerChangementEntreprise } from "../lib/permissions";
 
 type Company = {
   id: number;
@@ -79,6 +80,10 @@ export default function CompanySwitcher() {
     localStorage.setItem("active_company_id", companyId);
     setCurrent(companyId);
 
+    /* Les droits changent avec l'entreprise : on prévient les écrans montés
+       avant de naviguer, pour qu'aucun ne réponde une seconde de plus avec
+       les droits de la société qu'on vient de quitter. */
+    signalerChangementEntreprise();
     window.location.href = "/dashboard";
   }
 

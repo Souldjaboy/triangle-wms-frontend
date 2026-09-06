@@ -96,6 +96,9 @@ export default function PaiePage() {
   }, []);
 
   const chargerPaie = useCallback(async () => {
+    /* Cette lecture reste sur l'ancienne route : elle sert aussi à relire les
+       paies mensuelles enregistrées avant les périodes, et l'ancrage
+       `period_month` de la paie d'une période porte bien son mois. */
     const r = await authFetch(`/attendance-v2/payroll?month=${code}`, { cache: "no-store" });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) { setPaie(null); setLignes([]); return; }
@@ -291,8 +294,14 @@ export default function PaiePage() {
             </div>
 
             <div className="flex flex-wrap gap-3">
+              {/* La préparation passe par la PÉRIODE, pas par le mois civil :
+                  l'ancienne route calculait du 1er au 31 alors que l'écran
+                  annonce du 25 au 24, et laissait la paie sans période — donc
+                  payable sans validation de la Direction. */}
               {peutPreparer && (!paie || ["DRAFT", "CORRECTION_DEMANDEE", "REFUSEE"].includes(paie.status)) && (
-                <button disabled={occupe} onClick={() => agir(`/attendance-v2/payroll/${code}/generate`)}
+                <button disabled={occupe || !periode}
+                  onClick={() => agir(`/paie/periodes/${code}/preparer`)}
+                  title={!periode ? "Ouvrez d'abord la période." : ""}
                   className="min-h-12 rounded-xl bg-slate-900 px-5 font-black text-white disabled:opacity-40">
                   {paie ? "Recalculer la paie" : "Préparer la paie"}
                 </button>

@@ -15,6 +15,7 @@ import {
   MapPin,
   ScanLine,
   FileText,
+  Wallet,
   ShoppingCart,
   Calculator,
   BarChart3,
@@ -255,8 +256,13 @@ export default function DashboardPage() {
     "";
 
   return (
-    <div className="min-h-screen flex bg-gray-100">
-      <aside className="w-64 bg-black text-white p-6 overflow-y-auto">
+    /* Sur téléphone, le menu passe AU-DESSUS du contenu au lieu d'être
+       comprimé à côté. `w-64` dans un flex en ligne, sans `shrink-0`, se
+       laissait écraser à 48 px par le contenu : les libellés s'y empilaient
+       lettre par lettre et le menu devenait illisible — donc inutilisable —
+       à 375 px. */
+    <div className="min-h-screen flex flex-col md:flex-row bg-gray-100">
+      <aside className="w-full md:w-64 md:shrink-0 bg-black text-white p-6 md:overflow-y-auto">
         <div className="mb-10 flex items-center gap-3">
           {displayLogoUrl ? (
             <img src={displayLogoUrl} alt={displayCompanyName} className="h-12 w-12 rounded-lg bg-white object-contain p-1" />
@@ -603,10 +609,12 @@ export default function DashboardPage() {
         </Link>
       )}
 
+      {/* Les badges des COMPTES utilisateurs — à ne pas confondre avec les
+          badges QR des employés de pointage, qui ont leur propre écran. */}
       {moduleEnabled("badges") && (
         <Link href="/badges">
           <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
-            Badges
+            Badges des comptes
           </li>
         </Link>
       )}
@@ -614,8 +622,14 @@ export default function DashboardPage() {
   )}
 
 
-  {moduleEnabled("pointage") && (
-    <Link href="/attendance-scan">
+  {/* ── POINTAGE ──
+      Chaque entrée est pilotée par le droit RÉEL qui garde sa route, pas par
+      un rôle : un opérateur qui peut scanner voit le scan et rien d'autre.
+      Le backend reste la véritable sécurité — ce menu ne fait que cesser de
+      promettre ce qu'il refuserait. */}
+
+  {can("pointage.qr", "scan") && (
+    <Link href="/pointage-qr">
       <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
         <QrCode size={20} />
         Pointage QR
@@ -623,11 +637,79 @@ export default function DashboardPage() {
     </Link>
   )}
 
-  {moduleEnabled("pointage") && (
+  {can("pointage.manuel", "create") && (
     <Link href="/pointage">
       <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
         <ClipboardCheck size={20} />
-        Pointage
+        Pointage manuel
+      </li>
+    </Link>
+  )}
+
+  {can("pointage.badge", "view") && (
+    <Link href="/badges-pointage">
+      <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+        <QrCode size={20} />
+        Badges de pointage
+      </li>
+    </Link>
+  )}
+
+  {can("pointage", "view") && (
+    <Link href="/rapports/pointage">
+      <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+        <FileText size={20} />
+        Rapports de pointage
+      </li>
+    </Link>
+  )}
+
+  {/* ── PAIE ET ARGENT ── */}
+
+  {can("paie", "view") && (
+    <Link href="/paie">
+      <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+        <Wallet size={20} />
+        Paie
+      </li>
+    </Link>
+  )}
+
+  {can("paie.avance", "view") && (
+    <Link href="/paie/avances">
+      <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+        <Wallet size={20} />
+        Avances sur salaire
+      </li>
+    </Link>
+  )}
+
+  {can("acompte_client", "view") && (
+    <Link href="/acomptes">
+      <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+        <Wallet size={20} />
+        Acomptes clients
+      </li>
+    </Link>
+  )}
+
+  {can("fiscalite", "view") && (
+    <Link href="/fiscalite">
+      <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+        <FileText size={20} />
+        Fiscalité
+      </li>
+    </Link>
+  )}
+
+  {/* L'ancien scan reste joignable pour les comptes qui l'utilisaient encore,
+      sous un nom qui dit ce qu'il est : il lit `users.badge_code`, pas les
+      badges QR des employés de pointage. */}
+  {isAdminLike && moduleEnabled("pointage") && (
+    <Link href="/attendance-scan">
+      <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3 opacity-70">
+        <QrCode size={20} />
+        Ancien scan (badges de comptes)
       </li>
     </Link>
   )}

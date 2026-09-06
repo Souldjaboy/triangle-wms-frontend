@@ -42,6 +42,8 @@ export type ModulePermission = {
 
 type ModulePerms = Record<string, boolean>;
 export type EffectivePermissions = {
+  /** Société pour laquelle ces droits ont été calculés — pas celle du compte. */
+  company_id_effectif?: number | null;
   is_super_admin: boolean;
   role?: string;
   company_id?: number | null;
@@ -105,6 +107,7 @@ async function charger(): Promise<EffectivePermissions | null> {
         is_super_admin: d.is_super_admin === true,
         role: d.role || "",
         company_id: d.company_id ?? null,
+        company_id_effectif: d.company_id_effectif ?? null,
         modules: d.permissions || {},
         fallback_allowed:
           d.is_super_admin === true ||
@@ -148,8 +151,37 @@ export function usePermissions() {
     load();
     const onUpdate = () => load();
     window.addEventListener("triangle-permissions-updated", onUpdate);
-    return () => window.removeEventListener("triangle-permissions-updated", onUpdate);
+
+    /* CHANGER D'ENTREPRISE CHANGE LES DROITS.
+       Les droits d'un compte ne sont pas les mêmes des deux côtés : un
+       comptable peut préparer la paie chez Triangle et n'avoir que la lecture
+       chez FAT & MAT. Garder en mémoire ceux de la société précédente
+       afficherait des boutons que le backend refuserait — et masquerait des
+       actions pourtant permises. `storage` couvre le changement fait dans un
+       autre onglet ; l'événement dédié, celui fait ici même. */
+    const onSociete = (e: StorageEvent) => {
+      if (!e.key || e.key === "active_company_id") load();
+    };
+    window.addEventListener("storage", onSociete);
+    window.addEventListener("triangle-entreprise-changee", onUpdate);
+
+    return () => {
+      window.removeEventListener("triangle-permissions-updated", onUpdate);
+      window.removeEventListener("storage", onSociete);
+      window.removeEventListener("triangle-entreprise-changee", onUpdate);
+    };
   }, [load]);
+
+  /* Les droits en mémoire portent-ils sur l'entreprise réellement active ?
+     S'ils viennent d'une autre, on ne s'en sert pas : on recharge. C'est le
+     dernier filet contre une fuite de cache entre deux sociétés. */
+  useEffect(() => {
+    if (!perms || perms.company_id_effectif == null) return;
+    const active = Number(
+      (typeof window !== "undefined" && localStorage.getItem("active_company_id")) || 0
+    );
+    if (active && Number(perms.company_id_effectif) !== active) load();
+  }, [perms, load]);
 
   const resoudre = useCallback(
     (moduleKey: string, action: Action): boolean => {
@@ -228,6 +260,13 @@ export function usePermissions() {
   );
 
   return { perms, loading, can, isModuleVisible, canWrite, catalogue, reload: load };
+}
+
+/** Prévient tous les écrans montés que l'entreprise active vient de changer. */
+export function signalerChangementEntreprise() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("triangle-entreprise-changee"));
+  }
 }
 
 /** Prévient tous les écrans montés qu'un droit vient de changer. */
