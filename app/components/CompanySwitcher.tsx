@@ -64,7 +64,14 @@ export default function CompanySwitcher() {
     [companies, current]
   );
 
-  const isFatMat = Number(current) === 5;
+  /* Le thème sombre se déduit du NOM de l'entreprise active, pas d'un
+     identifiant écrit en dur. « Number(current) === 5 » désignait FAT & MAT
+     dans une base précise ; ailleurs — et notamment ici, où elle porte
+     l'identifiant 2 — il désignait une autre société, ou personne. Un thème
+     qui dépend d'un numéro se trompe le jour où la base change. */
+  const isFatMat = /\bfat\b.*\bmat\b/i.test(
+    (activeCompany?.name || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+  );
 
   function changeCompany(companyId: string) {
     if (!companyId || companyId === current) return;
