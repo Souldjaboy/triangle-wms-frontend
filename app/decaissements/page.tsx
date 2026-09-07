@@ -10,7 +10,7 @@ import { usePermissions } from "../lib/permissions";
  * remboursement du reliquat et clôture. Le comptable NE RECRÉE PAS la demande :
  * elle arrive automatiquement après validation Direction.
  * La trésorerie n'est impactée qu'au décaissement (et au remboursement, en
- * sens inverse). Boutons pilotés par le RBAC finance.disbursement.
+ * sens inverse). Boutons pilotés par le RBAC comptabilite.validate.
  */
 
 type Req = {
@@ -236,7 +236,7 @@ export default function DecaissementsPage() {
             )}
 
             {/* Formulaire de décaissement (PHASE 3) */}
-            {detail.status === S.WAITING_DISB && can("finance.disbursement", "validate") && (
+            {detail.status === S.WAITING_DISB && can("comptabilite", "validate") && (
               <div className="mt-5 rounded-xl border border-gray-200 p-4">
                 <p className="font-black text-gray-900">Décaisser</p>
                 <p className="text-xs text-gray-500">Montant autorisé : <b>{fcfa(detail.amount)}</b></p>
@@ -296,7 +296,7 @@ export default function DecaissementsPage() {
                       </div>
                       <div className="flex items-center gap-1">
                         <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${r.review_status === "ACCEPTE" ? "bg-green-100 text-green-800" : r.review_status === "REFUSE" ? "bg-red-100 text-red-800" : "bg-amber-100 text-amber-800"}`}>{r.review_status}</span>
-                        {can("finance.disbursement", "validate") && r.review_status === "EN_ATTENTE" && (
+                        {can("comptabilite", "validate") && r.review_status === "EN_ATTENTE" && (
                           <>
                             <button onClick={() => review(r.id, "ACCEPTE")} className="rounded bg-green-600 px-2 py-1 text-xs font-bold text-white">Accepter</button>
                             <button onClick={() => review(r.id, "REFUSE")} className="rounded bg-red-100 px-2 py-1 text-xs font-bold text-red-700">Refuser</button>
@@ -318,10 +318,10 @@ export default function DecaissementsPage() {
               {Number(detail.amount_disbursed) > 0 && (
                 <Link href={`/bons/decaissement/${detail.id}`} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white">Voir le bon</Link>
               )}
-              {amounts && amounts.remaining > 0 && can("finance.disbursement", "validate") && (
+              {amounts && amounts.remaining > 0 && can("comptabilite", "validate") && (
                 <button disabled={busy} onClick={refund} className="rounded-xl bg-blue-700 px-4 py-2 text-sm font-bold text-white">Enregistrer un remboursement</button>
               )}
-              {can("finance.disbursement", "validate") && detail.status !== S.CLOSED && (
+              {can("comptabilite", "validate") && detail.status !== S.CLOSED && (
                 <button disabled={busy || !canClose} onClick={close}
                   title={canClose ? "" : `Clôture bloquée : reste à justifier ${amounts?.remaining ?? "?"} FCFA`}
                   className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">

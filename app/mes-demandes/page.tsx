@@ -7,9 +7,9 @@ import { usePermissions } from "../lib/permissions";
 
 /**
  * PHASES 1-4 — Espace du DEMANDEUR (Assistant(e) de Direction et tout profil
- * disposant de finance.request). Aucun nom codé en dur : le backend restreint
+ * disposant de demande). Aucun nom codé en dur : le backend restreint
  * automatiquement la liste aux demandes de l'utilisateur (périmètre RBAC +
- * company_id), sans exiger finance.direction.
+ * company_id), sans exiger le droit de validation Direction.
  */
 
 type Req = {
@@ -70,7 +70,7 @@ const EMPTY = {
 
 export default function MesDemandesPage() {
   const { can, loading } = usePermissions();
-  const allowed = can("finance.request", "view");
+  const allowed = can("demande", "view");
   const [items, setItems] = useState<Req[]>([]);
   const [filter, setFilter] = useState("");
   const [msg, setMsg] = useState("");
@@ -171,7 +171,7 @@ export default function MesDemandesPage() {
             <h1 className="text-3xl font-black text-gray-900">Mes demandes de décaissement</h1>
           </div>
           <div className="flex gap-2">
-            {can("finance.request", "create") && (
+            {can("demande", "create") && (
               <button onClick={() => setShowForm((v) => !v)} className="rounded-xl bg-yellow-500 px-4 py-2 font-black text-black hover:bg-yellow-400">
                 + Nouvelle demande
               </button>
@@ -183,7 +183,7 @@ export default function MesDemandesPage() {
         {msg && <div className="rounded-xl bg-blue-50 p-4 font-semibold text-blue-900">{msg}</div>}
 
         {/* Formulaire (PHASE 2) */}
-        {showForm && can("finance.request", "create") && (
+        {showForm && can("demande", "create") && (
           <section className="rounded-2xl bg-white p-6 shadow">
             <h2 className="text-lg font-black text-gray-900">Nouvelle demande de décaissement</h2>
             <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -252,7 +252,7 @@ export default function MesDemandesPage() {
                       <td className="p-2">
                         <div className="flex flex-wrap gap-1">
                           <button onClick={() => openDetail(r)} className="rounded-lg bg-gray-200 px-2 py-1 text-xs font-bold text-gray-800">Suivre</button>
-                          {r.status === S.DRAFT && can("finance.request", "update") && (
+                          {r.status === S.DRAFT && can("demande", "update") && (
                             <button disabled={busy} onClick={() => submitDraft(r.id)} className="rounded-lg bg-emerald-600 px-2 py-1 text-xs font-bold text-white">Soumettre</button>
                           )}
                         </div>
@@ -315,7 +315,7 @@ export default function MesDemandesPage() {
             )}
 
             {/* Justificatifs (photo mobile) */}
-            {Number(detail.amount_disbursed) > 0 && can("finance.request", "update") && (
+            {Number(detail.amount_disbursed) > 0 && can("demande", "update") && (
               <div className="mt-5 rounded-xl border border-gray-200 p-4">
                 <p className="font-black text-gray-900">+ Ajouter un justificatif</p>
                 <div className="mt-2 grid gap-2 sm:grid-cols-3">

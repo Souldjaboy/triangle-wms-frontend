@@ -9,7 +9,7 @@ import { usePermissions } from "../lib/permissions";
  * PHASE 1 — Espace DIRECTION : réception, validation et refus des demandes de
  * décaissement. Aucune action ne touche la trésorerie (elle ne bouge qu'au
  * décaissement effectué par le comptable). Boutons pilotés par le RBAC
- * finance.direction — miroir exact du backend.
+ * demande.validate — miroir exact du backend et du centre des permissions.
  */
 
 type Req = {
@@ -159,7 +159,7 @@ export default function DirectionPage() {
                       <td className="p-2">
                         <div className="flex flex-wrap gap-1">
                           <button onClick={() => open(r)} className="rounded-lg bg-gray-200 px-2 py-1 text-xs font-bold text-gray-800">Voir</button>
-                          {r.status === S.WAITING && can("finance.direction", "validate") && (
+                          {r.status === S.WAITING && can("demande", "validate") && (
                             <>
                               <button disabled={busy} onClick={() => act(r.id, "approve", { comment: "Accord Direction" })} className="rounded-lg bg-emerald-600 px-2 py-1 text-xs font-bold text-white">Valider</button>
                               <button disabled={busy} onClick={() => reject(r.id)} className="rounded-lg bg-red-100 px-2 py-1 text-xs font-bold text-red-700">Refuser</button>
@@ -209,7 +209,7 @@ export default function DirectionPage() {
                 </ul>
               )}
             </div>
-            {detail.status === S.WAITING && can("finance.direction", "validate") && (
+            {detail.status === S.WAITING && can("demande", "validate") && (
               <div className="mt-5 flex flex-wrap gap-2">
                 <button disabled={busy} onClick={() => act(detail.id, "approve", { comment: "Accord Direction" })} className="rounded-xl bg-emerald-600 px-5 py-2 font-black text-white">Valider</button>
                 <button disabled={busy} onClick={() => reject(detail.id)} className="rounded-xl bg-red-100 px-4 py-2 font-bold text-red-700">Refuser</button>

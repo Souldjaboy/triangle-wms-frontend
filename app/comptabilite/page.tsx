@@ -26,6 +26,7 @@ const emptyTransaction = {
   source_label: "",
   destination_label: "",
   description: "",
+  operation_date: new Date().toISOString().slice(0, 10),
 };
 
 const emptyVoucher = {
@@ -57,6 +58,8 @@ export default function ComptabilitePage() {
   const [expenses, setExpenses] = useState<any[]>([]);
   const [accounts, setAccounts] = useState<any[]>([]);
   const [journalEntries, setJournalEntries] = useState<any[]>([]);
+  const [historicalImports, setHistoricalImports] = useState<any[]>([]);
+  const [intercompanyTransfers, setIntercompanyTransfers] = useState<any[]>([]);
   const [payroll, setPayroll] = useState<any>(null);
   const [payrollMonth, setPayrollMonth] = useState(new Date().toISOString().slice(0, 7));
   const [payrollPayment, setPayrollPayment] = useState({ payment_method: "CASH", bank_id: "", caisse_id: "", payment_reference: "" });
@@ -125,6 +128,8 @@ export default function ComptabilitePage() {
       statementsRes,
       accountsRes,
       journalRes,
+      importsRes,
+      transfersRes,
     ] = await Promise.all([
       authFetch("/accounting/dashboard"),
       authFetch("/accounting/banks"),
@@ -135,6 +140,8 @@ export default function ComptabilitePage() {
       authFetch("/accounting/statements"),
       authFetch("/accounting/chart-accounts"),
       authFetch("/accounting/journal-entries"),
+      authFetch("/accounting/historical-imports"),
+      authFetch("/accounting/intercompany-transfers"),
     ]);
 
     setDashboard(await dashboardRes.json().catch(() => null));
@@ -146,6 +153,8 @@ export default function ComptabilitePage() {
     setStatements(await statementsRes.json().catch(() => null));
     setAccounts(await accountsRes.json().catch(() => []));
     setJournalEntries(await journalRes.json().catch(() => []));
+    setHistoricalImports(await importsRes.json().catch(() => []));
+    setIntercompanyTransfers(await transfersRes.json().catch(() => []));
     setLoading(false);
   };
 
@@ -355,6 +364,36 @@ export default function ComptabilitePage() {
                 <Metric title="Demandes validées" value={dashboard?.expense_requests_approved || 0} />
               </div>
               <RecentTable title="Derniers mouvements" rows={transactions.slice(0, 8)} />
+              {intercompanyTransfers.length > 0 && (
+                <Panel title="Avances entre sociétés — à régulariser">
+                  <DataTable
+                    headers={["Numéro", "De", "Vers", "Montant", "Date", "Statut"]}
+                    rows={intercompanyTransfers.map((item) => [
+                      item.transfer_number,
+                      item.from_company_name,
+                      item.to_company_name,
+                      formatFCFA(item.amount),
+                      new Date(`${item.operation_date}T00:00:00`).toLocaleDateString("fr-FR"),
+                      item.status,
+                    ])}
+                  />
+                </Panel>
+              )}
+              {historicalImports.length > 0 && (
+                <Panel title="Imports historiques contrôlés">
+                  <DataTable
+                    headers={["Fichier", "Statut", "Lignes", "À vérifier", "Incomplètes", "Appliqué le"]}
+                    rows={historicalImports.map((item) => [
+                      item.file_name,
+                      item.status,
+                      item.line_count,
+                      item.review_count,
+                      item.incomplete_count,
+                      item.applied_at ? new Date(item.applied_at).toLocaleString("fr-FR") : "—",
+                    ])}
+                  />
+                </Panel>
+              )}
             </section>
           )}
 
@@ -426,7 +465,7 @@ export default function ComptabilitePage() {
           {activeTab === "transactions" && (
             <section className="grid gap-6 lg:grid-cols-[420px_1fr]">
               {canManage && (
-                <Panel title="Nouveau mouvement">
+                <Panel title="Nouveau mouvement / nouvelle dépense">
                   <form onSubmit={createTransaction} className="grid gap-3">
                     <select className="rounded-lg border p-3" value={transactionForm.transaction_type} onChange={(e) => setTransactionForm({ ...transactionForm, transaction_type: e.target.value })}>
                       <option value="encaissement_bancaire">Encaissement bancaire</option>
@@ -441,6 +480,10 @@ export default function ComptabilitePage() {
                       <option value="entrée">Entrée</option>
                       <option value="sortie">Sortie</option>
                     </select>
+                    <label className="grid gap-1 text-sm font-bold">
+                      Date de l’opération
+                      <input type="date" required className="rounded-lg border p-3" value={transactionForm.operation_date} onChange={(e) => setTransactionForm({ ...transactionForm, operation_date: e.target.value })} />
+                    </label>
                     <BankSelect banks={banks} value={transactionForm.bank_id} onChange={(v) => setTransactionForm({ ...transactionForm, bank_id: v })} />
                     <CaisseSelect caisses={caisses} value={transactionForm.caisse_id} onChange={(v) => setTransactionForm({ ...transactionForm, caisse_id: v })} />
                     <Input type="number" placeholder="Montant" value={transactionForm.amount} onChange={(v) => setTransactionForm({ ...transactionForm, amount: v })} />
@@ -463,7 +506,7 @@ export default function ComptabilitePage() {
                     <SignedAmount key={item.id} amount={item.amount} direction={item.direction} />,
                     item.bank_name || "-",
                     item.nom_caisse || "-",
-                    new Date(item.created_at).toLocaleDateString("fr-FR"),
+                    new Date(`${item.operation_date || String(item.created_at).slice(0, 10)}T00:00:00`).toLocaleDateString("fr-FR"),
                   ])}
                 />
               </Panel>

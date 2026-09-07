@@ -1,18 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { authFetch } from "../../lib/api";
 import { formatFCFA } from "../../lib/format";
 import { afficherDate } from "../../lib/dates";
 import DateDocumentEditor from "../../components/DateDocumentEditor";
+import OfficialDocumentSheet from "../../components/OfficialDocumentSheet";
 import { usePermissions } from "../../lib/permissions";
 
 export default function DocumentDetailPage() {
   const params = useParams<{ id: string }>();
   const [documentData, setDocumentData] = useState<any>(null);
   const [company, setCompany] = useState<any>(null);
+  const [officialDocument, setOfficialDocument] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [emailOpen, setEmailOpen] = useState(false);
@@ -39,6 +41,8 @@ export default function DocumentDetailPage() {
     quantites: Record<string, string>;
   }>({ document_number: "", reason: "", quantites: {} });
   const [correctionEnCours, setCorrectionEnCours] = useState(false);
+  const [impressionEnCours, setImpressionEnCours] = useState(false);
+  const impressionDemandee = useRef(false);
 
   const doc = documentData?.document;
   const items = documentData?.items || [];
@@ -46,19 +50,22 @@ export default function DocumentDetailPage() {
     () => String(doc?.document_type || "").toLowerCase().includes("reçu"),
     [doc?.document_type]
   );
-
   const loadDocument = async () => {
     setLoading(true);
     try {
-      const [documentRes, companyRes] = await Promise.all([
+      const [documentRes, companyRes, officialRes] = await Promise.all([
         authFetch(`/documents/${params.id}`),
         authFetch("/company-settings/current"),
+        authFetch(`/documents/print/batch?ids=${encodeURIComponent(String(params.id))}`, { cache: "no-store" }),
       ]);
       const data = await documentRes.json().catch(() => null);
       const companyData = await companyRes.json().catch(() => null);
+      const officialData = await officialRes.json().catch(() => null);
       setDocumentData(data);
-      setCompany(companyData || {});
+      setCompany(officialData?.company || companyData || {});
+      setOfficialDocument(officialData?.documents?.[0] || null);
       if (!documentRes.ok) setMessage(data?.error || "Document introuvable.");
+      else if (!officialRes.ok) setMessage(officialData?.error || "Aperçu officiel indisponible.");
     } catch (error) {
       console.error(error);
       setMessage("Erreur chargement document.");
@@ -85,11 +92,27 @@ export default function DocumentDetailPage() {
    * Sans cet enregistrement, on ne saurait pas qu'un bon circule déjà, et
    * corriger sa date resterait un geste anodin alors qu'il ne l'est plus.
    */
-  const imprimer = () => {
-    window.print();
-    authFetch(`/documents/${params.id}/printed`, { method: "POST" })
-      .then(() => chargerDates())
-      .catch(() => {});
+  const imprimer = async () => {
+    if (impressionDemandee.current) return;
+    impressionDemandee.current = true;
+    setImpressionEnCours(true);
+    setMessage("");
+
+    try {
+      const response = await authFetch(`/documents/${params.id}/printed`, { method: "POST" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.error || "Impossible d’enregistrer l’impression.");
+      }
+
+      window.location.assign(
+        `/documents/impression?ids=${encodeURIComponent(String(params.id))}&print=1`
+      );
+    } catch (error) {
+      impressionDemandee.current = false;
+      setImpressionEnCours(false);
+      setMessage(error instanceof Error ? error.message : "Impossible de préparer l’impression.");
+    }
   };
 
   /** Ouvre le formulaire pré-rempli avec ce que porte le document aujourd'hui. */
@@ -197,11 +220,13 @@ export default function DocumentDetailPage() {
               Corriger numéro / quantités
             </button>
           )}
-          <button onClick={imprimer} className="rounded-xl bg-black px-5 py-3 font-bold text-white">
-            Imprimer
+          <button onClick={imprimer} disabled={impressionEnCours}
+                  className="min-h-[44px] rounded-xl bg-black px-5 py-3 font-bold text-white disabled:cursor-wait disabled:opacity-60">
+            {impressionEnCours ? "Préparation…" : "Imprimer"}
           </button>
-          <button onClick={imprimer} className="rounded-xl bg-gray-800 px-5 py-3 font-bold text-white">
-            Télécharger PDF
+          <button onClick={imprimer} disabled={impressionEnCours}
+                  className="min-h-[44px] rounded-xl bg-gray-800 px-5 py-3 font-bold text-white disabled:cursor-wait disabled:opacity-60">
+            {impressionEnCours ? "Préparation…" : "Télécharger PDF"}
           </button>
           <button onClick={() => setEmailOpen(true)} className="rounded-xl bg-yellow-500 px-5 py-3 font-bold text-black">
             Envoyer par email
@@ -344,8 +369,15 @@ export default function DocumentDetailPage() {
         </div>
       )}
 
+      {officialDocument && (
+        <div className="-mx-4 overflow-x-auto px-4 pb-4 md:mx-0 md:px-0 print:overflow-visible print:p-0">
+          <OfficialDocumentSheet doc={officialDocument} company={company || {}} />
+        </div>
+      )}
+
       <main
-        className={`mx-auto bg-white p-6 shadow print:shadow-none ${
+        aria-hidden="true"
+        className={`hidden mx-auto bg-white p-6 shadow print:shadow-none ${
           isReceipt ? "max-w-[80mm] rounded-lg text-sm" : "max-w-5xl rounded-2xl"
         }`}
       >

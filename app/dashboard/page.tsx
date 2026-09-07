@@ -200,8 +200,8 @@ export default function DashboardPage() {
   const isAdminLike = isSuperAdmin || can("utilisateur", "view") || can("parametres", "view");
   const isWarehouseManager = can("stock", "create") || can("stock", "validate");
   const isReadOnlyRole = !can("stock", "create");
-  const isDirectionRole = can("direction", "view") || can("finance.direction", "view");
-  const isAccountingRole = can("comptabilite", "view") || can("finance.disbursement", "view");
+  const isDirectionRole = can("direction", "view") || can("demande", "validate");
+  const isAccountingRole = can("comptabilite", "view");
   const canManageWarehouse = can("stock", "create") || can("entrepot", "create");
   const canViewDirectionModules = isDirectionRole;
   const canViewAccounting = isAccountingRole;
