@@ -20,6 +20,7 @@ export default function NewCementSalePage(){
     tonnage:"",
     unit_price:"",
     transport_price:"",
+    include_transport:false,
     paid_amount:"0",
     tonnage_voucher_number:"",
     truck:"",
@@ -45,14 +46,32 @@ export default function NewCementSalePage(){
       String(x.destination).toLowerCase()===String(form.destination).toLowerCase()
     );
     if(match){
-      setForm(f=>({...f,unit_price:String(match.cement_price),transport_price:String(match.transport_price)}));
+      setForm(f=>({
+        ...f,
+        unit_price:String(match.cement_price),
+        transport_price:f.include_transport
+          ? String(match.transport_price || 0)
+          : ""
+      }));
     }
   },[form.cement_product_id,form.destination,prices]);
 
   const total=useMemo(()=>{
     const t=Number(form.tonnage||0);
-    return t*(Number(form.unit_price||0)+Number(form.transport_price||0));
-  },[form.tonnage,form.unit_price,form.transport_price]);
+    return t * (
+      Number(form.unit_price || 0) +
+      (
+        form.include_transport
+          ? Number(form.transport_price || 0)
+          : 0
+      )
+    );
+  },[
+    form.tonnage,
+    form.unit_price,
+    form.transport_price,
+    form.include_transport
+  ]);
 
   const save=async()=>{
     const r=await authFetch("/cement/sales",{
@@ -65,7 +84,9 @@ export default function NewCementSalePage(){
         delivery_place:form.destination,
         tonnage:Number(form.tonnage),
         unit_price:Number(form.unit_price),
-        transport_price:Number(form.transport_price),
+        transport_price:form.include_transport
+          ? Number(form.transport_price || 0)
+          : 0,
         transport_mode:"PAR_TONNE",
         paid_amount:Number(form.paid_amount||0),
         tonnage_voucher_number:form.tonnage_voucher_number,
@@ -86,7 +107,7 @@ export default function NewCementSalePage(){
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-black">Nouvelle vente de ciment</h1>
-          <p className="text-gray-600">Le tarif est rempli automatiquement selon le produit et la destination.</p>
+          <p className="text-gray-600">Le prix du ciment est obligatoire. Le transport est facultatif et n’est ajouté que si vous le choisissez.</p>
         </div>
         <Link href="/ciment" className="rounded-lg bg-black px-4 py-2 text-white">Retour</Link>
       </div>
@@ -109,8 +130,116 @@ export default function NewCementSalePage(){
 
         <input className="rounded-lg border p-3" type="number" placeholder="Tonnage" value={form.tonnage} onChange={e=>setForm({...form,tonnage:e.target.value})}/>
 
-        <input className="rounded-lg border p-3" type="number" placeholder="Prix / tonne" value={form.unit_price} onChange={e=>setForm({...form,unit_price:e.target.value})}/>
-        <input className="rounded-lg border p-3" type="number" placeholder="Transport / tonne" value={form.transport_price} onChange={e=>setForm({...form,transport_price:e.target.value})}/>
+        <label className="grid gap-1 text-sm font-bold">
+          Prix ciment / tonne *
+          <input
+            className="rounded-lg border p-3 font-normal"
+            type="number"
+            min="1"
+            step="1"
+            required
+            placeholder="Prix ciment / tonne"
+            value={form.unit_price}
+            onChange={e=>
+              setForm({
+                ...form,
+                unit_price:e.target.value
+              })
+            }
+          />
+        </label>
+        <div className="grid gap-3 rounded-xl border bg-gray-50 p-4">
+          <div>
+            <div className="font-black">
+              Ajouter le transport ?
+            </div>
+
+            <div className="text-sm text-gray-600">
+              Facultatif. Choisissez « Non » si le client
+              organise lui-même son transport.
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() =>
+                setForm({
+                  ...form,
+                  include_transport:false,
+                  transport_price:""
+                })
+              }
+              className={`rounded-lg border p-3 font-bold ${
+                !form.include_transport
+                  ? "border-black bg-black text-white"
+                  : "bg-white"
+              }`}
+            >
+              Non — sans transport
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                const match = prices.find(
+                  (price:any) =>
+                    String(price.cement_product_id) ===
+                      String(form.cement_product_id) &&
+                    String(price.destination || "")
+                      .toLowerCase() ===
+                    String(form.destination || "")
+                      .toLowerCase()
+                );
+
+                setForm({
+                  ...form,
+                  include_transport:true,
+                  transport_price:String(
+                    match?.transport_price || 0
+                  )
+                });
+              }}
+              className={`rounded-lg border p-3 font-bold ${
+                form.include_transport
+                  ? "border-yellow-500 bg-yellow-400 text-black"
+                  : "bg-white"
+              }`}
+            >
+              Oui — ajouter transport
+            </button>
+          </div>
+
+          {form.include_transport && (
+            <label className="grid gap-1 text-sm font-bold">
+              Prix transport / tonne
+              <input
+                className="rounded-lg border p-3 font-normal"
+                type="number"
+                min="0"
+                step="1"
+                placeholder="Prix transport / tonne"
+                value={form.transport_price}
+                onChange={e=>
+                  setForm({
+                    ...form,
+                    transport_price:e.target.value
+                  })
+                }
+              />
+
+              <span className="text-xs font-normal text-gray-500">
+                Le tarif proposé peut être modifié pour cette vente.
+              </span>
+            </label>
+          )}
+
+          {!form.include_transport && (
+            <div className="rounded-lg bg-white p-3 text-sm">
+              <b>Transport :</b> Non inclus — 0 FCFA
+            </div>
+          )}
+        </div>
 
         <input className="rounded-lg border p-3" placeholder="N° bon de tonnage" value={form.tonnage_voucher_number} onChange={e=>setForm({...form,tonnage_voucher_number:e.target.value})}/>
         <input className="rounded-lg border p-3" placeholder="Camion" value={form.truck} onChange={e=>setForm({...form,truck:e.target.value})}/>
