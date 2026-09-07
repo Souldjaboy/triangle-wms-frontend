@@ -48,6 +48,16 @@ const emptyExpense = {
   urgency: "normale",
 };
 
+const emptyIntercompanyTransfer = {
+  to_company_id: "",
+  from_account_type: "TREASURY",
+  from_bank_id: "",
+  to_account_type: "TREASURY",
+  to_bank_id: "",
+  amount: "",
+  reason: "",
+};
+
 export default function ComptabilitePage() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [dashboard, setDashboard] = useState<any>(null);
@@ -68,6 +78,10 @@ export default function ComptabilitePage() {
   const [transactionForm, setTransactionForm] = useState(emptyTransaction);
   const [voucherForm, setVoucherForm] = useState(emptyVoucher);
   const [expenseForm, setExpenseForm] = useState(emptyExpense);
+  const [intercompanyOptions, setIntercompanyOptions] =
+    useState<any>(null);
+  const [transferForm, setTransferForm] =
+    useState(emptyIntercompanyTransfer);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -155,6 +169,19 @@ export default function ComptabilitePage() {
     setJournalEntries(await journalRes.json().catch(() => []));
     setHistoricalImports(await importsRes.json().catch(() => []));
     setIntercompanyTransfers(await transfersRes.json().catch(() => []));
+    const intercompanyOptionsRes =
+      await authFetch(
+        "/accounting/intercompany-options"
+      );
+
+    if (intercompanyOptionsRes.ok) {
+      setIntercompanyOptions(
+        await intercompanyOptionsRes
+          .json()
+          .catch(() => null)
+      );
+    }
+
     setLoading(false);
   };
 
@@ -209,6 +236,24 @@ export default function ComptabilitePage() {
       "Demande de décaissement envoyée."
     );
     if (ok) setExpenseForm(emptyExpense);
+  };
+
+  const createIntercompanyTransfer = async (
+    event: React.FormEvent
+  ) => {
+    event.preventDefault();
+
+    const ok = await submitJson(
+      "/accounting/intercompany-transfers",
+      transferForm,
+      "Transfert inter-sociétés effectué."
+    );
+
+    if (ok) {
+      setTransferForm(
+        emptyIntercompanyTransfer
+      );
+    }
   };
 
   const patchJson = async (path: string, body: any, success: string) => {
@@ -326,6 +371,7 @@ export default function ComptabilitePage() {
           ["banks", "Banques"],
           ["caisses", "Caisses"],
           ["transactions", "Mouvements"],
+          ["transfers", "Transferts"],
           ["vouchers", "Bons"],
           ["expenses", "Demandes"],
           ["payroll", "Salaires"],
@@ -472,9 +518,9 @@ export default function ComptabilitePage() {
                       <option value="retrait_banque">Retrait banque vers trésorerie</option>
                       <option value="depot_caisse_banque">Dépôt caisse vers banque</option>
                       <option value="encaissement_especes">Encaissement espèces</option>
-                      <option value="depense">Dépense</option>
-                      <option value="paiement_fournisseur">Paiement fournisseur</option>
-                      <option value="salaire">Salaire</option>
+
+
+
                     </select>
                     <select className="rounded-lg border p-3" value={transactionForm.direction} onChange={(e) => setTransactionForm({ ...transactionForm, direction: e.target.value })}>
                       <option value="entrée">Entrée</option>
@@ -498,10 +544,34 @@ export default function ComptabilitePage() {
               )}
               <Panel title="Historique des mouvements">
                 <DataTable
-                  headers={["Numéro", "Type", "Sens", "Montant", "Banque", "Caisse", "Date"]}
+                  headers={[
+                    "Numéro",
+                    "Type / Objet",
+                    "Sens",
+                    "Montant",
+                    "Banque",
+                    "Caisse",
+                    "Date"
+                  ]}
                   rows={transactions.map((item) => [
                     item.transaction_number,
-                    item.transaction_type,
+                    <div
+                      key={`objet-${item.id}`}
+                      className="min-w-[250px]"
+                    >
+                      <div className="font-bold capitalize">
+                        {String(
+                          item.transaction_type || "-"
+                        ).replaceAll("_", " ")}
+                      </div>
+
+                      <div className="mt-1 text-xs text-gray-600">
+                        <b>Objet :</b>{" "}
+                        {item.description ||
+                          item.category ||
+                          "Objet non renseigné"}
+                      </div>
+                    </div>,
                     item.direction,
                     <SignedAmount key={item.id} amount={item.amount} direction={item.direction} />,
                     item.bank_name || "-",
@@ -510,6 +580,255 @@ export default function ComptabilitePage() {
                   ])}
                 />
               </Panel>
+            </section>
+          )}
+
+
+          {activeTab === "transfers" && (
+            <section className="grid gap-6 lg:grid-cols-[430px_1fr]">
+
+              {canManage && (
+                <Panel title="Transfert Triangle ↔ FAT & MAT">
+                  <form
+                    onSubmit={createIntercompanyTransfer}
+                    className="grid gap-3"
+                  >
+                    <div className="rounded-xl bg-blue-50 p-4 text-sm text-blue-900">
+                      La société source est la société
+                      actuellement sélectionnée.
+                      Un transfert n'est pas une dépense.
+                    </div>
+
+                    <select
+                      className="rounded-lg border p-3"
+                      value={transferForm.to_company_id}
+                      onChange={(e) =>
+                        setTransferForm({
+                          ...transferForm,
+                          to_company_id:
+                            e.target.value,
+                          to_bank_id: ""
+                        })
+                      }
+                    >
+                      <option value="">
+                        Société destination
+                      </option>
+
+                      {(intercompanyOptions?.companies || [])
+                        .filter(
+                          (company: any) =>
+                            Number(company.id) !==
+                            Number(
+                              intercompanyOptions
+                                ?.active_company_id
+                            )
+                        )
+                        .map((company: any) => (
+                          <option
+                            key={company.id}
+                            value={company.id}
+                          >
+                            {company.name}
+                          </option>
+                        ))}
+                    </select>
+
+                    <div className="font-black">
+                      Source de l'argent
+                    </div>
+
+                    <select
+                      className="rounded-lg border p-3"
+                      value={
+                        transferForm.from_account_type
+                      }
+                      onChange={(e) =>
+                        setTransferForm({
+                          ...transferForm,
+                          from_account_type:
+                            e.target.value,
+                          from_bank_id: ""
+                        })
+                      }
+                    >
+                      <option value="TREASURY">
+                        Trésorerie générale
+                      </option>
+
+                      <option value="BANK">
+                        Banque
+                      </option>
+                    </select>
+
+                    {transferForm.from_account_type ===
+                      "BANK" && (
+                      <select
+                        className="rounded-lg border p-3"
+                        value={
+                          transferForm.from_bank_id
+                        }
+                        onChange={(e) =>
+                          setTransferForm({
+                            ...transferForm,
+                            from_bank_id:
+                              e.target.value
+                          })
+                        }
+                      >
+                        <option value="">
+                          Banque source
+                        </option>
+
+                        {(intercompanyOptions?.banks || [])
+                          .filter(
+                            (bank: any) =>
+                              Number(bank.company_id) ===
+                              Number(
+                                intercompanyOptions
+                                  ?.active_company_id
+                              )
+                          )
+                          .map((bank: any) => (
+                            <option
+                              key={bank.id}
+                              value={bank.id}
+                            >
+                              {bank.bank_name} —{" "}
+                              {formatFCFA(
+                                bank.current_balance
+                              )}
+                            </option>
+                          ))}
+                      </select>
+                    )}
+
+                    <div className="font-black">
+                      Destination de l'argent
+                    </div>
+
+                    <select
+                      className="rounded-lg border p-3"
+                      value={
+                        transferForm.to_account_type
+                      }
+                      onChange={(e) =>
+                        setTransferForm({
+                          ...transferForm,
+                          to_account_type:
+                            e.target.value,
+                          to_bank_id: ""
+                        })
+                      }
+                    >
+                      <option value="TREASURY">
+                        Trésorerie générale
+                      </option>
+
+                      <option value="BANK">
+                        Banque
+                      </option>
+                    </select>
+
+                    {transferForm.to_account_type ===
+                      "BANK" && (
+                      <select
+                        className="rounded-lg border p-3"
+                        value={
+                          transferForm.to_bank_id
+                        }
+                        onChange={(e) =>
+                          setTransferForm({
+                            ...transferForm,
+                            to_bank_id:
+                              e.target.value
+                          })
+                        }
+                      >
+                        <option value="">
+                          Banque destination
+                        </option>
+
+                        {(intercompanyOptions?.banks || [])
+                          .filter(
+                            (bank: any) =>
+                              Number(bank.company_id) ===
+                              Number(
+                                transferForm.to_company_id
+                              )
+                          )
+                          .map((bank: any) => (
+                            <option
+                              key={bank.id}
+                              value={bank.id}
+                            >
+                              {bank.bank_name} —{" "}
+                              {formatFCFA(
+                                bank.current_balance
+                              )}
+                            </option>
+                          ))}
+                      </select>
+                    )}
+
+                    <Input
+                      type="number"
+                      placeholder="Montant"
+                      value={transferForm.amount}
+                      onChange={(value) =>
+                        setTransferForm({
+                          ...transferForm,
+                          amount: value
+                        })
+                      }
+                    />
+
+                    <textarea
+                      className="rounded-lg border p-3"
+                      placeholder="Objet du transfert"
+                      value={transferForm.reason}
+                      onChange={(e) =>
+                        setTransferForm({
+                          ...transferForm,
+                          reason: e.target.value
+                        })
+                      }
+                    />
+
+                    <Submit>
+                      Effectuer le transfert
+                    </Submit>
+                  </form>
+                </Panel>
+              )}
+
+              <Panel title="Historique des transferts">
+                <DataTable
+                  headers={[
+                    "Référence",
+                    "Source",
+                    "Destination",
+                    "Montant",
+                    "Objet",
+                    "Date"
+                  ]}
+                  rows={(intercompanyTransfers || [])
+                    .map((item: any) => [
+                      item.transfer_number,
+                      item.from_company_name ||
+                        `Société ${item.from_company_id}`,
+                      item.to_company_name ||
+                        `Société ${item.to_company_id}`,
+                      formatFCFA(item.amount),
+                      item.reason || "-",
+                      new Date(
+                        item.operation_date ||
+                        item.created_at
+                      ).toLocaleDateString("fr-FR")
+                    ])}
+                />
+              </Panel>
+
             </section>
           )}
 
