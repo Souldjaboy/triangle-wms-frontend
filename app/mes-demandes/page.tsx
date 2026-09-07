@@ -12,6 +12,26 @@ import { usePermissions } from "../lib/permissions";
  * company_id), sans exiger le droit de validation Direction.
  */
 
+type RequestLine = {
+  id?: number;
+  line_no: number;
+  category: string | null;
+  label: string;
+  amount: string | number;
+};
+
+type DraftLine = {
+  category: string;
+  label: string;
+  amount: string;
+};
+
+const EMPTY_LINE: DraftLine = {
+  category: "",
+  label: "",
+  amount: "",
+};
+
 type Req = {
   id: number; request_number: string; created_at: string; reason: string; category: string | null;
   amount: string; amount_disbursed: string | null; urgency: string | null; status: string;
@@ -19,6 +39,7 @@ type Req = {
   approved_at: string | null; disbursed_by_name: string | null; disbursed_at: string | null;
   disbursement_comment: string | null; voucher_number: string | null; closed_at: string | null;
   requester_name: string | null;
+  lines?: RequestLine[];
 };
 type Receipt = { id: number; file_url: string; file_name: string | null; amount: string; label: string | null; review_status: string; uploaded_at: string };
 type Refund = { id: number; amount: string; created_at: string };
@@ -64,8 +85,8 @@ const fcfa = (v: string | number | null) => (v == null || v === "" ? "—" : Num
 const fdate = (d: string | null) => (d ? new Date(d).toLocaleDateString("fr-FR") : "—");
 
 const EMPTY = {
-  beneficiary: "", service: "", reason: "", description: "", amount: "", currency: "FCFA",
-  category: "", project: "", urgency: "normale", desired_date: "", payment_method: "especes", observation: "",
+  beneficiary: "", service: "", reason: "", description: "", currency: "FCFA",
+  project: "", urgency: "normale", desired_date: "", payment_method: "especes", observation: "",
 };
 
 export default function MesDemandesPage() {
@@ -77,6 +98,39 @@ export default function MesDemandesPage() {
   const [busy, setBusy] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ ...EMPTY });
+  const [requestLines, setRequestLines] = useState<DraftLine[]>([
+    { ...EMPTY_LINE }
+  ]);
+
+  const totalRequest = requestLines.reduce(
+    (sum, line) => sum + (Number(line.amount) || 0),
+    0
+  );
+
+  const updateRequestLine = (
+    index: number,
+    patch: Partial<DraftLine>
+  ) => {
+    setRequestLines((current) =>
+      current.map((line, i) =>
+        i === index ? { ...line, ...patch } : line
+      )
+    );
+  };
+
+  const addRequestLine = () => {
+    setRequestLines((current) => [
+      ...current,
+      { ...EMPTY_LINE }
+    ]);
+  };
+
+  const removeRequestLine = (index: number) => {
+    setRequestLines((current) => {
+      if (current.length <= 1) return current;
+      return current.filter((_, i) => i !== index);
+    });
+  };
   const [attach, setAttach] = useState<File | null>(null);
   const [detail, setDetail] = useState<Req | null>(null);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
@@ -100,30 +154,124 @@ export default function MesDemandesPage() {
 
   const create = async (submit: boolean) => {
     setMsg("");
-    if (!(Number(form.amount) > 0)) return setMsg("Montant invalide.");
-    if (!form.reason.trim()) return setMsg("L'objet de la demande est obligatoire.");
-    setBusy(true);
-    // La pièce initiale est envoyée après création (l'API accepte une URL).
-    const body = {
-      amount: Number(form.amount), reason: form.reason, category: form.category || null,
-      beneficiary_name: form.beneficiary.trim() || null,
-      urgency: form.urgency, payment_method: form.payment_method, submit,
-      // Champs complémentaires regroupés dans la description.
-      description: [form.description,
-        form.service && `Service : ${form.service}`, form.project && `Projet : ${form.project}`,
-        form.desired_date && `Souhaitée le ${form.desired_date}`, form.observation]
-        .filter(Boolean).join(" · ") || null,
-    };
-    const res = await authFetch("/disbursements", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    const d = await res.json().catch(() => ({}));
-    if (!res.ok) { setBusy(false); return setMsg(`❌ ${d?.error || "Erreur."}`); }
-    if (attach) {
-      const fd = new FormData(); fd.append("file", attach); fd.append("amount", "0"); fd.append("label", "Pièce initiale");
-      await authFetch(`/disbursements/${d.id}/receipts`, { method: "POST", body: fd });
+
+    if (!form.reason.trim()) {
+      return setMsg(
+        "L'objet général de la demande est obligatoire."
+      );
     }
+
+    const lines = requestLines.map((line, index) => ({
+      line_no: index + 1,
+      category: line.category.trim(),
+      label: line.label.trim(),
+      amount: Number(line.amount),
+    }));
+
+    for (let i = 0; i < lines.length; i += 1) {
+      if (!lines[i].category) {
+        return setMsg(
+          `Catégorie obligatoire à la ligne ${i + 1}.`
+        );
+      }
+
+      if (!lines[i].label) {
+        return setMsg(
+          `Libellé obligatoire à la ligne ${i + 1}.`
+        );
+      }
+
+      if (!(lines[i].amount > 0)) {
+        return setMsg(
+          `Montant invalide à la ligne ${i + 1}.`
+        );
+      }
+    }
+
+    const amount = lines.reduce(
+      (sum, line) => sum + line.amount,
+      0
+    );
+
+    if (!(amount > 0)) {
+      return setMsg("Montant total invalide.");
+    }
+
+    setBusy(true);
+
+    const body = {
+      amount,
+      reason: form.reason,
+      category:
+        lines.length === 1
+          ? lines[0].category
+          : "Multi-catégories",
+      lines,
+
+      beneficiary_name:
+        form.beneficiary.trim() || null,
+
+      urgency: form.urgency,
+      payment_method: form.payment_method,
+      submit,
+
+      description: [
+        form.description,
+        form.service && `Service : ${form.service}`,
+        form.project && `Projet : ${form.project}`,
+        form.desired_date &&
+          `Souhaitée le ${form.desired_date}`,
+        form.observation,
+      ]
+        .filter(Boolean)
+        .join(" · ") || null,
+    };
+
+    const res = await authFetch("/disbursements", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    const d = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      setBusy(false);
+      return setMsg(
+        `❌ ${d?.error || "Erreur."}`
+      );
+    }
+
+    if (attach) {
+      const fd = new FormData();
+
+      fd.append("file", attach);
+      fd.append("amount", "0");
+      fd.append("label", "Pièce initiale");
+
+      await authFetch(
+        `/disbursements/${d.id}/receipts`,
+        {
+          method: "POST",
+          body: fd,
+        }
+      );
+    }
+
     setBusy(false);
-    setMsg(submit ? `✅ ${d.request_number} soumise à la Direction.` : `✅ ${d.request_number} enregistrée en brouillon (non transmise).`);
-    setForm({ ...EMPTY }); setAttach(null); setShowForm(false); await load();
+
+    setMsg(
+      submit
+        ? `✅ ${d.request_number} soumise à la Direction — ${lines.length} ligne(s) — ${fcfa(amount)}.`
+        : `✅ ${d.request_number} enregistrée en brouillon — ${lines.length} ligne(s) — ${fcfa(amount)}.`
+    );
+
+    setForm({ ...EMPTY });
+    setRequestLines([{ ...EMPTY_LINE }]);
+    setAttach(null);
+    setShowForm(false);
+
+    await load();
   };
 
   const submitDraft = async (id: number) => {
@@ -190,9 +338,7 @@ export default function MesDemandesPage() {
               <Field label="Bénéficiaire"><input className={inp} value={form.beneficiary} onChange={(e) => setForm({ ...form, beneficiary: e.target.value })} /></Field>
               <Field label="Service"><input className={inp} value={form.service} onChange={(e) => setForm({ ...form, service: e.target.value })} /></Field>
               <Field label="Objet *"><input className={inp} value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} placeholder="Ex. Achat fournitures chantier" /></Field>
-              <Field label="Montant *"><input type="number" min="0" className={inp} value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></Field>
               <Field label="Devise"><input className={inp} value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })} /></Field>
-              <Field label="Catégorie"><input className={inp} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} /></Field>
               <Field label="Projet / chantier / site"><input className={inp} value={form.project} onChange={(e) => setForm({ ...form, project: e.target.value })} /></Field>
               <Field label="Urgence">
                 <select className={inp} value={form.urgency} onChange={(e) => setForm({ ...form, urgency: e.target.value })}>
@@ -211,6 +357,130 @@ export default function MesDemandesPage() {
                 <input type="file" accept=".pdf,.jpg,.jpeg,.png,image/*" capture="environment" className="text-sm" onChange={(e) => setAttach(e.target.files?.[0] || null)} />
               </Field>
             </div>
+
+            <div className="mt-5 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="font-black text-gray-900">
+                    Détail de la demande
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Ajoutez une ligne par dépense / catégorie.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={addRequestLine}
+                  className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-black text-white"
+                >
+                  + Ajouter une ligne
+                </button>
+              </div>
+
+              <datalist id="demande-categories">
+                <option value="Carburant" />
+                <option value="Transport" />
+                <option value="Fournitures" />
+                <option value="Achat matériel" />
+                <option value="Entretien / réparation" />
+                <option value="Communication" />
+                <option value="Restauration" />
+                <option value="Hébergement" />
+                <option value="Frais administratifs" />
+                <option value="Autre" />
+              </datalist>
+
+              <div className="mt-4 space-y-3">
+                {requestLines.map((line, index) => (
+                  <div
+                    key={index}
+                    className="rounded-xl border border-gray-200 bg-white p-3"
+                  >
+                    <div className="mb-2 flex items-center justify-between">
+                      <p className="font-black text-gray-700">
+                        Ligne {index + 1}
+                      </p>
+
+                      {requestLines.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeRequestLine(index)}
+                          className="rounded-lg bg-red-50 px-3 py-1 text-xs font-bold text-red-700"
+                        >
+                          Supprimer
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-[1fr_2fr_1fr]">
+                      <div>
+                        <label className="mb-1 block text-xs font-bold text-gray-600">
+                          Catégorie *
+                        </label>
+                        <input
+                          list="demande-categories"
+                          className={inp}
+                          value={line.category}
+                          placeholder="Ex. Carburant"
+                          onChange={(e) =>
+                            updateRequestLine(index, {
+                              category: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+
+                      <div>
+                        <label className="mb-1 block text-xs font-bold text-gray-600">
+                          Libellé / motif de la ligne *
+                        </label>
+                        <input
+                          className={inp}
+                          value={line.label}
+                          placeholder="Ex. Gasoil camion chantier"
+                          onChange={(e) =>
+                            updateRequestLine(index, {
+                              label: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+
+                      <div>
+                        <label className="mb-1 block text-xs font-bold text-gray-600">
+                          Montant *
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          className={inp}
+                          value={line.amount}
+                          placeholder="0"
+                          onChange={(e) =>
+                            updateRequestLine(index, {
+                              amount: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-4 flex justify-end">
+                <div className="rounded-xl bg-emerald-50 px-5 py-3 text-right">
+                  <p className="text-xs font-bold text-emerald-700">
+                    TOTAL DE LA DEMANDE
+                  </p>
+                  <p className="text-2xl font-black text-emerald-800">
+                    {fcfa(totalRequest)}
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <div className="mt-4 flex flex-wrap gap-3">
               <button disabled={busy} onClick={() => create(false)} className="rounded-xl border border-gray-300 px-4 py-3 font-bold text-gray-700">Enregistrer brouillon</button>
               <button disabled={busy} onClick={() => create(true)} className="rounded-xl bg-emerald-600 px-6 py-3 font-black text-white disabled:opacity-60">
@@ -303,6 +573,39 @@ export default function MesDemandesPage() {
               <Box label="Reste à justifier" value={fcfa(amounts?.remaining ?? 0)} c={(amounts?.remaining ?? 0) > 0 ? "text-red-600" : "text-green-700"} />
               <Box label="Statut" value={detail.status.replace(/_/g, " ")} />
             </div>
+
+            {detail.lines && detail.lines.length > 0 && (
+              <div className="mt-4 rounded-xl border border-gray-200 p-3">
+                <p className="mb-2 font-black text-gray-900">
+                  Lignes de la demande
+                </p>
+
+                <div className="space-y-2">
+                  {detail.lines.map((line) => (
+                    <div
+                      key={line.id ?? line.line_no}
+                      className="grid gap-1 rounded-lg bg-gray-50 p-2 text-sm sm:grid-cols-[auto_1fr_auto]"
+                    >
+                      <span className="font-bold text-gray-500">
+                        #{line.line_no}
+                      </span>
+                      <div>
+                        <p className="font-black text-gray-800">
+                          {line.category || "Non catégorisé"}
+                        </p>
+                        <p className="text-gray-600">
+                          {line.label}
+                        </p>
+                      </div>
+                      <span className="font-black text-gray-900">
+                        {fcfa(line.amount)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {amounts?.fully_justified && amounts.disbursed > 0 && (
               <p className="mt-2 rounded-lg bg-green-50 p-2 text-center text-sm font-black text-green-800">ENTIÈREMENT JUSTIFIÉ</p>
             )}

@@ -13,6 +13,14 @@ import { usePermissions } from "../lib/permissions";
  * sens inverse). Boutons pilotés par le RBAC comptabilite.validate.
  */
 
+type RequestLine = {
+  id?: number;
+  line_no: number;
+  category: string | null;
+  label: string;
+  amount: string | number;
+};
+
 type Req = {
   id: number; request_number: string; created_at: string; requester_name: string | null;
   beneficiary_name: string | null;
@@ -20,6 +28,7 @@ type Req = {
   status: string; payment_method: string | null; approved_by_name: string | null;
   approved_at: string | null; disbursed_by_name: string | null; disbursed_at: string | null;
   disbursement_comment: string | null;
+  lines?: RequestLine[];
 };
 type Receipt = {
   id: number; file_url: string; file_name: string | null; amount: string; label: string | null;
@@ -221,6 +230,46 @@ export default function DecaissementsPage() {
               </div>
               <button onClick={() => setDetail(null)} className="text-2xl font-black text-gray-400">×</button>
             </div>
+
+
+            {detail.lines && detail.lines.length > 0 && (
+              <div className="mt-4 rounded-xl border border-gray-200 p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="font-black text-gray-900">
+                    Détail de la demande
+                  </p>
+                  <p className="font-black text-emerald-700">
+                    Total validé : {fcfa(detail.amount)}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  {detail.lines.map((line) => (
+                    <div
+                      key={line.id ?? line.line_no}
+                      className="grid gap-2 rounded-lg bg-gray-50 p-2 text-sm sm:grid-cols-[auto_1fr_auto]"
+                    >
+                      <span className="font-bold text-gray-500">
+                        #{line.line_no}
+                      </span>
+
+                      <div>
+                        <p className="font-black text-gray-800">
+                          {line.category || "Non catégorisé"}
+                        </p>
+                        <p className="text-gray-600">
+                          {line.label}
+                        </p>
+                      </div>
+
+                      <span className="font-black text-gray-900">
+                        {fcfa(line.amount)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Montants (PHASE 6) */}
             {amounts && (

@@ -12,12 +12,21 @@ import { usePermissions } from "../lib/permissions";
  * demande.validate — miroir exact du backend et du centre des permissions.
  */
 
+type RequestLine = {
+  id?: number;
+  line_no: number;
+  category: string | null;
+  label: string;
+  amount: string | number;
+};
+
 type Req = {
   id: number; request_number: string; created_at: string; requester_name: string | null;
   requester_role: string | null; reason: string; amount: string; amount_disbursed: string | null;
   category: string | null; urgency: string | null; status: string;
   approval_comment: string | null; approved_by_name: string | null; approved_at: string | null;
   receipt_url: string | null;
+  lines?: RequestLine[];
 };
 type Dash = {
   by_status: Record<string, { n: number; total: string; total_disbursed: string }>;
@@ -94,7 +103,11 @@ export default function DirectionPage() {
   const open = async (r: Req) => {
     setDetail(r);
     const res = await authFetch(`/disbursements/${r.id}/details`);
-    if (res.ok) { const d = await res.json(); setHistory(d.history || []); }
+    if (res.ok) {
+      const d = await res.json();
+      setDetail(d.request);
+      setHistory(d.history || []);
+    }
   };
 
   const pending = dash?.by_status?.[S.WAITING];
@@ -196,6 +209,46 @@ export default function DirectionPage() {
               <p><b>Décaissé :</b> {fcfa(detail.amount_disbursed)}</p>
               {detail.approval_comment && <p className="col-span-2"><b>Commentaire Direction :</b> {detail.approval_comment}</p>}
             </div>
+
+            {detail.lines && detail.lines.length > 0 && (
+              <div className="mt-4 rounded-xl border border-gray-200 p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="font-black text-gray-900">
+                    Détail des lignes
+                  </p>
+                  <p className="font-black text-emerald-700">
+                    Total : {fcfa(detail.amount)}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  {detail.lines.map((line) => (
+                    <div
+                      key={line.id ?? line.line_no}
+                      className="grid gap-2 rounded-lg bg-gray-50 p-2 text-sm sm:grid-cols-[auto_1fr_auto]"
+                    >
+                      <span className="font-bold text-gray-500">
+                        #{line.line_no}
+                      </span>
+
+                      <div>
+                        <p className="font-black text-gray-800">
+                          {line.category || "Non catégorisé"}
+                        </p>
+                        <p className="text-gray-600">
+                          {line.label}
+                        </p>
+                      </div>
+
+                      <span className="font-black text-gray-900">
+                        {fcfa(line.amount)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="mt-4">
               <p className="mb-2 font-black text-gray-900">Historique</p>
               {history.length === 0 ? <p className="text-sm text-gray-500">Aucun événement.</p> : (
