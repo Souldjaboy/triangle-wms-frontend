@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { authFetch } from "../../../lib/api";
+import { telechargerPdfBon, partagerPdfBon, envoyerBonParWhatsApp } from "../../../lib/bon-livraison-pdf";
 import PrintableCompanyHeader from "../../../components/PrintableCompanyHeader";
 
 /**
@@ -61,21 +62,80 @@ export default function BonLivraisonSablePage() {
     return () => clearTimeout(t);
   }, [d, search, declarerImpression]);
 
+  const [pdfEnCours, setPdfEnCours] = useState(false);
+  const [messagePdf, setMessagePdf] = useState("");
+
+  const telechargerPdf = async () => {
+    setPdfEnCours(true); setMessagePdf("");
+    try {
+      const nom = await telechargerPdfBon("sable", id as string);
+      setMessagePdf(`PDF téléchargé : ${nom}`);
+    } catch (e) {
+      setMessagePdf(e instanceof Error ? e.message : "Le PDF n’a pas pu être produit.");
+    } finally { setPdfEnCours(false); }
+  };
+
+  const partager = async () => {
+    setPdfEnCours(true); setMessagePdf("");
+    try {
+      const r = await partagerPdfBon("sable", id as string,
+        { titre: `Bon de livraison ${d?.delivery_number || ""}`.trim() });
+      if (r.mode === "partage") setMessagePdf(`Bon partagé : ${r.nom}`);
+      else if (r.mode === "telecharge") setMessagePdf(r.raison);
+    } catch (e) {
+      setMessagePdf(e instanceof Error ? e.message : "Le partage a échoué.");
+    } finally { setPdfEnCours(false); }
+  };
+
+  const partagerWhatsApp = async () => {
+    setPdfEnCours(true); setMessagePdf("");
+    try {
+      const r = await envoyerBonParWhatsApp("sable", id as string, d?.delivery_number || "");
+      if (r.mode === "partage") setMessagePdf("Bon transmis à l’application choisie.");
+      else if (r.mode === "telecharge") setMessagePdf(r.raison);
+    } catch (e) {
+      setMessagePdf(e instanceof Error ? e.message : "Le partage a échoué.");
+    } finally { setPdfEnCours(false); }
+  };
+
   if (error) return <div className="p-8 font-semibold text-red-700">{error}</div>;
   if (!d) return <div className="p-8 text-gray-600">Chargement du bon de livraison…</div>;
   const estAnnule = Boolean(d.cancelled_at);
 
   return (
     <div className="min-h-screen bg-gray-200 py-6 print:bg-white print:py-0">
-      <div className="mx-auto mb-4 flex max-w-[210mm] items-center justify-between gap-2 px-4 print:hidden">
+      <div className="mx-auto mb-4 flex max-w-[210mm] flex-wrap items-center justify-between gap-2 px-4 print:hidden">
         <Link href="/sable/livraisons" className="font-bold text-blue-700">← Livraisons sable</Link>
-        <button
-          onClick={() => { window.print(); declarerImpression(); }}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white"
-        >
-          Imprimer
-        </button>
+        <div className="flex flex-wrap gap-2">
+          {/* Imprimer ouvre la boîte d'impression ; Télécharger dépose un
+              fichier. Deux gestes, deux boutons — et le même PDF que celui
+              qu'un client recevra par WhatsApp ou par email. */}
+          <button
+            onClick={() => { window.print(); declarerImpression(); }}
+            className="min-h-[44px] rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white"
+          >
+            Imprimer
+          </button>
+          <button onClick={telechargerPdf} disabled={pdfEnCours}
+            className="min-h-[44px] rounded-lg bg-slate-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">
+            {pdfEnCours ? "PDF en cours…" : "Télécharger PDF"}
+          </button>
+          <button onClick={partagerWhatsApp} disabled={pdfEnCours}
+            className="min-h-[44px] rounded-lg bg-green-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">
+            WhatsApp
+          </button>
+          <button onClick={partager} disabled={pdfEnCours}
+            className="min-h-[44px] rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">
+            Partager
+          </button>
+        </div>
       </div>
+
+      {messagePdf && (
+        <div className="mx-auto mb-4 w-[210mm] max-w-full rounded-xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-800 print:hidden">
+          {messagePdf}
+        </div>
+      )}
 
       {estAnnule && (
         <div className="mx-auto mb-4 w-[210mm] max-w-full rounded-xl bg-red-50 p-4 text-sm text-red-900 print:hidden">

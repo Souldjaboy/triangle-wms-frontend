@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { authFetch } from "../../lib/api";
+import { telechargerPdfBon, partagerPdfBon, envoyerBonParWhatsApp } from "../../lib/bon-livraison-pdf";
 import { formatFCFA } from "../../lib/format";
 import { afficherDate } from "../../lib/dates";
 import DateDocumentEditor from "../../components/DateDocumentEditor";
@@ -90,6 +91,54 @@ export default function DocumentDetailPage() {
     authFetch(`/documents/${params.id}/printed`, { method: "POST" })
       .then(() => chargerDates())
       .catch(() => {});
+  };
+
+  const [pdfEnCours, setPdfEnCours] = useState(false);
+
+  /**
+   * TÉLÉCHARGER — et rien d'autre.
+   *
+   * Ce bouton appelait `imprimer()`, exactement comme « Imprimer » : on ne
+   * pouvait pas obtenir le fichier sans passer par la boîte d'impression, ni
+   * imprimer sans croire qu'on téléchargeait. Les deux gestes sont désormais
+   * séparés, et le PDF vient du serveur — le même que celui de l'email et du
+   * partage.
+   */
+  const telechargerPdf = async () => {
+    setPdfEnCours(true); setMessage("");
+    try {
+      const nom = await telechargerPdfBon("document", params.id as string);
+      setMessage(`PDF téléchargé : ${nom}`);
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Le PDF n’a pas pu être produit.");
+    } finally { setPdfEnCours(false); }
+  };
+
+  /** Partage le FICHIER. Le lien obligerait le destinataire à se connecter. */
+  const partager = async () => {
+    setPdfEnCours(true); setMessage("");
+    try {
+      const r = await partagerPdfBon("document", params.id as string, {
+        titre: `${doc?.document_type || "Bon"} ${doc?.document_number || ""}`.trim(),
+      });
+      if (r.mode === "partage") setMessage(`Document partagé : ${r.nom}`);
+      else if (r.mode === "telecharge") setMessage(r.raison);
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Le partage a échoué.");
+    } finally { setPdfEnCours(false); }
+  };
+
+  const partagerWhatsApp = async () => {
+    setPdfEnCours(true); setMessage("");
+    try {
+      const r = await envoyerBonParWhatsApp(
+        "document", params.id as string, doc?.document_number || ""
+      );
+      if (r.mode === "partage") setMessage("Document transmis à l’application choisie.");
+      else if (r.mode === "telecharge") setMessage(r.raison);
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Le partage a échoué.");
+    } finally { setPdfEnCours(false); }
   };
 
   /** Ouvre le formulaire pré-rempli avec ce que porte le document aujourd'hui. */
@@ -197,13 +246,25 @@ export default function DocumentDetailPage() {
               Corriger numéro / quantités
             </button>
           )}
-          <button onClick={imprimer} className="rounded-xl bg-black px-5 py-3 font-bold text-white">
+          {/* Imprimer et Télécharger sont deux gestes distincts : l'un ouvre
+              la boîte d'impression, l'autre dépose un fichier. Les confondre
+              obligeait à passer par l'impression pour obtenir le PDF. */}
+          <button onClick={imprimer} className="min-h-[44px] rounded-xl bg-black px-5 py-3 font-bold text-white">
             Imprimer
           </button>
-          <button onClick={imprimer} className="rounded-xl bg-gray-800 px-5 py-3 font-bold text-white">
-            Télécharger PDF
+          <button onClick={telechargerPdf} disabled={pdfEnCours}
+                  className="min-h-[44px] rounded-xl bg-gray-800 px-5 py-3 font-bold text-white disabled:opacity-50">
+            {pdfEnCours ? "PDF en cours…" : "Télécharger PDF"}
           </button>
-          <button onClick={() => setEmailOpen(true)} className="rounded-xl bg-yellow-500 px-5 py-3 font-bold text-black">
+          <button onClick={partagerWhatsApp} disabled={pdfEnCours}
+                  className="min-h-[44px] rounded-xl bg-green-600 px-5 py-3 font-bold text-white disabled:opacity-50">
+            Envoyer par WhatsApp
+          </button>
+          <button onClick={partager} disabled={pdfEnCours}
+                  className="min-h-[44px] rounded-xl bg-blue-600 px-5 py-3 font-bold text-white disabled:opacity-50">
+            Partager
+          </button>
+          <button onClick={() => setEmailOpen(true)} className="min-h-[44px] rounded-xl bg-yellow-500 px-5 py-3 font-bold text-black">
             Envoyer par email
           </button>
         </div>
