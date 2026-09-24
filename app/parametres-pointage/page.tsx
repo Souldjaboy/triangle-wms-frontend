@@ -19,6 +19,24 @@ export default function ParametresPointagePage() {
   const [workOrganization, setWorkOrganization] = useState<any>({ sites: [], schedules: [], operators: [] });
   const [editingSiteId, setEditingSiteId] = useState<number | null>(null);
 
+  /* Ajout et retrait d'un salarié. Le formulaire vit dans une fenêtre : la
+     page porte déjà cinq réglages, un sixième bloc permanent la rendrait
+     illisible pour une action qu'on fait quelques fois par an. */
+  const [showAddEmployee, setShowAddEmployee] = useState(false);
+  const [removalTarget, setRemovalTarget] = useState<any>(null);
+  const [busy, setBusy] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [employeeForm, setEmployeeForm] = useState({
+    full_name: "",
+    job_title: "",
+    email: "",
+    phone: "",
+    site_id: "",
+    schedule_id: "",
+    monthly_salary: "",
+    daily_rate: "",
+  });
+
   const [groupForm, setGroupForm] = useState({
     name: "",
     start_time: "",
@@ -327,6 +345,105 @@ export default function ParametresPointagePage() {
     }
   };
 
+  /* Le serveur renvoie un code stable et une phrase. On préfère la phrase du
+     serveur quand il en donne une — elle est écrite pour être lue — et on ne
+     garde une traduction locale que pour les cas où seul le code arrive. */
+  const messageDErreur = (data: any, defaut: string) => {
+    if (data?.error) return data.error;
+    const phrases: Record<string, string> = {
+      SITE_AND_SCHEDULE_REQUIRED: "Choisissez un site et un horaire : sans eux, le salarié n'apparaîtrait pas dans la liste.",
+      SITE_OR_SCHEDULE_NOT_IN_COMPANY: "Ce site ou cet horaire appartient à une autre entreprise.",
+      FULL_NAME_REQUIRED: "Le nom complet est obligatoire.",
+      EMAIL_TAKEN: "Cette adresse email est déjà utilisée par un autre compte.",
+      PHONE_TAKEN: "Ce numéro de téléphone est déjà utilisé par un autre compte.",
+      PHONE_INVALID: "Ce numéro de téléphone n'est pas exploitable.",
+      EMPLOYEE_ALREADY_LINKED: "Ce compte a déjà une fiche salarié dans cette entreprise.",
+      USER_NOT_IN_COMPANY: "Ce compte n'existe pas dans l'entreprise active.",
+      EMPLOYEE_NOT_FOUND: "Ce salarié n'existe pas dans l'entreprise active.",
+      SELF_REMOVAL_FORBIDDEN: "Vous ne pouvez pas vous retirer vous-même de l'effectif.",
+      SALARY_INVALID: "Salaire mensuel ou journalier invalide.",
+      COMPANY_REQUIRED: "Sélectionnez d'abord l'entreprise active.",
+    };
+    return phrases[data?.code] || defaut;
+  };
+
+  const ajouterSalarie = async (event: any) => {
+    event.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    setErrorMessage("");
+    try {
+      const response = await fetch("/api/attendance-v2/employees", {
+        method: "POST",
+        headers: jsonHeaders(),
+        body: JSON.stringify({
+          full_name: employeeForm.full_name.trim(),
+          job_title: employeeForm.job_title.trim(),
+          email: employeeForm.email.trim(),
+          phone: employeeForm.phone.trim(),
+          site_id: Number(employeeForm.site_id),
+          schedule_id: Number(employeeForm.schedule_id),
+          monthly_salary: employeeForm.monthly_salary === "" ? null : Number(employeeForm.monthly_salary),
+          daily_rate: employeeForm.daily_rate === "" ? null : Number(employeeForm.daily_rate),
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setErrorMessage(messageDErreur(data, "Ajout impossible."));
+        return;
+      }
+      setMessage(data.message || `${employeeForm.full_name} est ajouté à l'effectif.`);
+      setShowAddEmployee(false);
+      setEmployeeForm({ full_name: "", job_title: "", email: "", phone: "",
+        site_id: "", schedule_id: "", monthly_salary: "", daily_rate: "" });
+      fetchData();
+    } finally { setBusy(false); }
+  };
+
+  const retirerSalarie = async () => {
+    if (!removalTarget || busy) return;
+    setBusy(true);
+    setErrorMessage("");
+    try {
+      const response = await fetch(`/api/attendance-v2/employees/${removalTarget.id}`, {
+        method: "DELETE",
+        headers: jsonHeaders(),
+        body: JSON.stringify({ reason: removalTarget.reason || "" }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setErrorMessage(messageDErreur(data, "Retrait impossible."));
+        return;
+      }
+      setMessage(data.message || `${removalTarget.full_name} est retiré de l'effectif.`);
+      setRemovalTarget(null);
+      fetchData();
+    } finally { setBusy(false); }
+  };
+
+  /* Le salaire que la paie lit vraiment est celui de `attendance_salary_settings_v2`.
+     Le formulaire « Affecter horaire & salaire » plus bas écrit dans l'ancienne
+     table, que le calcul mensuel ne consulte pas : les deux ne se remplacent
+     pas l'un l'autre. */
+  const modifierSalaire = async (employeeId: number, mensuel: string, journalier: string) => {
+    setErrorMessage("");
+    const response = await fetch(`/api/attendance-v2/employees/${employeeId}/salary`, {
+      method: "PUT",
+      headers: jsonHeaders(),
+      body: JSON.stringify({
+        monthly_salary: mensuel === "" ? null : Number(mensuel),
+        daily_rate: journalier === "" ? null : Number(journalier),
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setErrorMessage(messageDErreur(data, "Enregistrement du salaire impossible."));
+      return;
+    }
+    setMessage("Salaire enregistré.");
+    fetchData();
+  };
+
   const transferWorkforceEmployee = async (employeeId: number, siteId: string, scheduleId: string) => {
     const response = await fetch(`/api/attendance-v2/employees/${employeeId}/assignment`, {
       method: "PUT", headers: jsonHeaders(), body: JSON.stringify({ site_id: Number(siteId), schedule_id: Number(scheduleId) }),
@@ -351,22 +468,206 @@ export default function ParametresPointagePage() {
         </div>
       )}
 
-      {canManageWorkforce && workforce.length > 0 && (
+      {errorMessage && (
+        <div className="mb-6 rounded-xl bg-red-100 p-4 font-bold text-red-700">
+          {errorMessage}
+        </div>
+      )}
+
+      {/* La section n'est plus conditionnée à un effectif non vide : sans cela,
+          une entreprise sans salarié n'aurait aucun bouton pour ajouter le
+          premier. */}
+      {canManageWorkforce && (
         <section className="mb-8 rounded-2xl border-2 border-emerald-200 bg-white p-6 shadow">
-          <h2 className="text-2xl font-bold">Nouvel effectif opérationnel</h2>
-          <p className="mb-4 text-gray-500">27 employés à partir du 3 septembre 2026. Vous pouvez transférer une personne entre les sites sans modifier son compte.</p>
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-2xl font-bold">Effectif opérationnel</h2>
+              <p className="text-gray-500">
+                {workforce.length === 0
+                  ? "Aucun salarié pour le moment. Ajoutez le premier pour commencer le pointage."
+                  : `${workforce.length} salarié${workforce.length > 1 ? "s" : ""} actif${workforce.length > 1 ? "s" : ""}. Vous pouvez transférer une personne entre les sites sans modifier son compte.`}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => { setErrorMessage(""); setShowAddEmployee(true); }}
+              className="rounded-xl bg-emerald-600 px-4 py-3 font-bold text-white hover:bg-emerald-700"
+            >
+              + Ajouter un salarié
+            </button>
+          </div>
+
           <div className="mb-4 grid gap-3 md:grid-cols-3">
             {(workOrganization.operators || []).map((operator: any) => (
               <div key={operator.id} className="rounded-xl bg-emerald-50 p-3"><b>{operator.site_name}</b><br/><span className="text-sm">Opérateur : {operator.fullname}</span></div>
             ))}
           </div>
-          <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left">
-            <thead className="bg-gray-100"><tr><th className="p-3">N°</th><th>Employé</th><th>Site</th><th>Horaire</th><th>Transfert</th></tr></thead>
+
+          {/* Tableau à partir de 640 px ; en dessous, une liste de cartes. Une
+              ligne de six colonnes sur un téléphone oblige à faire défiler
+              horizontalement pour atteindre le bouton « Retirer », qu'on finit
+              par ne plus voir. */}
+          <div className="hidden overflow-x-auto sm:block"><table className="w-full min-w-[860px] text-left">
+            <thead className="bg-gray-100"><tr>
+              <th className="p-3">N°</th><th>Employé</th><th>Site</th><th>Horaire</th>
+              {canSeeSalary && <th>Salaire</th>}
+              <th>Transfert</th><th>Action</th>
+            </tr></thead>
             <tbody>{workforce.map((employee: any) => (
-              <WorkforceRow key={employee.id} employee={employee} organization={workOrganization} onSave={transferWorkforceEmployee}/>
+              <WorkforceRow key={employee.id} employee={employee} organization={workOrganization}
+                onSave={transferWorkforceEmployee} canSeeSalary={canSeeSalary}
+                onSalary={modifierSalaire} onRemove={setRemovalTarget}/>
             ))}</tbody>
           </table></div>
+
+          <div className="grid gap-3 sm:hidden">
+            {workforce.map((employee: any) => (
+              <div key={employee.id} className="rounded-xl border p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <b>{employee.full_name}</b>
+                    <div className="text-sm text-gray-500">N° {employee.employee_number} — {employee.site_name}</div>
+                    <div className="text-sm text-gray-500">{employee.schedule_name}</div>
+                    {canSeeSalary && (
+                      <div className="mt-1 text-sm font-bold">
+                        {employee.monthly_salary ? `${formatFCFA(Number(employee.monthly_salary))} / mois` : "Salaire non défini"}
+                      </div>
+                    )}
+                  </div>
+                  <button type="button" onClick={() => { setErrorMessage(""); setRemovalTarget(employee); }}
+                    className="shrink-0 rounded-lg border-2 border-red-200 px-3 py-2 text-sm font-bold text-red-700">
+                    Retirer
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         </section>
+      )}
+
+      {/* ── FENÊTRE : AJOUTER UN SALARIÉ ── */}
+      {showAddEmployee && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4">
+          <form onSubmit={ajouterSalarie} className="my-8 w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl">
+            <h3 className="text-2xl font-bold">Ajouter un salarié</h3>
+            <p className="mb-4 text-gray-500">
+              Le salarié rejoint l&apos;entreprise actuellement sélectionnée. Une adresse
+              email ou un téléphone lui ouvre un compte de connexion ; sans
+              aucun des deux, il est pointé par un opérateur.
+            </p>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <label className="block">
+                <span className="text-sm font-bold">Nom complet *</span>
+                <input required minLength={3} className="mt-1 w-full rounded-lg border p-3"
+                  value={employeeForm.full_name}
+                  onChange={(e) => setEmployeeForm({ ...employeeForm, full_name: e.target.value })}/>
+              </label>
+              <label className="block">
+                <span className="text-sm font-bold">Poste</span>
+                <input className="mt-1 w-full rounded-lg border p-3" placeholder="Magasinier, caissière…"
+                  value={employeeForm.job_title}
+                  onChange={(e) => setEmployeeForm({ ...employeeForm, job_title: e.target.value })}/>
+              </label>
+              <label className="block">
+                <span className="text-sm font-bold">Email</span>
+                <input type="email" className="mt-1 w-full rounded-lg border p-3"
+                  value={employeeForm.email}
+                  onChange={(e) => setEmployeeForm({ ...employeeForm, email: e.target.value })}/>
+              </label>
+              <label className="block">
+                <span className="text-sm font-bold">Téléphone</span>
+                <input className="mt-1 w-full rounded-lg border p-3" placeholder="76 32 77 99"
+                  value={employeeForm.phone}
+                  onChange={(e) => setEmployeeForm({ ...employeeForm, phone: e.target.value })}/>
+              </label>
+              <label className="block">
+                <span className="text-sm font-bold">Site *</span>
+                <select required className="mt-1 w-full rounded-lg border p-3"
+                  value={employeeForm.site_id}
+                  onChange={(e) => setEmployeeForm({ ...employeeForm, site_id: e.target.value })}>
+                  <option value="">Choisir un site</option>
+                  {(workOrganization.sites || []).map((site: any) => (
+                    <option key={site.id} value={site.id}>{site.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="text-sm font-bold">Horaire *</span>
+                <select required className="mt-1 w-full rounded-lg border p-3"
+                  value={employeeForm.schedule_id}
+                  onChange={(e) => setEmployeeForm({ ...employeeForm, schedule_id: e.target.value })}>
+                  <option value="">Choisir un horaire</option>
+                  {(workOrganization.schedules || []).map((schedule: any) => (
+                    <option key={schedule.id} value={schedule.id}>{schedule.name}</option>
+                  ))}
+                </select>
+              </label>
+              {canSeeSalary && (
+                <>
+                  <label className="block">
+                    <span className="text-sm font-bold">Salaire mensuel (FCFA)</span>
+                    <input type="number" min="0" className="mt-1 w-full rounded-lg border p-3"
+                      value={employeeForm.monthly_salary}
+                      onChange={(e) => setEmployeeForm({ ...employeeForm, monthly_salary: e.target.value })}/>
+                  </label>
+                  <label className="block">
+                    <span className="text-sm font-bold">Salaire journalier (FCFA)</span>
+                    <input type="number" min="0" className="mt-1 w-full rounded-lg border p-3"
+                      value={employeeForm.daily_rate}
+                      onChange={(e) => setEmployeeForm({ ...employeeForm, daily_rate: e.target.value })}/>
+                  </label>
+                </>
+              )}
+            </div>
+
+            <p className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">
+              Le site et l&apos;horaire sont obligatoires : sans eux, le salarié
+              existerait en base sans apparaître dans aucune liste.
+            </p>
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              <button type="submit" disabled={busy}
+                className="rounded-xl bg-emerald-600 px-5 py-3 font-bold text-white disabled:opacity-50">
+                {busy ? "Ajout en cours…" : "Ajouter le salarié"}
+              </button>
+              <button type="button" onClick={() => setShowAddEmployee(false)}
+                className="rounded-xl border-2 px-5 py-3 font-bold">Annuler</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* ── FENÊTRE : CONFIRMER LE RETRAIT ── */}
+      {removalTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+            <h3 className="text-2xl font-bold">Retirer {removalTarget.full_name} ?</h3>
+            <p className="mt-2 text-gray-600">
+              Le salarié sort de l&apos;effectif et ne peut plus pointer, ni au
+              badge ni à la main. Son compte de connexion est désactivé.
+            </p>
+            <p className="mt-3 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-900">
+              Rien n&apos;est supprimé : pointages, badges, salaires, paies closes,
+              avances, échéances et remboursements restent consultables. Une
+              avance encore due reste due.
+            </p>
+            <label className="mt-4 block">
+              <span className="text-sm font-bold">Motif (facultatif)</span>
+              <input className="mt-1 w-full rounded-lg border p-3" placeholder="Fin de contrat, départ volontaire…"
+                value={removalTarget.reason || ""}
+                onChange={(e) => setRemovalTarget({ ...removalTarget, reason: e.target.value })}/>
+            </label>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <button type="button" disabled={busy} onClick={retirerSalarie}
+                className="rounded-xl bg-red-600 px-5 py-3 font-bold text-white disabled:opacity-50">
+                {busy ? "Retrait en cours…" : "Confirmer le retrait"}
+              </button>
+              <button type="button" onClick={() => setRemovalTarget(null)}
+                className="rounded-xl border-2 px-5 py-3 font-bold">Annuler</button>
+            </div>
+          </div>
+        </div>
       )}
 
       <div className={`${workforce.length ? "hidden" : "grid"} mb-8 grid-cols-1 gap-6 xl:grid-cols-2`}>
@@ -602,20 +903,43 @@ function Toggle({ label, checked, onChange, disabled = false }: { label: string;
   );
 }
 
-function WorkforceRow({ employee, organization, onSave }: any) {
+function WorkforceRow({ employee, organization, onSave, canSeeSalary, onSalary, onRemove }: any) {
   const [siteId, setSiteId] = useState(String(employee.site_id || ""));
   const [scheduleId, setScheduleId] = useState(String(employee.schedule_id || ""));
+  const [mensuel, setMensuel] = useState(employee.monthly_salary == null ? "" : String(employee.monthly_salary));
+  const [journalier, setJournalier] = useState(employee.daily_rate == null ? "" : String(employee.daily_rate));
   return (
     <tr className="border-t">
       <td className="p-3 font-bold">{employee.employee_number}</td>
-      <td className="font-bold">{employee.full_name}</td>
+      <td className="font-bold">
+        {employee.full_name}
+        {employee.job_title ? <div className="text-sm font-normal text-gray-500">{employee.job_title}</div> : null}
+      </td>
       <td><select className="rounded-lg border p-2" value={siteId} onChange={(event) => setSiteId(event.target.value)}>
         {(organization.sites || []).map((site: any) => <option key={site.id} value={site.id}>{site.name}</option>)}
       </select></td>
       <td><select className="rounded-lg border p-2" value={scheduleId} onChange={(event) => setScheduleId(event.target.value)}>
         {(organization.schedules || []).map((schedule: any) => <option key={schedule.id} value={schedule.id}>{schedule.name}</option>)}
       </select></td>
+      {canSeeSalary && (
+        <td>
+          <div className="flex items-center gap-2">
+            <input type="number" min="0" className="w-28 rounded-lg border p-2" placeholder="Mensuel"
+              value={mensuel} onChange={(event) => setMensuel(event.target.value)}/>
+            <input type="number" min="0" className="w-24 rounded-lg border p-2" placeholder="Jour"
+              value={journalier} onChange={(event) => setJournalier(event.target.value)}/>
+            <button type="button" onClick={() => onSalary(employee.id, mensuel, journalier)}
+              className="rounded-lg border-2 px-2 py-2 text-sm font-bold">OK</button>
+          </div>
+        </td>
+      )}
       <td><button type="button" onClick={() => onSave(employee.id, siteId, scheduleId)} className="rounded-lg bg-black px-3 py-2 font-bold text-white">Enregistrer</button></td>
+      <td>
+        <button type="button" onClick={() => onRemove(employee)}
+          className="rounded-lg border-2 border-red-200 px-3 py-2 font-bold text-red-700 hover:bg-red-50">
+          Retirer
+        </button>
+      </td>
     </tr>
   );
 }
