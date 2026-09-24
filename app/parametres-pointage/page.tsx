@@ -15,6 +15,28 @@ export default function ParametresPointagePage() {
   const [canManageGps, setCanManageGps] = useState(false);
   const [editingSiteId, setEditingSiteId] = useState<number | null>(null);
 
+  /* PAIE — les salariés de l'entreprise.
+     La liste vient de /payroll/employees, bornée à l'entreprise de la session
+     côté serveur : /users, lui, sert toutes les sociétés à un super admin et
+     mêlerait les salariés Triangle et Fatemat dans le même tableau. */
+  const [payroll, setPayroll] = useState<any[]>([]);
+  const [companyName, setCompanyName] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [showAddEmployee, setShowAddEmployee] = useState(false);
+  const [savingEmployee, setSavingEmployee] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState<any>(null);
+  const [removing, setRemoving] = useState(false);
+
+  const emptyEmployee = {
+    nom: "",
+    prenom: "",
+    fonction: "",
+    salaire_mensuel: "",
+    telephone: "",
+    date_entree: "",
+  };
+  const [employeeForm, setEmployeeForm] = useState(emptyEmployee);
+
   const [groupForm, setGroupForm] = useState({
     name: "",
     start_time: "",
@@ -66,21 +88,34 @@ export default function ParametresPointagePage() {
   });
 
   const fetchData = async () => {
-    const [groupsRes, usersRes, gpsRes, sitesRes] = await Promise.all([
+    const [groupsRes, usersRes, gpsRes, sitesRes, payrollRes, companyRes] = await Promise.all([
       fetch("/api/attendance/settings/schedule-groups", { headers: authHeaders() }),
       fetch("/api/users", { headers: authHeaders() }),
       fetch("/api/attendance/settings/gps", { headers: authHeaders() }),
       fetch("/api/attendance-sites", { headers: authHeaders() }),
+      fetch("/api/payroll/employees", { headers: authHeaders() }),
+      fetch("/api/company-settings/current", { headers: authHeaders() }),
     ]);
 
     const groupsData = await groupsRes.json().catch(() => []);
     const usersData = await usersRes.json().catch(() => []);
     const gpsData = await gpsRes.json().catch(() => ({}));
     const sitesData = await sitesRes.json().catch(() => []);
+    const payrollData = await payrollRes.json().catch(() => ({}));
+    const companyData = await companyRes.json().catch(() => ({}));
 
     setGroups(Array.isArray(groupsData) ? groupsData : []);
     setUsers(Array.isArray(usersData) ? usersData : []);
     setSites(Array.isArray(sitesData) ? sitesData : []);
+    setPayroll(Array.isArray(payrollData?.employees) ? payrollData.employees : []);
+    /* Le nom sert à nommer l'entreprise dans la confirmation de retrait :
+       « Confirmer le retrait de X de Triangle ? ». */
+    setCompanyName(
+      companyData?.company_name ||
+      companyData?.name ||
+      (typeof window !== "undefined" ? localStorage.getItem("active_company_name") : "") ||
+      "l’entreprise"
+    );
     setGpsForm({
       gps_required: gpsData.gps_required === true,
       allow_remote_attendance: gpsData.allow_remote_attendance === true,
@@ -101,12 +136,126 @@ export default function ParametresPointagePage() {
     fetchData();
   }, []);
 
+  /* Un salarié retiré est désactivé, pas supprimé : il sort de la liste
+     active, et on se contente d'en annoncer le nombre. */
+  const actifs = useMemo(() => payroll.filter((e) => e.is_active !== false), [payroll]);
+  const retires = useMemo(() => payroll.filter((e) => e.is_active === false), [payroll]);
+
+  /* LES EMPLOYÉS PROPOSÉS DANS LES SÉLECTEURS.
+     /users ne filtre pas par société pour un super admin : ouvert depuis
+     Fatemat, il proposait les salariés Triangle dans la même liste déroulante,
+     et l'on pouvait leur affecter un horaire ou un salaire depuis la mauvaise
+     entreprise. On retient donc les seuls comptes que la paie — elle, bornée
+     côté serveur — reconnaît comme actifs ici. */
+  const employesDeLEntreprise = useMemo(() => {
+    const actifsIds = new Set(actifs.map((e) => String(e.id)));
+    return users.filter((user) => actifsIds.has(String(user.id)));
+  }, [users, actifs]);
+
   const selectedUser = users.find((user) => String(user.id) === String(userForm.user_id));
   const assignmentUser = users.find((user) => String(user.id) === String(assignmentForm.user_id));
   const selectedAssignmentSites = useMemo(
     () => new Set(assignmentForm.site_ids.map(String)),
     [assignmentForm.site_ids]
   );
+
+  /* Les refus du serveur ont un code : on en fait une phrase, jamais un
+     message technique ni une trace. Le texte du serveur reste le repli, car
+     c'est lui qui connaît le détail — par exemple le nom de la fiche déjà
+     existante. */
+  const messageDErreur = (data: any, statut: number) => {
+    const connus: Record<string, string> = {
+      EMPLOYEE_ALREADY_EXISTS: data?.error || "Ce salarié fait déjà partie de l’entreprise.",
+      EMPLOYEE_NOT_FOUND: "Ce salarié est introuvable dans cette entreprise.",
+      MISSING_NAME: "Le nom du salarié est obligatoire.",
+      INVALID_SALARY: "Le salaire ne peut pas être négatif.",
+      INVALID_DATE: "La date d’entrée est invalide.",
+      EMAIL_ALREADY_USED: "Un compte porte déjà cette adresse e-mail.",
+      CANNOT_REMOVE_SELF: "Vous ne pouvez pas vous retirer vous-même de la paie.",
+      NO_ACTIVE_COMPANY: "Aucune entreprise active. Sélectionnez l’entreprise avant de gérer la paie.",
+    };
+    if (data?.code && connus[data.code]) return connus[data.code];
+    if (statut === 403) return "Vous n’avez pas l’autorisation d’effectuer cette action.";
+    if (statut === 404) return "Ce salarié est introuvable dans cette entreprise.";
+    if (statut >= 500) return "Le serveur n’a pas pu traiter la demande. Réessayez dans un instant.";
+    return typeof data?.error === "string" && data.error.length < 200
+      ? data.error
+      : "L’opération n’a pas pu être effectuée.";
+  };
+
+  /**
+   * AJOUTER UN SALARIÉ.
+   *
+   * L'entreprise n'est pas envoyée : le serveur la déduit de la session. Un
+   * `company_id` posté depuis le navigateur serait au mieux inutile, au pire
+   * un moyen d'écrire dans l'autre société.
+   */
+  const ajouterSalarie = async (event: any) => {
+    event.preventDefault();
+    setMessage("");
+    setErrorMessage("");
+    setSavingEmployee(true);
+
+    const response = await fetch("/api/payroll/employees", {
+      method: "POST",
+      headers: jsonHeaders(),
+      body: JSON.stringify({
+        nom: employeeForm.nom,
+        prenom: employeeForm.prenom,
+        fonction: employeeForm.fonction,
+        salaire_mensuel: employeeForm.salaire_mensuel,
+        telephone: employeeForm.telephone,
+        date_entree: employeeForm.date_entree,
+      }),
+    }).catch(() => null);
+
+    const data = await response?.json().catch(() => ({}));
+    setSavingEmployee(false);
+
+    if (!response || !response.ok) {
+      setErrorMessage(messageDErreur(data, response?.status || 0));
+      return;
+    }
+
+    setShowAddEmployee(false);
+    setEmployeeForm(emptyEmployee);
+    /* Le serveur dit lui-même si le salaire a pu être fixé : un compte sans ce
+       droit crée le salarié mais pas sa rémunération, et l'écran doit le dire
+       plutôt que d'afficher un montant vide sans explication. */
+    setMessage(data?.message || "Salarié ajouté à la paie.");
+    await fetchData();
+  };
+
+  /**
+   * RETIRER UN SALARIÉ.
+   *
+   * Le serveur désactive le compte et conserve paies, avances et heures. On ne
+   * parle donc jamais de suppression à l'écran : ce serait décrire autre chose
+   * que ce qui se passe.
+   */
+  const retirerSalarie = async () => {
+    if (!removeTarget) return;
+    setMessage("");
+    setErrorMessage("");
+    setRemoving(true);
+
+    const response = await fetch(`/api/payroll/employees/${removeTarget.id}`, {
+      method: "DELETE",
+      headers: jsonHeaders(),
+    }).catch(() => null);
+
+    const data = await response?.json().catch(() => ({}));
+    setRemoving(false);
+
+    if (!response || !response.ok) {
+      setErrorMessage(messageDErreur(data, response?.status || 0));
+      return;
+    }
+
+    setRemoveTarget(null);
+    setMessage(data?.message || `${removeTarget.fullname} a été retiré de la paie.`);
+    await fetchData();
+  };
 
   const createGroup = async (event: any) => {
     event.preventDefault();
@@ -331,6 +480,13 @@ export default function ParametresPointagePage() {
         </div>
       )}
 
+      {errorMessage && (
+        <div className="mb-6 flex items-start justify-between gap-3 rounded-xl bg-red-100 p-4 font-bold text-red-700">
+          <span>{errorMessage}</span>
+          <button onClick={() => setErrorMessage("")} className="shrink-0 text-red-500">✕</button>
+        </div>
+      )}
+
       <div className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-2">
         <form onSubmit={createGroup} className="rounded-2xl bg-white p-6 shadow">
           <h2 className="mb-4 text-2xl font-bold">Créer un groupe horaire</h2>
@@ -351,7 +507,7 @@ export default function ParametresPointagePage() {
           <div className="grid grid-cols-1 gap-4">
             <select value={userForm.user_id} onChange={(e) => setUserForm({ ...userForm, user_id: e.target.value })} className="rounded-xl border p-3" required>
               <option value="">Choisir employé</option>
-              {users.map((user) => (
+              {employesDeLEntreprise.map((user) => (
                 <option key={user.id} value={user.id}>{user.fullname} - {user.role}</option>
               ))}
             </select>
@@ -470,7 +626,9 @@ export default function ParametresPointagePage() {
         <form onSubmit={saveEmployeeSites} className="grid grid-cols-1 gap-4">
           <select value={assignmentForm.user_id} onChange={(e) => loadEmployeeSites(e.target.value)} className="rounded-xl border p-3" required>
             <option value="">Choisir employé</option>
-            {users.map((user) => <option key={user.id} value={user.id}>{user.fullname} - {user.role}</option>)}
+            {/* Même raison : on n'affecte pas un site de pointage à un salarié
+                d'une autre entreprise. */}
+            {employesDeLEntreprise.map((user) => <option key={user.id} value={user.id}>{user.fullname} - {user.role}</option>)}
           </select>
           {assignmentUser && <div className="rounded-xl bg-gray-100 p-3 font-bold">Employé sélectionné : {assignmentUser.fullname}</div>}
 
@@ -521,30 +679,211 @@ export default function ParametresPointagePage() {
           )}
         </section>
 
-        <section className="rounded-2xl bg-white p-6 shadow">
-          <h2 className="mb-5 text-2xl font-bold">Employés & paramètres pointage</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
+        {/* La liste de paie porte désormais une colonne d'action : dans une
+            demi-largeur, « Retirer » se retrouvait hors du cadre. Elle prend
+            donc toute la largeur de la grille. */}
+        <section className="rounded-2xl bg-white p-6 shadow xl:col-span-2">
+          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-2xl font-bold">Salariés & paramètres pointage</h2>
+              <p className="text-gray-500">
+                {actifs.length} salarié(s) dans {companyName}
+                {retires.length > 0 && ` · ${retires.length} retiré(s), non affiché(s)`}
+              </p>
+            </div>
+            <button
+              onClick={() => { setEmployeeForm(emptyEmployee); setErrorMessage(""); setShowAddEmployee(true); }}
+              className="rounded-xl bg-yellow-500 px-5 py-3 font-bold text-black"
+            >
+              + Ajouter un salarié
+            </button>
+          </div>
+          {/* SUR TÉLÉPHONE, UNE CARTE PAR SALARIÉ.
+              Le tableau, lui, défile horizontalement : l'action « Retirer »
+              serait hors de l'écran à 375 px, donc hors de portée. Une carte
+              met le nom, le salaire et l'action sous le pouce. */}
+          <div className="grid gap-3 sm:hidden">
+            {actifs.map((employe) => (
+              <div key={employe.id} className="rounded-xl border border-gray-200 p-4">
+                <p className="font-bold">{employe.fullname}</p>
+                <p className="text-gray-500">{employe.job_title || employe.role || "-"}</p>
+                {canSeeSalary && (
+                  <p className="mt-1 font-bold">
+                    {employe.monthly_salary === undefined ? "-" : formatFCFA(employe.monthly_salary)}
+                  </p>
+                )}
+                <button
+                  onClick={() => { setErrorMessage(""); setRemoveTarget(employe); }}
+                  className="mt-3 w-full rounded-lg border border-red-200 py-2 font-bold text-red-700"
+                >
+                  Retirer
+                </button>
+              </div>
+            ))}
+            {actifs.length === 0 && (
+              <p className="text-gray-500">
+                Aucun salarié pour le moment. Utilisez « + Ajouter un salarié ».
+              </p>
+            )}
+          </div>
+
+          <div className="hidden overflow-x-auto sm:block">
+            <table className="w-full min-w-[640px] text-left">
               <thead className="text-gray-500">
-                <tr><th className="py-3">Employé</th><th>Rôle</th><th>Groupe</th>{canSeeSalary && <th>Mensuel</th>}</tr>
+                <tr>
+                  <th className="py-3">Salarié</th><th>Fonction</th><th>Groupe</th>
+                  {canSeeSalary && <th>Mensuel</th>}<th className="text-right">Action</th>
+                </tr>
               </thead>
               <tbody>
-                {users.map((user) => {
-                  const group = groups.find((item) => String(item.id) === String(user.schedule_group_id));
+                {actifs.map((employe) => {
+                  /* Le groupe horaire vient de /users : la liste de paie ne le
+                     porte pas, et il n'y avait pas lieu de la changer pour ça. */
+                  const fiche = users.find((item) => String(item.id) === String(employe.id));
+                  const group = groups.find((item) => String(item.id) === String(fiche?.schedule_group_id));
                   return (
-                    <tr key={user.id} className="border-t">
-                      <td className="py-3 font-bold">{user.fullname}</td>
-                      <td>{user.role}</td>
+                    <tr key={employe.id} className="border-t">
+                      <td className="py-3 font-bold">{employe.fullname}</td>
+                      <td>{employe.job_title || employe.role || "-"}</td>
                       <td>{group?.name || "-"}</td>
-                      {canSeeSalary && <td>{formatFCFA(user.monthly_salary)}</td>}
+                      {canSeeSalary && (
+                        <td>
+                          {employe.monthly_salary === undefined
+                            ? "-"
+                            : formatFCFA(employe.monthly_salary)}
+                        </td>
+                      )}
+                      <td className="text-right">
+                        <button
+                          onClick={() => { setErrorMessage(""); setRemoveTarget(employe); }}
+                          className="rounded-lg border border-red-200 px-3 py-2 font-bold text-red-700"
+                        >
+                          Retirer
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
+                {actifs.length === 0 && (
+                  <tr><td colSpan={canSeeSalary ? 5 : 4} className="py-6 text-gray-500">
+                    Aucun salarié pour le moment. Utilisez « + Ajouter un salarié ».
+                  </td></tr>
+                )}
               </tbody>
             </table>
           </div>
         </section>
       </div>
+
+      {/* ══════════════════════ AJOUTER UN SALARIÉ ══════════════════════ */}
+      {showAddEmployee && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
+             role="dialog" aria-modal="true" aria-label="Ajouter un salarié">
+          <form onSubmit={ajouterSalarie}
+                className="max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-white p-6 shadow sm:max-w-lg sm:rounded-2xl">
+            <h2 className="text-2xl font-bold">Ajouter un salarié</h2>
+            <p className="mt-1 text-gray-500">
+              Le salarié sera rattaché à {companyName}. Il apparaîtra ensuite dans la paie,
+              le pointage et les badges.
+            </p>
+
+            <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <label className="font-bold">
+                Nom <span className="text-red-600">*</span>
+                <input value={employeeForm.nom} required
+                       onChange={(e) => setEmployeeForm({ ...employeeForm, nom: e.target.value })}
+                       placeholder="Traoré" className="mt-1 w-full rounded-xl border p-3 font-normal" />
+              </label>
+              <label className="font-bold">
+                Prénom <span className="text-red-600">*</span>
+                <input value={employeeForm.prenom} required
+                       onChange={(e) => setEmployeeForm({ ...employeeForm, prenom: e.target.value })}
+                       placeholder="Moussa" className="mt-1 w-full rounded-xl border p-3 font-normal" />
+              </label>
+              <label className="font-bold md:col-span-2">
+                Fonction / Poste
+                <input value={employeeForm.fonction}
+                       onChange={(e) => setEmployeeForm({ ...employeeForm, fonction: e.target.value })}
+                       placeholder="Magasinier livreur" className="mt-1 w-full rounded-xl border p-3 font-normal" />
+              </label>
+              {canSeeSalary ? (
+                <label className="font-bold">
+                  Salaire mensuel (FCFA)
+                  <input type="number" min={0} inputMode="numeric" value={employeeForm.salaire_mensuel}
+                         onChange={(e) => setEmployeeForm({ ...employeeForm, salaire_mensuel: e.target.value })}
+                         placeholder="175000" className="mt-1 w-full rounded-xl border p-3 font-normal" />
+                </label>
+              ) : (
+                <div className="rounded-xl bg-blue-100 p-3 font-bold text-blue-700 md:col-span-2">
+                  Le salaire sera fixé par la direction : vous pouvez créer le salarié sans lui.
+                </div>
+              )}
+              <label className="font-bold">
+                Téléphone
+                <input value={employeeForm.telephone} inputMode="tel"
+                       onChange={(e) => setEmployeeForm({ ...employeeForm, telephone: e.target.value })}
+                       placeholder="+223 70 00 00 00" className="mt-1 w-full rounded-xl border p-3 font-normal" />
+              </label>
+              <label className="font-bold md:col-span-2">
+                Date d’entrée
+                <input type="date" value={employeeForm.date_entree}
+                       onChange={(e) => setEmployeeForm({ ...employeeForm, date_entree: e.target.value })}
+                       className="mt-1 w-full rounded-xl border p-3 font-normal" />
+              </label>
+            </div>
+
+            {errorMessage && (
+              <p className="mt-4 rounded-xl bg-red-100 p-3 font-bold text-red-700">{errorMessage}</p>
+            )}
+
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <button type="submit" disabled={savingEmployee}
+                      className="flex-1 rounded-xl bg-yellow-500 py-3 font-bold text-black disabled:opacity-40">
+                {savingEmployee ? "Ajout en cours…" : "Ajouter le salarié"}
+              </button>
+              <button type="button" disabled={savingEmployee}
+                      onClick={() => { setShowAddEmployee(false); setErrorMessage(""); }}
+                      className="rounded-xl border border-gray-300 px-5 py-3 font-bold text-gray-700">
+                Annuler
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* ════════════════════ CONFIRMER LE RETRAIT ═════════════════════ */}
+      {removeTarget && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
+             role="dialog" aria-modal="true" aria-label="Confirmer le retrait">
+          <div className="w-full rounded-t-2xl bg-white p-6 shadow sm:max-w-md sm:rounded-2xl">
+            <h2 className="text-2xl font-bold">
+              Confirmer le retrait de {removeTarget.fullname} de {companyName} ?
+            </h2>
+            {/* Le compte est désactivé et l'historique conservé : on le dit,
+                parce que « supprimer » décrirait autre chose que ce qui se passe. */}
+            <p className="mt-2 text-gray-600">
+              Il n’apparaîtra plus parmi les salariés actifs. Ses paies, avances et heures
+              déjà enregistrées sont conservées.
+            </p>
+
+            {errorMessage && (
+              <p className="mt-4 rounded-xl bg-red-100 p-3 font-bold text-red-700">{errorMessage}</p>
+            )}
+
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <button onClick={retirerSalarie} disabled={removing}
+                      className="flex-1 rounded-xl bg-red-600 py-3 font-bold text-white disabled:opacity-40">
+                {removing ? "Retrait en cours…" : "Confirmer le retrait"}
+              </button>
+              <button disabled={removing}
+                      onClick={() => { setRemoveTarget(null); setErrorMessage(""); }}
+                      className="rounded-xl border border-gray-300 px-5 py-3 font-bold text-gray-700">
+                Annuler
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
