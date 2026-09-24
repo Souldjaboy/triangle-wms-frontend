@@ -27,6 +27,7 @@ type Sale = {
   discount: string; tax_amount: string; total_amount: string;
   paid_amount: string; remaining_amount: string;
   sale_date: string; notes: string | null; truck: string | null; driver_name: string | null;
+  camion_id?: number | null;
   expected_payment_method: string | null;
   cancelled_at: string | null; cancelled_by_name: string | null; cancellation_reason: string | null;
   replaced_by_sale_id: number | null; replaces_sale_id: number | null;
@@ -59,6 +60,10 @@ export default function VenteSableDetailPage() {
   const [form, setForm] = useState<Record<string, string>>({});
   const [motifAnnulation, setMotifAnnulation] = useState("");
   const [confirmation, setConfirmation] = useState("");
+  const [camions, setCamions] = useState<any[]>([]);
+  const [camionOuvert, setCamionOuvert] = useState(false);
+  const [camionId, setCamionId] = useState("");
+  const [chauffeurCamion, setChauffeurCamion] = useState("");
 
   const charger = useCallback(async () => {
     setChargement(true);
@@ -83,6 +88,10 @@ export default function VenteSableDetailPage() {
   useEffect(() => {
     authFetch("/sand/customers").then((r) => r.json()).then((d) => setClients(Array.isArray(d) ? d : [])).catch(() => {});
     authFetch("/sand/products").then((r) => r.json()).then((d) => setProduits(Array.isArray(d) ? d : [])).catch(() => {});
+    authFetch("/sand/trucks")
+      .then((r) => r.json())
+      .then((d) => setCamions(Array.isArray(d) ? d : []))
+      .catch(() => {});
   }, []);
 
   const dejaImprimee = Boolean((invoice as any)?.print_count > 0 || (delivery as any)?.print_count > 0);
@@ -156,6 +165,58 @@ export default function VenteSableDetailPage() {
         + (paiements ? ` ${paiements} paiement(s) contrepassé(s).` : " Aucun paiement à contrepasser."));
       setAnnulerOuvert(false); setMotifAnnulation(""); setConfirmation(""); await charger();
     } finally { setEnCours(false); }
+  };
+
+  const enregistrerCamion = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!camionId) {
+      setErreur("Sélectionnez un camion.");
+      return;
+    }
+
+    setEnCours(true);
+    setMessage("");
+    setErreur("");
+
+    try {
+      const r = await authFetch(
+        `/sand/sales/${id}/truck`,
+        {
+          method:"PATCH",
+          headers:{
+            "Content-Type":"application/json"
+          },
+          body:JSON.stringify({
+            camion_id:Number(camionId),
+            driver_name:chauffeurCamion
+          })
+        }
+      );
+
+      const d = await r.json().catch(()=>({}));
+
+      if (!r.ok) {
+        setErreur(
+          d.error ||
+          "Impossible de modifier le camion."
+        );
+        return;
+      }
+
+      setMessage(
+        `Camion affecté : ${d.truck?.code || "OK"}.`
+      );
+
+      setCamionOuvert(false);
+      setCamionId("");
+      setChauffeurCamion("");
+
+      await charger();
+
+    } finally {
+      setEnCours(false);
+    }
   };
 
   const ouvrirHistorique = async () => {
@@ -245,6 +306,27 @@ export default function VenteSableDetailPage() {
               Supprimer le brouillon
             </button>
           )}
+          {sale.status === "VALIDEE" && (
+            <button
+              onClick={() => {
+                setCamionId(
+                  sale.camion_id
+                    ? String(sale.camion_id)
+                    : ""
+                );
+                setChauffeurCamion(
+                  sale.driver_name || ""
+                );
+                setCamionOuvert(true);
+              }}
+              className="min-h-[44px] rounded-xl bg-amber-500 px-5 py-2.5 font-bold text-black"
+            >
+              {sale.truck
+                ? "Changer le camion"
+                : "Attribuer un camion"}
+            </button>
+          )}
+
           {sale.status === "VALIDEE" && peutCorriger && (
             <button onClick={() => setCorrigerOuvert(true)}
               className="min-h-[44px] rounded-xl bg-blue-700 px-5 py-2.5 font-bold text-white">
@@ -274,6 +356,98 @@ export default function VenteSableDetailPage() {
             Voir l&apos;historique
           </button>
         </div>
+
+        {camionOuvert && sale.status === "VALIDEE" && (
+          <form
+            onSubmit={enregistrerCamion}
+            className="mt-6 space-y-4 rounded-2xl bg-white p-5 shadow"
+          >
+            <div>
+              <h2 className="text-xl font-black">
+                Affectation camion
+              </h2>
+              <p className="mt-1 text-sm text-gray-600">
+                Cette action ne modifie ni le montant,
+                ni la facture, ni le dépôt client.
+              </p>
+            </div>
+
+            <label className="block text-sm font-bold">
+              Camion
+              <select
+                required
+                value={camionId}
+                onChange={(e) => {
+                  const value=e.target.value;
+                  setCamionId(value);
+
+                  const c=camions.find(
+                    (x:any)=>
+                      String(x.id)===value
+                  );
+
+                  if (
+                    c?.chauffeur &&
+                    !chauffeurCamion
+                  ) {
+                    setChauffeurCamion(
+                      c.chauffeur
+                    );
+                  }
+                }}
+                className="mt-1 w-full rounded-xl border p-3 font-normal"
+              >
+                <option value="">
+                  — Sélectionner —
+                </option>
+
+                {camions.map((c:any)=>(
+                  <option
+                    key={c.id}
+                    value={c.id}
+                  >
+                    {c.code}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block text-sm font-bold">
+              Chauffeur
+              <input
+                value={chauffeurCamion}
+                onChange={(e)=>
+                  setChauffeurCamion(
+                    e.target.value
+                  )
+                }
+                placeholder="Nom du chauffeur"
+                className="mt-1 w-full rounded-xl border p-3 font-normal"
+              />
+            </label>
+
+            <div className="flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                onClick={()=>
+                  setCamionOuvert(false)
+                }
+                className="min-h-[44px] rounded-xl border px-5 py-2.5 font-bold"
+              >
+                Annuler
+              </button>
+
+              <button
+                disabled={enCours}
+                className="min-h-[44px] rounded-xl bg-amber-500 px-5 py-2.5 font-black text-black disabled:opacity-50"
+              >
+                {enCours
+                  ? "Enregistrement…"
+                  : "Enregistrer le camion"}
+              </button>
+            </div>
+          </form>
+        )}
 
         {/* ── Modifier un brouillon ── */}
         {modifierOuvert && (

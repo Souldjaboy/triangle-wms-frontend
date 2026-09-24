@@ -63,6 +63,77 @@ export default function FactureCimentPage() {
     return () => clearTimeout(t);
   }, [invoice, search]);
 
+
+  function documentUrl() {
+    if (typeof window === "undefined") return "";
+    return window.location.href.split("?")[0];
+  }
+
+  function documentLabel() {
+    const anyDoc:any = invoice;
+
+    return (
+      anyDoc?.invoice_number ||
+      "Document"
+    );
+  }
+
+  function enregistrerPDF() {
+    /*
+     * Le navigateur ouvre son moteur PDF natif.
+     * Chrome / Edge / Safari :
+     * Imprimer -> Enregistrer au format PDF.
+     */
+    window.print();
+  }
+
+  function partagerWhatsApp() {
+    const texte =
+      `Bonjour,\n\nVeuillez trouver le document ${documentLabel()} :\n${documentUrl()}`;
+
+    window.open(
+      `https://wa.me/?text=${encodeURIComponent(texte)}`,
+      "_blank",
+      "noopener,noreferrer"
+    );
+  }
+
+  function partagerEmail() {
+    const sujet =
+      `${documentLabel()} - Triangle WMS`;
+
+    const corps =
+      `Bonjour,\n\nVeuillez trouver le document ${documentLabel()} à cette adresse :\n\n${documentUrl()}\n\nCordialement.`;
+
+    window.location.href =
+      `mailto:?subject=${encodeURIComponent(sujet)}&body=${encodeURIComponent(corps)}`;
+  }
+
+  async function partagerDocument() {
+    const data = {
+      title: documentLabel(),
+      text: `Document ${documentLabel()}`,
+      url: documentUrl()
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(data);
+        return;
+      }
+
+      await navigator.clipboard.writeText(documentUrl());
+      alert("Lien du document copié.");
+    } catch (e:any) {
+      if (e?.name !== "AbortError") {
+        try {
+          await navigator.clipboard.writeText(documentUrl());
+          alert("Lien du document copié.");
+        } catch {}
+      }
+    }
+  }
+
   if (error) return <div className="p-8 font-semibold text-red-700">{error}</div>;
   if (!invoice) return <div className="p-8 text-gray-600">Chargement de la facture…</div>;
 
@@ -81,6 +152,41 @@ export default function FactureCimentPage() {
       {/* Barre d'actions — jamais imprimée */}
       <div className="mx-auto mb-4 flex max-w-[210mm] items-center justify-between gap-2 px-4 print:hidden">
         <Link href="/ciment/factures" className="font-bold text-blue-700">← Factures ciment</Link>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={enregistrerPDF}
+            className="rounded-lg bg-blue-700 px-3 py-2 text-sm font-bold text-white"
+          >
+            ⬇️ Télécharger PDF
+          </button>
+
+          <button
+            type="button"
+            onClick={partagerWhatsApp}
+            className="rounded-lg bg-green-600 px-3 py-2 text-sm font-bold text-white"
+          >
+            WhatsApp
+          </button>
+
+          <button
+            type="button"
+            onClick={partagerEmail}
+            className="rounded-lg bg-sky-700 px-3 py-2 text-sm font-bold text-white"
+          >
+            E-mail
+          </button>
+
+          <button
+            type="button"
+            onClick={partagerDocument}
+            className="rounded-lg border-2 border-slate-800 px-3 py-2 text-sm font-bold text-slate-900"
+          >
+            Partager
+          </button>
+        </div>
+
         <button onClick={() => window.print()} className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white">
           Imprimer
         </button>

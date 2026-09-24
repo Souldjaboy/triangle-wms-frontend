@@ -4,20 +4,23 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { authFetch } from "../../../lib/api";
 
+import MultiTruckSelector, { TruckLine } from "../../../components/MultiTruckSelector";
 const money = (v:any) =>
   new Intl.NumberFormat("fr-FR").format(Number(v || 0)) + " FCFA";
 
 export default function NewSandSalePage() {
   const [customers,setCustomers] = useState<any[]>([]);
   const [products,setProducts] = useState<any[]>([]);
+  // SAND_TRUCK_SELECTOR_V2
   const [prices,setPrices] = useState<any[]>([]);
+  const [camions,setCamions] = useState<any[]>([]);
   const [message,setMessage] = useState("");
 
   const [form,setForm] = useState({
     customer_id:"",
     sand_product_id:"",
     destination:"Bamako",
-    quantity_m3:10,
+    quantity_m3:0,
     reference_qty:10,
     reference_price:170000,
     transport_price:0,
@@ -25,25 +28,36 @@ export default function NewSandSalePage() {
     discount:0,
     tax_amount:0,
     paid_amount:0,
+    camion_id:"",
     truck:"",
     driver_name:"",
+    trucks:[
+      {
+        camion_id:"",
+        driver_name:"",
+        quantity:""
+      }
+    ] as TruckLine[],
     voucher_number:"",
-    notes:""
+    notes:"Vente de sable de fleuve"
   });
 
   useEffect(()=>{
     Promise.all([
       authFetch("/sand/customers"),
       authFetch("/sand/products"),
-      authFetch("/sand/prices")
-    ]).then(async ([a,b,c])=>{
+      authFetch("/sand/prices"),
+      authFetch("/sand/camions")
+    ]).then(async ([a,b,c,d])=>{
       const ca = await a.json().catch(()=>[]);
       const pr = await b.json().catch(()=>[]);
       const ta = await c.json().catch(()=>[]);
+      const cams = await d.json().catch(()=>[]);
 
       setCustomers(Array.isArray(ca)?ca:[]);
       setProducts(Array.isArray(pr)?pr:[]);
       setPrices(Array.isArray(ta)?ta:[]);
+      setCamions(Array.isArray(cams)?cams:[]);
 
       setForm(f=>({
         ...f,
@@ -105,6 +119,12 @@ export default function NewSandSalePage() {
       body:JSON.stringify({
         ...form,
         customer_id:Number(form.customer_id),
+        camion_id:Number(form.camion_id),
+        trucks:form.trucks.map((x:TruckLine)=>({
+          camion_id:Number(x.camion_id),
+          driver_name:String(x.driver_name || "").trim(),
+          quantity:Number(x.quantity || 0)
+        })),
         sand_product_id:Number(form.sand_product_id),
         quantity_m3:Number(form.quantity_m3),
         unit_price:unitPriceM3,
@@ -140,94 +160,191 @@ export default function NewSandSalePage() {
         </h1>
 
         <section className="mt-6 grid gap-4 rounded-2xl bg-white p-6 shadow md:grid-cols-2">
-          <select
-            className="rounded border p-3"
-            value={form.customer_id}
-            onChange={e=>setForm({...form,customer_id:e.target.value})}
-          >
-            <option value="">Choisir client</option>
-            {customers.map(c=>(
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
 
-          <select
-            className="rounded border p-3"
-            value={form.sand_product_id}
-            onChange={e=>setForm({...form,sand_product_id:e.target.value})}
-          >
-            <option value="">Produit</option>
-            {products.map(p=>(
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
+          {/* SAND_SALE_REQUIRED_FIELDS_V1 */}
+          <div className="mb-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
 
-          <input
-            className="rounded border p-3"
-            placeholder="Destination"
-            value={form.destination}
-            onChange={e=>setForm({...form,destination:e.target.value})}
-          />
+            <div className="mb-4">
+              <h2 className="text-xl font-black text-gray-900">
+                Informations de la vente
+              </h2>
 
-          <input
-            type="number"
-            step="0.001"
-            className="rounded border p-3"
-            value={form.quantity_m3}
-            onChange={e=>setForm({...form,quantity_m3:Number(e.target.value)})}
-            placeholder="Quantité m³"
-          />
+              <p className="mt-1 text-sm text-gray-500">
+                Sélectionnez le client, le produit et la destination avant d’affecter les camions.
+              </p>
+            </div>
 
-          <div>
-            <input
-              type="number"
-              className="w-full rounded border p-3"
-              value={form.reference_price}
-              onChange={e=>setForm({...form,reference_price:Number(e.target.value)})}
-              placeholder={`Prix ${refQty} m³`}
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              Prix {refQty} m³ — soit {unitPriceM3.toLocaleString("fr-FR")} FCFA/m³
-            </p>
+            <div className="grid gap-4 md:grid-cols-3">
+
+              {/* CLIENT */}
+              <label className="block">
+                <span className="mb-1 block text-sm font-black text-gray-700">
+                  Client *
+                </span>
+
+                <select
+                  value={form.customer_id}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      customer_id: e.target.value
+                    })
+                  }
+                  className="w-full rounded-xl border border-gray-300 bg-white p-3 text-gray-900"
+                >
+                  <option value="">
+                    Choisir un client
+                  </option>
+
+                  {customers.map((c:any) => (
+                    <option
+                      key={c.id}
+                      value={c.id}
+                    >
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+
+              {/* PRODUIT */}
+              <label className="block">
+                <span className="mb-1 block text-sm font-black text-gray-700">
+                  Produit sable *
+                </span>
+
+                <select
+                  value={form.sand_product_id}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      sand_product_id: e.target.value,
+                      destination: ""
+                    })
+                  }
+                  className="w-full rounded-xl border border-gray-300 bg-white p-3 text-gray-900"
+                >
+                  <option value="">
+                    Choisir un produit
+                  </option>
+
+                  {products.map((prod:any) => (
+                    <option
+                      key={prod.id}
+                      value={prod.id}
+                    >
+                      {prod.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+
+              {/* DESTINATION */}
+              <label className="block">
+                <span className="mb-1 block text-sm font-black text-gray-700">
+                  Destination *
+                </span>
+
+                <select
+                  value={form.destination}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      destination: e.target.value
+                    })
+                  }
+                  disabled={!form.sand_product_id}
+                  className="w-full rounded-xl border border-gray-300 bg-white p-3 text-gray-900 disabled:bg-gray-100 disabled:text-gray-400"
+                >
+                  <option value="">
+                    {form.sand_product_id
+                      ? "Choisir une destination"
+                      : "Choisir d’abord le produit"}
+                  </option>
+
+                  {Array.from(
+                    new Set(
+                      prices
+                        .filter(
+                          (x:any) =>
+                            String(x.sand_product_id) ===
+                            String(form.sand_product_id)
+                        )
+                        .map((x:any) => x.destination)
+                        .filter(Boolean)
+                    )
+                  ).map((destination:any) => (
+                    <option
+                      key={String(destination)}
+                      value={String(destination)}
+                    >
+                      {String(destination)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+            </div>
+
+
+            {form.customer_id &&
+             form.sand_product_id &&
+             form.destination && (
+
+              <div className="mt-4 rounded-xl bg-emerald-50 p-3 font-bold text-emerald-800">
+                ✅ Client, produit et destination renseignés.
+              </div>
+
+            )}
+
           </div>
 
-          <input
-            type="number"
-            className="rounded border p-3"
-            value={form.transport_price}
-            onChange={e=>setForm({...form,transport_price:Number(e.target.value)})}
-            placeholder="Transport"
-          />
+          <MultiTruckSelector
+          camions={camions}
+          quantityTotal={Number(form.quantity_m3 || 0)}
+          value={form.trucks}
+          onChange={(rows:TruckLine[]) => {
 
-          <input
-            type="number"
-            className="rounded border p-3"
-            value={form.discount}
-            onChange={e=>setForm({...form,discount:Number(e.target.value)})}
-            placeholder="Remise"
-          />
+            const first = rows[0];
 
-          <input
-            type="number"
-            className="rounded border p-3"
-            value={form.paid_amount}
-            onChange={e=>setForm({...form,paid_amount:Number(e.target.value)})}
-            placeholder="Montant payé"
-          />
+            const totalTruckQuantity =
+              rows.reduce(
+                (sum,row) =>
+                  sum +
+                  Number(row.quantity || 0),
+                0
+              );
 
-          <input
-            className="rounded border p-3"
-            value={form.truck}
-            onChange={e=>setForm({...form,truck:e.target.value})}
-            placeholder="Camion"
-          />
+            setForm({
+              ...form,
 
-          <input
-            className="rounded border p-3"
-            value={form.driver_name}
-            onChange={e=>setForm({...form,driver_name:e.target.value})}
-            placeholder="Chauffeur"
-          />
+              // La quantité réelle de la vente
+              // est maintenant la somme des camions.
+              quantity_m3: totalTruckQuantity,
+
+              trucks: rows,
+
+              camion_id:
+                first?.camion_id || "",
+
+              truck:
+                camions.find(
+                  (c:any) =>
+                    String(c.id) ===
+                    String(first?.camion_id || "")
+                )?.code || "",
+
+              driver_name:
+                rows
+                  .map(x => x.driver_name)
+                  .filter(Boolean)
+                  .join(" / ")
+            });
+
+          }}
+        />
 
           <input
             className="rounded border p-3"

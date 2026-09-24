@@ -35,6 +35,37 @@ const fcfa = (v: unknown) =>
   v === null || v === undefined || v === "" ? "—"
     : `${Math.round(Number(v)).toLocaleString("fr-FR")} FCFA`;
 
+
+/* ETAT_DEPOT_PRINT_V2 */
+const formatEtatDate = (value: any) => {
+  if (!value) return "—";
+
+  const raw = String(value);
+
+  const iso = raw.match(
+    /^(\d{4})-(\d{2})-(\d{2})/
+  );
+
+  if (iso) {
+    return `${iso[3]}/${iso[2]}/${iso[1]}`;
+  }
+
+  const d = new Date(value);
+
+  if (!Number.isNaN(d.getTime())) {
+    return d.toLocaleDateString(
+      "fr-FR",
+      {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric"
+      }
+    );
+  }
+
+  return raw;
+};
+
 export default function AcomptesPage() {
   const { can } = usePermissions();
   const peutCreer = can("acompte_client", "create");
@@ -53,12 +84,18 @@ export default function AcomptesPage() {
   const [occupe, setOccupe] = useState(false);
 
   const [nouveau, setNouveau] = useState({ client_id: "", amount: "", payment_method: "VIREMENT", external_reference: "", notes: "" });
+  const [compteSelectionne, setCompteSelectionne] = useState("");
 
   const charger = useCallback(async () => {
     const [rd, rc, rb, rk] = await Promise.all([
       authFetch(`/acomptes?activite=${activite}`, { cache: "no-store" }),
       authFetch(activite === "sable" ? "/sand/customers" : "/cement/customers", { cache: "no-store" }).catch(() => null),
-      authFetch("/accounting/banks", { cache: "no-store" }).catch(() => null),
+      authFetch(
+        activite === "sable"
+          ? "/sand/payment-destinations"
+          : "/cement/payment-destinations",
+        { cache: "no-store" }
+      ).catch(() => null),
       authFetch("/caisses", { cache: "no-store" }).catch(() => null),
     ]);
     const dd = await rd.json().catch(() => ({}));
@@ -92,32 +129,92 @@ export default function AcomptesPage() {
     } finally { setOccupe(false); }
   };
 
+  // Utilisé uniquement pour les remboursements existants.
+  // L'enregistrement d'un nouveau dépôt utilise désormais le sélecteur visible.
   const choisirCompte = (): { caisse_id?: number; bank_id?: number } | null => {
     const { banques, caisses } = comptes;
-    const choix = window.prompt("Sur quel compte ? Tapez « caisse » ou « banque » :",
-      banques.length ? "banque" : "caisse");
+
+    const choix = window.prompt(
+      "Depuis quel compte effectuer le remboursement ? Tapez « caisse » ou « banque » :",
+      banques.length ? "banque" : "caisse"
+    );
+
     if (!choix) return null;
+
     const parCaisse = /caisse/i.test(choix);
     const liste = parCaisse ? caisses : banques;
-    if (!liste.length) { setErreur(parCaisse ? "Aucune caisse ouverte." : "Aucune banque enregistrée."); return null; }
-    const nomDe = (c: any) => c.nom_caisse || c.bank_name || `#${c.id}`;
-    const rang = Number(window.prompt(liste.map((c: any, i: number) => `${i + 1}. ${nomDe(c)}`).join("\n"), "1"));
+
+    if (!liste.length) {
+      setErreur(
+        parCaisse
+          ? "Aucune caisse disponible."
+          : "Aucune banque disponible."
+      );
+      return null;
+    }
+
+    const nomDe = (c: any) =>
+      c.nom_caisse ||
+      c.bank_name ||
+      c.name ||
+      `#${c.id}`;
+
+    const rang = Number(
+      window.prompt(
+        liste
+          .map((c: any, i: number) => `${i + 1}. ${nomDe(c)}`)
+          .join("\n"),
+        "1"
+      )
+    );
+
     const compte = liste[rang - 1];
+
     if (!compte) return null;
-    return parCaisse ? { caisse_id: compte.id } : { bank_id: compte.id };
+
+    return parCaisse
+      ? { caisse_id: compte.id }
+      : { bank_id: compte.id };
   };
 
   const enregistrer = async (e: React.FormEvent) => {
     e.preventDefault();
     const montant = Number(nouveau.amount);
-    if (!nouveau.client_id || !(montant > 0)) { setErreur("Client et montant sont obligatoires."); return; }
-    const compte = choisirCompte(); if (!compte) return;
+
+    if (!nouveau.client_id || !(montant > 0)) {
+      setErreur("Client et montant sont obligatoires.");
+      return;
+    }
+
+    if (!compteSelectionne) {
+      setErreur("Choisissez la banque ou la caisse qui a reçu le dépôt.");
+      return;
+    }
+
+    const [typeCompte, idCompte] = compteSelectionne.split(":");
+    const compte =
+      typeCompte === "bank"
+        ? { bank_id: Number(idCompte) }
+        : typeCompte === "caisse"
+          ? { caisse_id: Number(idCompte) }
+          : null;
+
+    if (!compte || !Number(idCompte)) {
+      setErreur("Compte de réception invalide.");
+      return;
+    }
+
     await agir("/acomptes", {
-      activite, client_id: Number(nouveau.client_id), amount: montant,
-      payment_method: nouveau.payment_method, external_reference: nouveau.external_reference,
-      notes: nouveau.notes, ...compte,
+      activite,
+      client_id: Number(nouveau.client_id),
+      amount: montant,
+      payment_method: nouveau.payment_method,
+      external_reference: nouveau.external_reference,
+      notes: nouveau.notes,
+      ...compte,
     });
     setNouveau({ client_id: "", amount: "", payment_method: "VIREMENT", external_reference: "", notes: "" });
+    setCompteSelectionne("");
   };
 
   const voirSituation = async (clientId: number) => {
@@ -150,11 +247,227 @@ export default function AcomptesPage() {
 
   return (
     <main className="min-h-screen bg-slate-100 p-4 text-slate-950 md:p-8">
-      <style>{`@media print {
-        body { background:#fff }
-        .sans-impression { display:none !important }
-        .a-imprimer { position:fixed; inset:0; margin:0; padding:24px }
-      }`}</style>
+      <style>{`
+
+      /* ======================================================
+         ETAT DEPOT — ECRAN
+         ====================================================== */
+
+      .etat-depot-document {
+        color: #0f172a;
+      }
+
+      .etat-depot-table {
+        width: 100%;
+      }
+
+      .etat-col-date {
+        width: 13%;
+      }
+
+      .etat-col-description {
+        width: 39%;
+      }
+
+      .etat-col-money {
+        width: 16%;
+      }
+
+      .etat-col-solde {
+        width: 16%;
+      }
+
+      .etat-description {
+        overflow-wrap: anywhere;
+        word-break: normal;
+      }
+
+
+      /* ======================================================
+         ETAT DEPOT — IMPRESSION
+         ====================================================== */
+
+      @page {
+        size: A4 portrait;
+        margin: 10mm 10mm 12mm 10mm;
+      }
+
+      @media print {
+
+        html,
+        body {
+          margin: 0 !important;
+          padding: 0 !important;
+          background: #fff !important;
+        }
+
+        body {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+
+        .sans-impression {
+          display: none !important;
+        }
+
+        /*
+         * IMPORTANT :
+         * NE JAMAIS remettre position:fixed ici.
+         * Le document doit suivre le flux normal afin que
+         * Chrome puisse créer page 1, page 2, page 3 proprement.
+         */
+        .a-imprimer,
+        .etat-depot-document {
+          position: static !important;
+          inset: auto !important;
+
+          display: block !important;
+
+          width: 190mm !important;
+          max-width: 190mm !important;
+
+          margin: 0 auto !important;
+          padding: 0 !important;
+
+          border: 0 !important;
+          border-radius: 0 !important;
+          box-shadow: none !important;
+
+          overflow: visible !important;
+
+          background: #fff !important;
+          color: #000 !important;
+        }
+
+        /*
+         * Les parents invisibles ne doivent pas laisser
+         * de hauteur avant le document.
+         */
+        main {
+          min-height: 0 !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          background: #fff !important;
+        }
+
+        main > div {
+          width: 100% !important;
+          max-width: none !important;
+          margin: 0 !important;
+          padding: 0 !important;
+        }
+
+
+        /* ---------- TITRE ---------- */
+
+        .etat-depot-document h2 {
+          margin-top: 1mm !important;
+          font-size: 18pt !important;
+          line-height: 1.15 !important;
+        }
+
+
+        /* ---------- RÉSUMÉ ---------- */
+
+        .etat-depot-document > div:nth-of-type(2) {
+          margin-top: 7mm !important;
+          padding: 4mm 0 !important;
+
+          border-top: 1px solid #000 !important;
+          border-bottom: 1px solid #000 !important;
+
+          gap: 4mm !important;
+        }
+
+
+        /* ---------- TABLEAU ---------- */
+
+        .etat-depot-table-wrap {
+          overflow: visible !important;
+          margin-top: 6mm !important;
+        }
+
+        .etat-depot-table {
+          width: 100% !important;
+          min-width: 0 !important;
+
+          table-layout: fixed !important;
+          border-collapse: collapse !important;
+
+          font-size: 9.5pt !important;
+          line-height: 1.25 !important;
+        }
+
+        /*
+         * L'en-tête Date / Description / Dépôt...
+         * est automatiquement répété au début de chaque page.
+         */
+        .etat-depot-table thead {
+          display: table-header-group !important;
+        }
+
+        .etat-depot-table tbody {
+          display: table-row-group !important;
+        }
+
+        .etat-depot-table thead th {
+          padding: 2.5mm 1.5mm !important;
+
+          border-top: 1.5px solid #000 !important;
+          border-bottom: 1.5px solid #000 !important;
+
+          background: #f3f4f6 !important;
+          color: #000 !important;
+
+          font-size: 9pt !important;
+          font-weight: 800 !important;
+        }
+
+        .etat-depot-table td {
+          padding: 2.4mm 1.5mm !important;
+          border-bottom: 0.6px solid #9ca3af !important;
+          vertical-align: top !important;
+        }
+
+        .etat-depot-row {
+          break-inside: avoid !important;
+          page-break-inside: avoid !important;
+        }
+
+        .etat-description {
+          overflow-wrap: anywhere !important;
+          word-break: normal !important;
+        }
+
+        .etat-col-date {
+          width: 21mm !important;
+        }
+
+        .etat-col-description {
+          width: auto !important;
+        }
+
+        .etat-col-money {
+          width: 31mm !important;
+        }
+
+        .etat-col-solde {
+          width: 31mm !important;
+        }
+
+
+        /*
+         * Empêche Chrome de remettre l'entête du document
+         * par-dessus la suite du tableau.
+         */
+        .etat-depot-document > div:first-child,
+        .etat-depot-document > div:nth-of-type(2) {
+          break-inside: avoid !important;
+          page-break-inside: avoid !important;
+        }
+
+      }
+    `}</style>
 
       <div className="mx-auto max-w-7xl">
         <header className="sans-impression">
@@ -191,7 +504,7 @@ export default function AcomptesPage() {
             <p className="mt-1 text-sm text-slate-600">
               L’argent reçu augmente le compte choisi, et devient un crédit du client.
             </p>
-            <form onSubmit={enregistrer} className="mt-4 grid gap-3 md:grid-cols-5">
+            <form onSubmit={enregistrer} className="mt-4 grid gap-3 md:grid-cols-6">
               <label className="block md:col-span-2">
                 <span className="mb-1 block text-sm font-bold">Client</span>
                 <select className="min-h-12 w-full rounded-xl border p-3" value={nouveau.client_id}
@@ -213,13 +526,67 @@ export default function AcomptesPage() {
                   <option>CHEQUE</option><option>MOBILE_MONEY</option>
                 </select>
               </label>
+              <label className="block md:col-span-2">
+                <span className="mb-1 block text-sm font-bold">
+                  Banque / caisse de réception
+                </span>
+
+                <select
+                  className="min-h-12 w-full rounded-xl border p-3"
+                  value={compteSelectionne}
+                  onChange={(e) => setCompteSelectionne(e.target.value)}
+                  required
+                >
+                  <option value="">
+                    — Choisir le compte qui a reçu l'argent —
+                  </option>
+
+                  {comptes.banques.length > 0 && (
+                    <optgroup label="BANQUES">
+                      {comptes.banques.map((b: any) => (
+                        <option
+                          key={`bank-${b.id}`}
+                          value={`bank:${b.id}`}
+                        >
+                          {b.bank_name ||
+                            b.name ||
+                            b.nom ||
+                            `Banque #${b.id}`}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+
+                  {comptes.caisses.length > 0 && (
+                    <optgroup label="CAISSES">
+                      {comptes.caisses.map((c: any) => (
+                        <option
+                          key={`caisse-${c.id}`}
+                          value={`caisse:${c.id}`}
+                        >
+                          {c.nom_caisse ||
+                            c.name ||
+                            c.nom ||
+                            `Caisse #${c.id}`}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                </select>
+
+                <span className="mt-1 block text-xs text-slate-500">
+                  Choisissez exactement la banque ou la caisse
+                  qui a reçu le versement du client.
+                </span>
+              </label>
+
               <label className="block">
                 <span className="mb-1 block text-sm font-bold">Référence</span>
                 <input className="min-h-12 w-full rounded-xl border p-3" value={nouveau.external_reference}
                   onChange={(e) => setNouveau({ ...nouveau, external_reference: e.target.value })} />
               </label>
               <button type="submit" disabled={occupe}
-                className="min-h-12 rounded-xl bg-slate-900 px-5 font-black text-white disabled:opacity-40 md:col-span-5 md:w-auto md:justify-self-start">
+                className="min-h-12 rounded-xl bg-slate-900 px-5 font-black text-white disabled:opacity-40 md:col-span-6 md:w-auto md:justify-self-start">
                 Enregistrer le versement
               </button>
             </form>
@@ -228,7 +595,7 @@ export default function AcomptesPage() {
 
         {/* ── L'ÉTAT DU DÉPÔT, IMPRIMABLE ── */}
         {etat && (
-          <section className="a-imprimer mt-6 rounded-2xl bg-white p-5 shadow-sm">
+          <section className="a-imprimer etat-depot-document mt-6 rounded-2xl bg-white p-5 shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{etat.depot.societe}</p>
@@ -247,22 +614,25 @@ export default function AcomptesPage() {
               <Chiffre libelle="Solde restant" valeur={fcfa(etat.depot.solde)} fort />
             </div>
 
-            <div className="mt-4 overflow-x-auto">
-              <table className="w-full min-w-[620px] text-left text-sm">
+            <div className="etat-depot-table-wrap mt-5 overflow-x-auto">
+              <table className="etat-depot-table w-full table-fixed border-collapse text-left text-sm">
                 <thead className="bg-slate-50 text-slate-600">
-                  <tr><th className="p-2">Date</th><th className="p-2">Description</th>
-                    <th className="p-2 text-right">Dépôt +</th>
-                    <th className="p-2 text-right">Utilisation −</th>
-                    <th className="p-2 text-right">Solde</th></tr>
+                  <tr>
+                    <th className="etat-col-date p-2">Date</th>
+                    <th className="etat-col-description p-2">Description</th>
+                    <th className="etat-col-money p-2 text-right">Dépôt +</th>
+                    <th className="etat-col-money p-2 text-right">Utilisation −</th>
+                    <th className="etat-col-solde p-2 text-right">Solde</th>
+                  </tr>
                 </thead>
                 <tbody>
                   {etat.lignes.map((l, i) => (
-                    <tr key={i} className="border-t">
-                      <td className="p-2">{String(l.date).slice(0, 10)}</td>
-                      <td className="p-2">{l.libelle}</td>
-                      <td className="p-2 text-right">{l.depot ? fcfa(l.depot) : ""}</td>
-                      <td className="p-2 text-right">{l.utilisation ? fcfa(l.utilisation) : ""}</td>
-                      <td className="p-2 text-right font-bold">{fcfa(l.solde)}</td>
+                    <tr key={i} className="etat-depot-row border-t">
+                      <td className="p-2 align-top whitespace-nowrap">{formatEtatDate(l.date)}</td>
+                      <td className="etat-description p-2 align-top">{l.libelle}</td>
+                      <td className="p-2 text-right align-top whitespace-nowrap">{l.depot ? fcfa(l.depot) : ""}</td>
+                      <td className="p-2 text-right align-top whitespace-nowrap">{l.utilisation ? fcfa(l.utilisation) : ""}</td>
+                      <td className="p-2 text-right align-top font-bold whitespace-nowrap">{fcfa(l.solde)}</td>
                     </tr>
                   ))}
                 </tbody>

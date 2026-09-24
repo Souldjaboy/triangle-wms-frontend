@@ -9,6 +9,7 @@ import WhatsAppSupportButton from "../../components/WhatsAppSupportButton";
 import SocialAuthButtons from "../../components/SocialAuthButtons";
 
 export default function LoginPage() {
+  /* TRIANGLE_LOGIN_REDIRECT_NOTIFICATION_V2 */
   const router = useRouter();
 
   const [email, setEmail] = useState("");
@@ -95,7 +96,33 @@ export default function LoginPage() {
         return;
       }
 
-      router.push(isSuperAdmin ? "/super-admin" : "/dashboard");
+      let requestedRedirect: string | null = null;
+
+      try {
+        requestedRedirect =
+          new URLSearchParams(
+            window.location.search
+          ).get("redirect");
+      } catch {
+        requestedRedirect = null;
+      }
+
+      const safeRedirect =
+        requestedRedirect &&
+        requestedRedirect.startsWith("/") &&
+        !requestedRedirect.startsWith("//") &&
+        !requestedRedirect.startsWith("/login")
+          ? requestedRedirect
+          : null;
+
+      router.push(
+        safeRedirect ||
+        (
+          isSuperAdmin
+            ? "/super-admin"
+            : "/dashboard"
+        )
+      );
     } catch (error) {
       console.error(error);
       setError("Erreur serveur");

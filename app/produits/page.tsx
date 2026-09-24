@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePermissions } from "../lib/permissions";
 
 const marketplaceCategories = [
   "Alimentation",
@@ -26,6 +27,7 @@ const marketplaceCategories = [
 ];
 
 export default function ProduitsPage() {
+  const { can } = usePermissions();
   const [produits, setProduits] = useState<any[]>([]);
   const [companies, setCompanies] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
@@ -35,10 +37,12 @@ export default function ProduitsPage() {
   const [imagePreview, setImagePreview] = useState("");
   const [uploadingImage, setUploadingImage] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const [recherche, setRecherche] = useState("");
 
-  const isReadOnly = userRole === "direction" || userRole === "client";
   const isAdmin = userRole === "admin" || userRole === "super_admin" || isSuperAdmin;
-  const canAddProduct = !isReadOnly && (isAdmin || userRole === "magasinier");
+  const canAddProduct = can("produit", "create");
+  const canEditProduct = can("produit", "update");
+  const canDeleteProduct = can("produit", "delete");
   const authHeaders = (extra: Record<string, string> = {}) => ({
     ...extra,
     Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
@@ -252,7 +256,7 @@ useEffect(() => {
 const handleSubmit = async (e: any) => {
   e.preventDefault();
 
-  if (!canAddProduct) {
+  if ((editingId && !canEditProduct) || (!editingId && !canAddProduct)) {
     alert("Vous n'avez pas l'autorisation.");
     return;
   }
@@ -277,8 +281,8 @@ const handleSubmit = async (e: any) => {
   let response;
 
   if (editingId) {
-    if (!isAdmin) {
-      alert("Seul l'administrateur peut modifier.");
+    if (!canEditProduct) {
+      alert("Vous n'avez pas le droit de modifier ce produit.");
       return;
     }
 
@@ -315,8 +319,8 @@ const handleSubmit = async (e: any) => {
 };
 
   const handleEdit = (produit: any) => {
-    if (!isAdmin) {
-      alert("Seul l'administrateur peut modifier.");
+    if (!canEditProduct) {
+      alert("Vous n'avez pas le droit de modifier ce produit.");
       return;
     }
 
@@ -401,8 +405,8 @@ const handleSubmit = async (e: any) => {
   };
 
   const handleDelete = async (id: number) => {
-    if (!isAdmin) {
-      alert("Seul l'administrateur peut supprimer.");
+    if (!canDeleteProduct) {
+      alert("Vous n'avez pas le droit de supprimer ce produit.");
       return;
     }
 
@@ -428,7 +432,7 @@ const handleSubmit = async (e: any) => {
         Rôle connecté : {userRole || "non connecté"}
       </p>
 
-      {canAddProduct && (
+      {(canAddProduct || (editingId !== null && canEditProduct)) && (
         <form
           onSubmit={handleSubmit}
           className="bg-white p-6 rounded-2xl shadow mb-10 grid grid-cols-3 gap-4"
@@ -831,9 +835,27 @@ const handleSubmit = async (e: any) => {
       )}
 
       <div className="bg-white rounded-2xl shadow p-6">
-        <h2 className="text-2xl font-bold text-black mb-5">
-          Liste des produits
-        </h2>
+        <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-bold text-black">Liste des produits</h2>
+            <p className="text-sm text-gray-500">
+              {produits.filter((p) => {
+                const q = recherche.trim().toLocaleLowerCase("fr");
+                return !q || `${p.name || ""} ${p.reference || ""} ${p.barcode || ""}`
+                  .toLocaleLowerCase("fr").includes(q);
+              }).length} résultat(s)
+            </p>
+          </div>
+          <label className="w-full max-w-md text-sm font-bold text-gray-700">
+            Rechercher par nom ou référence
+            <input
+              value={recherche}
+              onChange={(e) => setRecherche(e.target.value)}
+              placeholder="Ex. ciment, moteur, REF-001…"
+              className="mt-1 w-full rounded-xl border p-3 text-black"
+            />
+          </label>
+        </div>
 
         <table className="w-full text-left">
           <thead>
@@ -848,12 +870,16 @@ const handleSubmit = async (e: any) => {
               <th>Entrepôt</th>
               <th>Emplacement</th>
               <th>Statut</th>
-              {isAdmin && <th>Actions</th>}
+              {(canEditProduct || canDeleteProduct || isAdmin) && <th>Actions</th>}
             </tr>
           </thead>
 
           <tbody>
-            {produits.map((produit: any) => (
+            {produits.filter((produit: any) => {
+              const q = recherche.trim().toLocaleLowerCase("fr");
+              return !q || `${produit.name || ""} ${produit.reference || ""} ${produit.barcode || ""}`
+                .toLocaleLowerCase("fr").includes(q);
+            }).map((produit: any) => (
               <tr key={produit.id} className="border-b">
                 <td className="py-4">
                   {produit.image_url ? (
@@ -883,27 +909,33 @@ const handleSubmit = async (e: any) => {
 
                 <td className="font-bold">{produit.status}</td>
 
-                {isAdmin && (
+                {(canEditProduct || canDeleteProduct || isAdmin) && (
                   <td className="space-x-2">
-                    <button
-                      onClick={() => handleEdit(produit)}
-                      className="bg-blue-500 text-white px-4 py-2 rounded-lg"
-                    >
-                      Modifier
-                    </button>
+                    {canEditProduct && (
+                      <button
+                        onClick={() => handleEdit(produit)}
+                        className="bg-blue-500 text-white px-4 py-2 rounded-lg"
+                      >
+                        Modifier
+                      </button>
+                    )}
 
-                    <button
-                      onClick={() => handleDelete(produit.id)}
-                      className="bg-red-500 text-white px-4 py-2 rounded-lg"
-                    >
-                      Supprimer
-                    </button>
-                    <button
-                      onClick={() => publishToMarketplace(produit)}
-                      className="bg-yellow-500 text-black px-4 py-2 rounded-lg font-bold"
-                    >
-                      Publier
-                    </button>
+                    {canDeleteProduct && (
+                      <button
+                        onClick={() => handleDelete(produit.id)}
+                        className="bg-red-500 text-white px-4 py-2 rounded-lg"
+                      >
+                        Supprimer
+                      </button>
+                    )}
+                    {isAdmin && (
+                      <button
+                        onClick={() => publishToMarketplace(produit)}
+                        className="bg-yellow-500 text-black px-4 py-2 rounded-lg font-bold"
+                      >
+                        Publier
+                      </button>
+                    )}
                   </td>
                 )}
               </tr>

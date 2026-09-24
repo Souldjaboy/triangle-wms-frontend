@@ -85,10 +85,27 @@ export async function authFetch(path: string, options: RequestInit = {}) {
       document.cookie = "triangle_super_admin=; path=/; max-age=0";
       document.cookie = "triangle_subscription_status=; path=/; max-age=0";
       const pathname = window.location.pathname;
-      window.location.href =
-        pathname.startsWith("/client") || pathname.startsWith("/marketplace")
-          ? "/client/login"
-          : "/login";
+
+      /* TRIANGLE_STOP_AUTH_REDIRECT_LOOP_V1
+         Ne jamais rediriger une page publique d’authentification
+         vers elle-même après une réponse 401/403. */
+      const isPublicAuthenticationPage =
+        pathname === "/login" ||
+        pathname === "/client/login" ||
+        pathname.startsWith("/register") ||
+        pathname.startsWith("/verification") ||
+        pathname.startsWith("/verify-email") ||
+        pathname.startsWith("/verify-phone") ||
+        pathname.startsWith("/mot-de-passe") ||
+        pathname.startsWith("/abonnement-expire");
+
+      if (!isPublicAuthenticationPage) {
+        window.location.href =
+          pathname.startsWith("/client") ||
+          pathname.startsWith("/marketplace")
+            ? "/client/login"
+            : "/login";
+      }
     }
   }
 

@@ -91,7 +91,9 @@ export default function EmplacementsPage() {
   const [recherche, setRecherche] = useState("");
   const [statut, setStatut] = useState("TOUS");
   const [archives, setArchives] = useState(false);
-  const [vue, setVue] = useState<"arbre" | "tableau">("arbre");
+  /* La liste simple est la vue d'accueil. L'arborescence complète reste
+     disponible pour les opérations avancées. */
+  const [vue, setVue] = useState<"arbre" | "tableau">("tableau");
   const [selection, setSelection] = useState<Bin | null>(null);
   const [chemin, setChemin] = useState<{ w: string; r: string; s: string; l: string }>(
     { w: "", r: "", s: "", l: "" });
@@ -243,7 +245,7 @@ export default function EmplacementsPage() {
               <button key={v} onClick={() => setVue(v)}
                       className={`rounded-full px-3 py-1 text-xs font-bold ${
                         vue === v ? "bg-white shadow" : "text-gray-600"}`}>
-                {v === "arbre" ? "Arborescence" : "Tableau"}
+                {v === "arbre" ? "Vue détaillée" : "Liste simple"}
               </button>
             ))}
           </span>

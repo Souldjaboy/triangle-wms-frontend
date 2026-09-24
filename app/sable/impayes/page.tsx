@@ -38,7 +38,7 @@ export default function SandUnpaidPage() {
         {flash && <p className="mt-3 rounded-lg bg-green-50 p-3 font-semibold text-green-800">{flash}</p>}
 
         <div className="mt-5 rounded-2xl bg-red-50 p-5">
-          <div className="text-sm font-bold">TOTAL IMPAYÉ</div>
+          <div className="text-sm font-bold">TOTAL RÉELLEMENT IMPAYÉ</div>
           <div className="text-3xl font-black">{money(total)}</div>
         </div>
 
@@ -49,9 +49,10 @@ export default function SandUnpaidPage() {
                 <th className="p-3">Facture</th>
                 <th className="p-3">Opération</th>
                 <th className="p-3">Site</th>
-                <th className="p-3">Montant</th>
-                <th className="p-3">Payé</th>
-                <th className="p-3">Reste</th>
+                <th className="p-3">Montant facture</th>
+                <th className="p-3">Payé total</th>
+                <th className="p-3">Dépôt utilisé</th>
+                <th className="p-3">Reste réellement dû</th>
                 <th className="p-3">Statut</th>
                   <th className="p-3">Action</th>
               </tr>
@@ -67,6 +68,9 @@ export default function SandUnpaidPage() {
                   <td className="p-3">{r.site || r.destination || "—"}</td>
                   <td className="p-3">{money(r.total_amount)}</td>
                   <td className="p-3">{money(r.paid_amount)}</td>
+                  <td className="p-3">
+                    {Number(r.deposit_used || 0) > 0 ? money(r.deposit_used) : "—"}
+                  </td>
                   <td className="p-3 font-bold text-red-600">{money(r.remaining_amount)}</td>
                   <td className="p-3"><StatutFactureBadge status={r.status} /></td>
                   <td className="p-3">

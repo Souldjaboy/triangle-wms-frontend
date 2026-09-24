@@ -11,7 +11,9 @@ export default function NewCementSalePage(){
   const {can}=usePermissions();
   const [customers,setCustomers]=useState<any[]>([]);
   const [products,setProducts]=useState<any[]>([]);
+  // CEMENT_TRUCK_SELECTOR_V2
   const [prices,setPrices]=useState<any[]>([]);
+  const [camions,setCamions]=useState<any[]>([]);
   const [message,setMessage]=useState("");
   const [form,setForm]=useState({
     customer_id:"",
@@ -23,20 +25,23 @@ export default function NewCementSalePage(){
     include_transport:false,
     paid_amount:"0",
     tonnage_voucher_number:"",
+    camion_id:"",
     truck:"",
     driver_name:"",
-    notes:"",
+    notes:"Vente de ciment",
   });
 
   useEffect(()=>{
     Promise.all([
       authFetch("/cement/customers").then(r=>r.json()),
       authFetch("/cement/products").then(r=>r.json()),
-      authFetch("/cement/prices").then(r=>r.json())
-    ]).then(([c,p,pr])=>{
+      authFetch("/cement/prices").then(r=>r.json()),
+      authFetch("/cement/camions").then(r=>r.json())
+    ]).then(([c,p,pr,ca])=>{
       setCustomers(Array.isArray(c)?c:[]);
       setProducts(Array.isArray(p)?p:[]);
       setPrices(Array.isArray(pr)?pr:[]);
+      setCamions(Array.isArray(ca)?ca:[]);
     });
   },[]);
 
@@ -90,6 +95,7 @@ export default function NewCementSalePage(){
         transport_mode:"PAR_TONNE",
         paid_amount:Number(form.paid_amount||0),
         tonnage_voucher_number:form.tonnage_voucher_number,
+        camion_id:Number(form.camion_id),
         truck:form.truck,
         driver_name:form.driver_name,
         notes:form.notes
@@ -242,7 +248,24 @@ export default function NewCementSalePage(){
         </div>
 
         <input className="rounded-lg border p-3" placeholder="N° bon de tonnage" value={form.tonnage_voucher_number} onChange={e=>setForm({...form,tonnage_voucher_number:e.target.value})}/>
-        <input className="rounded-lg border p-3" placeholder="Camion" value={form.truck} onChange={e=>setForm({...form,truck:e.target.value})}/>
+        <select
+          className="rounded-lg border p-3"
+          value={form.camion_id}
+          onChange={e=>{
+            const id=e.target.value;
+            const camion=camions.find((x:any)=>String(x.id)===id);
+            setForm({
+              ...form,
+              camion_id:id,
+              truck:camion?.code || ""
+            });
+          }}
+        >
+          <option value="">Choisir camion *</option>
+          {camions.map((c:any)=>(
+            <option key={c.id} value={c.id}>{c.code}</option>
+          ))}
+        </select>
         <input className="rounded-lg border p-3" placeholder="Chauffeur" value={form.driver_name} onChange={e=>setForm({...form,driver_name:e.target.value})}/>
         <input className="rounded-lg border p-3" type="number" placeholder="Montant payé" value={form.paid_amount} onChange={e=>setForm({...form,paid_amount:e.target.value})}/>
 

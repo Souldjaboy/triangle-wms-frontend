@@ -130,6 +130,14 @@ export default function SandDashboardPage() {
             description="Factures clients"
           />
 
+          {/* SAND_ETATS_MENU_V1 */}
+          <Card
+            href="/sable/etats"
+            icon={<FileText />}
+            title="États des ventes"
+            description="Toutes les factures : payées, partielles et impayées"
+          />
+
           <Card
             href="/sable/proformas"
             icon={<FileText />}

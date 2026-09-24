@@ -75,7 +75,15 @@ export default function DirectionPage() {
   }, [section]);
   useEffect(() => { load(); }, [load]);
 
-  const act = async (id: number, action: "approve" | "reject", body?: Record<string, unknown>) => {
+  // DISBURSEMENT_DIRECTION_CORRECTION_V1
+  const act = async (
+    id: number,
+    action:
+      | "approve"
+      | "reject"
+      | "correction",
+    body?: Record<string, unknown>
+  ) => {
     setBusy(true); setMsg("");
     const res = await authFetch(`/disbursements/${id}/${action}`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}),
@@ -83,9 +91,13 @@ export default function DirectionPage() {
     const data = await res.json().catch(() => ({}));
     setBusy(false);
     if (!res.ok) { setMsg(`❌ ${data?.error || "Erreur."}`); return; }
-    setMsg(action === "approve"
-      ? `✅ ${data.request_number} validée — transmise au comptable. La trésorerie n'est pas encore impactée.`
-      : `✅ ${data.request_number} refusée.`);
+    setMsg(
+      action === "approve"
+        ? `✅ ${data.request_number} validée — transmise au comptable. La trésorerie n'est pas encore impactée.`
+        : action === "correction"
+          ? `✅ Correction demandée pour ${data.request_number}. La demande retourne au demandeur.`
+          : `✅ ${data.request_number} refusée.`
+    );
     setDetail(null); await load();
   };
 
@@ -94,10 +106,23 @@ export default function DirectionPage() {
     if (!reason) return;
     act(id, "reject", { reason });
   };
-  const askCorrection = (id: number) => {
-    const comment = window.prompt("Correction demandée (motif) :");
-    if (!comment) return;
-    act(id, "reject", { reason: `CORRECTION DEMANDÉE : ${comment}` });
+  const askCorrection = (
+    id: number
+  ) => {
+    const comment =
+      window.prompt(
+        "Indiquez la correction que le demandeur doit effectuer :"
+      );
+
+    if (!comment?.trim()) return;
+
+    act(
+      id,
+      "correction",
+      {
+        comment: comment.trim()
+      }
+    );
   };
 
   const open = async (r: Req) => {

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { authFetch } from "../../../lib/api";
+import PrintableCompanyHeader from "../../../components/PrintableCompanyHeader";
 
 /**
  * PHASE 4 — BON DE DÉCAISSEMENT A4 imprimable.
@@ -19,7 +20,29 @@ type Req = {
   approved_by_name: string | null; approved_at: string | null; approval_comment: string | null;
   disbursed_by_name: string | null; disbursed_at: string | null; disbursement_comment: string | null;
   voucher_number: string | null;
+  lines?: RequestLine[];
 };
+
+type RequestLine = {
+  id: number;
+  line_no: number;
+  category: string | null;
+  label: string;
+  quantity: string | number | null;
+  unit_price: string | number | null;
+  amount: string | number;
+};
+
+type Receipt = {
+  id: number;
+  receipt_type?: "FILE" | "PENDING" | "DECLARATION";
+  amount: string;
+  label: string | null;
+  supplier_name?: string | null;
+  declaration_text?: string | null;
+  review_status: string;
+};
+
 type Refund = { id: number; amount: string };
 type Company = { company_name?: string; logo_url?: string; address?: string; phone?: string };
 
@@ -51,6 +74,7 @@ export default function BonDecaissementPage() {
   const id = String(params?.id || "");
   const [req, setReq] = useState<Req | null>(null);
   const [refunds, setRefunds] = useState<Refund[]>([]);
+  const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [voucher, setVoucher] = useState("");
   const [company, setCompany] = useState<Company>({});
 
@@ -58,7 +82,9 @@ export default function BonDecaissementPage() {
     const r = await authFetch(`/disbursements/${id}/details`);
     if (r.ok) {
       const d = await r.json();
-      setReq(d.request); setRefunds(d.refunds || []);
+      setReq(d.request);
+      setRefunds(d.refunds || []);
+      setReceipts(d.receipts || []);
       // Source de vérité : colonne voucher_number (plus d'extraction par regex).
       setVoucher(d.request?.voucher_number || "");
     }
@@ -88,29 +114,19 @@ export default function BonDecaissementPage() {
           </div>
         )}
 
-        <header className="flex items-start justify-between border-b-2 border-black pb-3">
-          <div className="flex items-start gap-3">
-            {company.logo_url ? (
-              <img src={company.logo_url} alt="Logo" className="h-16 w-16 object-contain" />
-            ) : (
-              <div className="flex h-16 w-16 items-center justify-center border border-black text-xl font-black">
-                {(company.company_name || "T").charAt(0).toUpperCase()}
-              </div>
-            )}
-            <div>
-              <p className="text-lg font-black uppercase">{company.company_name || "TRIANGLE WMS PRO"}</p>
-              {company.address && <p className="text-xs">{company.address}</p>}
-              {company.phone && <p className="text-xs">Tél. : {company.phone}</p>}
-            </div>
-          </div>
-          <div className="text-right">
-            <p className="text-xl font-black tracking-wide">BON DE DÉCAISSEMENT</p>
-            {voucher && <p className="text-sm font-bold">N° {voucher}</p>}
-            <p className="text-xs">Demande : {req.request_number}</p>
-            <p className="text-xs">Date : {fdate(req.disbursed_at) || fdate(req.created_at)}</p>
-            <p className="mt-1 inline-block border border-black px-2 py-0.5 text-xs font-black">{req.status.replace(/_/g, " ")}</p>
-          </div>
-        </header>
+        <PrintableCompanyHeader
+          company={company}
+          documentTitle="BON DE DÉCAISSEMENT"
+          documentNumber={
+            voucher
+              ? `N° ${voucher}`
+              : `Demande : ${req.request_number}`
+          }
+          documentDate={`Date : ${
+            fdate(req.disbursed_at) ||
+            fdate(req.created_at)
+          }`}
+        />
 
         <section className="mt-4 grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
           <p><span className="font-bold">Demandeur :</span> {req.requester_name || "—"}</p>
@@ -119,6 +135,78 @@ export default function BonDecaissementPage() {
           <p><span className="font-bold">Catégorie :</span> {req.category || "—"}</p>
           <p><span className="font-bold">Mode de paiement :</span> {payLabel(req.payment_method)}</p>
         </section>
+
+        {req.lines && req.lines.length > 0 && (
+          <section className="mt-5">
+            <p className="mb-2 text-sm font-black uppercase">
+              Détail de la demande
+            </p>
+
+            <table className="w-full border-collapse text-xs">
+              <thead>
+                <tr className="border-y-2 border-black bg-gray-100">
+                  <th className="p-2 text-left">N°</th>
+                  <th className="p-2 text-left">Libellé</th>
+                  <th className="p-2 text-right">Qté</th>
+                  <th className="p-2 text-right">Prix unitaire</th>
+                  <th className="p-2 text-right">Montant</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {req.lines.map((line) => (
+                  <tr
+                    key={line.id || line.line_no}
+                    className="border-b border-gray-300"
+                  >
+                    <td className="p-2">
+                      {line.line_no}
+                    </td>
+
+                    <td className="p-2">
+                      <span className="font-bold">
+                        {line.label}
+                      </span>
+
+                      {line.category && (
+                        <span className="block text-[10px] text-gray-500">
+                          {line.category}
+                        </span>
+                      )}
+                    </td>
+
+                    <td className="p-2 text-right">
+                      {line.quantity ?? "—"}
+                    </td>
+
+                    <td className="p-2 text-right">
+                      {line.unit_price != null
+                        ? fcfa(line.unit_price)
+                        : "—"}
+                    </td>
+
+                    <td className="p-2 text-right font-bold">
+                      {fcfa(line.amount)}
+                    </td>
+                  </tr>
+                ))}
+
+                <tr className="border-b-2 border-black">
+                  <td
+                    colSpan={4}
+                    className="p-2 text-right font-black"
+                  >
+                    TOTAL
+                  </td>
+
+                  <td className="p-2 text-right font-black">
+                    {fcfa(req.amount)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+        )}
 
         <table className="mt-4 w-full border-collapse text-sm">
           <tbody>
@@ -142,6 +230,70 @@ export default function BonDecaissementPage() {
             )}
           </tbody>
         </table>
+
+        {receipts
+          .filter(
+            (r) =>
+              r.receipt_type === "DECLARATION" &&
+              r.review_status !== "REFUSE"
+          )
+          .map((r) => (
+            <section
+              key={r.id}
+              className="mt-5 break-inside-avoid border-2 border-black p-4 text-sm"
+            >
+              <p className="text-center font-black uppercase">
+                Déclaration justificative — absence de reçu
+              </p>
+
+              <p className="mt-3">
+                Je soussigné(e),{" "}
+                <span className="font-bold">
+                  {r.supplier_name || "________________________"}
+                </span>
+                , confirme avoir reçu / utilisé la somme de{" "}
+                <span className="font-bold">
+                  {fcfa(r.amount)}
+                </span>{" "}
+                dans le cadre de l'opération suivante :
+              </p>
+
+              {r.label && (
+                <p className="mt-2">
+                  <span className="font-bold">Objet :</span>{" "}
+                  {r.label}
+                </p>
+              )}
+
+              <p className="mt-2 whitespace-pre-wrap">
+                {r.declaration_text}
+              </p>
+
+              <div className="mt-8 grid grid-cols-2 gap-10">
+                <div>
+                  <p className="border-b border-black pb-1 font-bold">
+                    Personne / fournisseur
+                  </p>
+                  <p className="mt-2 text-xs">
+                    Nom : {r.supplier_name || "________________"}
+                  </p>
+                  <div className="h-16" />
+                  <p className="text-xs">Signature</p>
+                </div>
+
+                <div>
+                  <p className="border-b border-black pb-1 font-bold">
+                    Comptable
+                  </p>
+                  <p className="mt-2 text-xs">
+                    Nom : {req.disbursed_by_name || "________________"}
+                  </p>
+                  <div className="h-16" />
+                  <p className="text-xs">Signature / cachet</p>
+                </div>
+              </div>
+            </section>
+          ))}
 
         {req.disbursement_comment && (
           <section className="mt-3 text-sm">

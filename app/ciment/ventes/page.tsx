@@ -29,6 +29,77 @@ export default function CementSalesPage(){
     if(r.ok) load();
   };
 
+
+  const modifierVente=async(r:any)=>{
+    const destination=prompt(
+      "Destination",
+      r.destination || ""
+    );
+    if(destination===null) return;
+
+    const tonnage=prompt(
+      "Tonnage",
+      String(r.tonnage || "")
+    );
+    if(tonnage===null) return;
+
+    const unit_price=prompt(
+      "Prix ciment par tonne",
+      String(r.unit_price || "")
+    );
+    if(unit_price===null) return;
+
+    const transport_price=prompt(
+      "Transport",
+      String(r.transport_price || 0)
+    );
+    if(transport_price===null) return;
+
+    const rep=await authFetch(
+      `/cement/sales/${r.id}/admin`,
+      {
+        method:"PATCH",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          destination,
+          tonnage:Number(tonnage),
+          unit_price:Number(unit_price),
+          transport_price:Number(transport_price)
+        })
+      }
+    );
+
+    const d=await rep.json().catch(()=>({}));
+
+    if(!rep.ok){
+      alert(d.error || "Modification impossible.");
+      return;
+    }
+
+    await load();
+  };
+
+  const supprimerVente=async(r:any)=>{
+
+    if(!confirm(
+      `Supprimer définitivement la vente ${r.sale_number} ?`
+    )) return;
+
+    const rep=await authFetch(
+      `/cement/sales/${r.id}/permanent`,
+      {method:"DELETE"}
+    );
+
+    const d=await rep.json().catch(()=>({}));
+
+    if(!rep.ok){
+      alert(d.error || "Suppression impossible.");
+      return;
+    }
+
+    await load();
+  };
+
   if(!can("cement","view")) return <main className="p-8">Accès refusé.</main>;
 
   return (
@@ -77,6 +148,23 @@ export default function CementSalesPage(){
                   )}
                   {r.delivery_id && (
                     <Link href={`/ciment/livraisons/${r.delivery_id}`} className="ml-2 rounded border border-slate-900 px-3 py-2 text-xs font-bold text-slate-900">Voir BL</Link>
+                  )}
+                  {r.status==="BROUILLON" && can("cement","update") && (
+                    <button
+                      onClick={()=>modifierVente(r)}
+                      className="ml-2 rounded bg-blue-600 px-3 py-2 text-xs font-bold text-white"
+                    >
+                      Modifier
+                    </button>
+                  )}
+
+                  {can("cement","delete") && (
+                    <button
+                      onClick={()=>supprimerVente(r)}
+                      className="ml-2 rounded bg-red-600 px-3 py-2 text-xs font-bold text-white"
+                    >
+                      Supprimer
+                    </button>
                   )}
                 </td>
               </tr>

@@ -136,6 +136,23 @@ export default function BinSelector({
           </select>
         </label>
       </div>
+      {w && rayons.length === 0 && (
+        <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          <p className="font-bold">
+            L’entrepôt {w} existe, mais il n’a encore aucun bac physique précis utilisable.
+          </p>
+          <p className="mt-1">
+            Ses anciens emplacements « FULLBIN » doivent être confirmés avant tout transfert.
+          </p>
+          <a
+            href="/emplacements?statut=A_REGULARISER"
+            className="mt-2 inline-block font-bold text-blue-700 underline"
+          >
+            Ouvrir la régularisation des emplacements
+          </a>
+        </div>
+      )}
+
       {value && (
         <p className="mt-1 text-xs text-gray-600">
           <span className="font-bold">{value.code}</span> — {value.status === "EMPTY" ? "vide" : "occupé"} ·

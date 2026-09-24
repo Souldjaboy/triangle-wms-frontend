@@ -211,6 +211,21 @@ export default function PaiePage() {
       <div className="mx-auto max-w-7xl">
         <header>
           <h1 className="text-3xl font-black md:text-4xl">Paie</h1>
+        <div className="mt-4 flex flex-wrap gap-3 print:hidden">
+          <a
+            href="/rapports/pointage"
+            className="rounded-xl bg-slate-900 px-5 py-3 font-bold text-white hover:bg-slate-700"
+          >
+            Historique des présences
+          </a>
+
+          <a
+            href="/rapports/pointage"
+            className="rounded-xl border border-slate-300 bg-white px-5 py-3 font-bold text-slate-900 hover:bg-slate-50"
+          >
+            Voir / Imprimer les pointages
+          </a>
+        </div>
           <p className="mt-2 text-slate-600">
             La période va du 25 d’un mois au 24 du suivant. Le paiement n’est possible
             qu’après validation de la direction.

@@ -95,9 +95,9 @@ export default function DashboardPage() {
     if (access === "accounting") {
       setAccessMessage("Accès refusé : module réservé à la comptabilité ou à la direction");
     }
-    const module = new URLSearchParams(window.location.search).get("module");
-    if (module) {
-      setAccessMessage(`Module ${module} désactivé pour cette entreprise.`);
+    const requestedModule = new URLSearchParams(window.location.search).get("module");
+    if (requestedModule) {
+      setAccessMessage(`Module ${requestedModule} désactivé pour cette entreprise.`);
     }
 
     const storedUser = localStorage.getItem("user");
@@ -198,15 +198,23 @@ export default function DashboardPage() {
     role === "super_admin";
   // Les rôles ne pilotent plus les actions métier : la matrice user_permissions fait foi.
   const isAdminLike = isSuperAdmin || can("utilisateur", "view") || can("parametres", "view");
-  const isWarehouseManager = can("stock", "create") || can("stock", "validate");
-  const isReadOnlyRole = !can("stock", "create");
   const isDirectionRole = can("direction", "view") || can("demande", "validate");
   const isAccountingRole = can("comptabilite", "view");
-  const canManageWarehouse = can("stock", "create") || can("entrepot", "create");
   const canViewDirectionModules = isDirectionRole;
   const canViewAccounting = isAccountingRole;
   const canUsePos = can("pos", "view");
-  const modules = userData?.modules || {};
+
+  /* DASHBOARD_FRET_CAMERAS_MENU_V1 */
+  const isTriangleOrFatMat =
+    activeCompanyId === 1 ||
+    activeCompanyId === 5;
+
+  const canViewFreight =
+    isTriangleOrFatMat &&
+    can("fret_chine_mali", "view");
+
+  const canViewCameras = can("centre_camera", "view");
+
   const productModuleByDashboardKey: Record<string, ProductModule> = {
     ia: "ia",
     marketplace: "marketplace",
@@ -293,7 +301,7 @@ export default function DashboardPage() {
     </li>
   </Link>
 
-  {moduleEnabled("ia") && (
+  {moduleEnabled("ia") && can("ia", "view") && (
     <Link href="/assistant">
       <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
         <Bot size={20} />
@@ -312,7 +320,7 @@ export default function DashboardPage() {
   )}
 
 
-  {moduleEnabled("chat") && (
+  {moduleEnabled("chat") && can("chat", "view") && (
     <Link href="/chat">
       <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
         <MessageCircle size={20} />
@@ -321,7 +329,34 @@ export default function DashboardPage() {
     </Link>
   )}
 
-  {moduleEnabled("notifications") && (
+  {canViewFreight && (
+    <Link href="/fret-chine-mali">
+      <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+        <Package size={20} />
+        Fret Chine → Mali
+      </li>
+    </Link>
+  )}
+
+  {canViewCameras && (
+    <Link href="/cameras">
+      <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+        <Activity size={20} />
+        Centre Caméras
+      </li>
+    </Link>
+  )}
+
+  {moduleEnabled("notifications") && can("notification", "view") && (
+  <Link href="/rappels">
+    <div className="company-sidebar-item">
+      <span>⏰</span>
+      <span>Rappels</span>
+    </div>
+  </Link>
+)}
+
+{moduleEnabled("notifications") && can("notification", "view") && (
     <Link href="/notifications">
       <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
         <Bell size={20} />
@@ -330,7 +365,7 @@ export default function DashboardPage() {
     </Link>
   )}
 
-  {moduleEnabled("produits") && (
+  {moduleEnabled("produits") && can("produit", "view") && (
     <Link href="/produits">
       <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
         <Package size={20} />
@@ -339,7 +374,7 @@ export default function DashboardPage() {
     </Link>
   )}
 
-  {canManageWarehouse && (moduleEnabled("crm") || moduleEnabled("partenaires")) && (
+  {can("partenaire", "view") && (moduleEnabled("crm") || moduleEnabled("partenaires")) && (
     <Link href="/partenaires">
       <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
         <Handshake size={20} />
@@ -348,7 +383,7 @@ export default function DashboardPage() {
     </Link>
   )}
 
-  {moduleEnabled("stock") && (
+  {moduleEnabled("stock") && can("stock", "view") && (
     <Link href="/stocks">
       <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
         <Boxes size={20} />
@@ -357,7 +392,7 @@ export default function DashboardPage() {
     </Link>
   )}
 
-  {moduleEnabled("inventaire") && (
+  {moduleEnabled("inventaire") && can("stock.inventaire", "view") && (
     <Link href="/inventaires">
       <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
         <ClipboardList size={20} />
@@ -366,9 +401,9 @@ export default function DashboardPage() {
     </Link>
   )}
 
-  {isAdminLike && (
+  {(can("entrepot", "view") || can("stock.emplacement", "view")) && (
     <>
-      {moduleEnabled("entrepots") && (
+      {moduleEnabled("entrepots") && can("entrepot", "view") && (
         <Link href="/entrepots">
           <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
             <Warehouse size={20} />
@@ -377,7 +412,7 @@ export default function DashboardPage() {
         </Link>
       )}
 
-      {moduleEnabled("emplacements") && (
+      {moduleEnabled("emplacements") && can("stock.emplacement", "view") && (
         <Link href="/emplacements">
           <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
             <MapPin size={20} />
@@ -388,7 +423,7 @@ export default function DashboardPage() {
     </>
   )}
 
-  {moduleEnabled("stock") && (
+  {moduleEnabled("stock") && can("stock", "view") && (
     <Link href="/scanner">
       <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
         <ScanLine size={20} />
@@ -406,7 +441,7 @@ export default function DashboardPage() {
     </Link>
   )}
 
-  {moduleEnabled("marketplace") && (
+  {moduleEnabled("marketplace") && can("marketplace", "view") && (
     <Link href="/marketplace">
       <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
         <ShoppingCart size={20} />
@@ -415,7 +450,7 @@ export default function DashboardPage() {
     </Link>
   )}
 
-  {moduleEnabled("automobile") && (
+  {moduleEnabled("automobile") && can("automobile", "view") && (
     <Link href="/automobile">
       <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
         <Car size={20} />
@@ -424,7 +459,7 @@ export default function DashboardPage() {
     </Link>
   )}
 
-  {(moduleEnabled("immobilier") || moduleEnabled("hotel")) && (
+  {(moduleEnabled("immobilier") || moduleEnabled("hotel")) && can("immobilier", "view") && (
     <Link href="/immobilier">
       <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
         <Building2 size={20} />
@@ -433,7 +468,7 @@ export default function DashboardPage() {
     </Link>
   )}
 
-  {moduleEnabled("restaurant") && (
+  {moduleEnabled("restaurant") && can("restaurant", "view") && (
     <Link href="/restaurant">
       <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
         <Utensils size={20} />
@@ -442,7 +477,7 @@ export default function DashboardPage() {
     </Link>
   )}
 
-  {moduleEnabled("laboratoire") && (
+  {moduleEnabled("laboratoire") && can("laboratoire", "view") && (
     <Link href="/laboratoire">
       <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
         <FlaskConical size={20} />
@@ -451,7 +486,7 @@ export default function DashboardPage() {
     </Link>
   )}
 
-  {activeCompanyId !== 5 && moduleEnabled("cement") && (
+  {activeCompanyId !== 5 && moduleEnabled("cement") && can("ciment", "view") && (
     <Link href="/ciment">
       <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
         <Factory size={20} />
@@ -460,7 +495,7 @@ export default function DashboardPage() {
     </Link>
   )}
 
-  {activeCompanyId === 5 && moduleEnabled("sand") && (
+  {activeCompanyId === 5 && moduleEnabled("sand") && can("sable", "view") && (
     <Link href="/sable">
       <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
         <Factory size={20} />
@@ -502,7 +537,7 @@ export default function DashboardPage() {
     </>
   )}
 
-  {moduleEnabled("stock") && (
+  {moduleEnabled("stock") && can("stock", "view") && (
     <Link href="/demandes-stock">
       <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
         <ClipboardList size={20} />
@@ -548,7 +583,7 @@ export default function DashboardPage() {
 
   {(moduleEnabled("documents") || moduleEnabled("rapports")) && (
     <>
-      {moduleEnabled("documents") && (
+      {moduleEnabled("documents") && can("document", "view") && (
         <Link href="/documents">
           <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
             <FileText size={20} />
@@ -557,7 +592,7 @@ export default function DashboardPage() {
         </Link>
       )}
 
-      {moduleEnabled("rapports") && (
+      {moduleEnabled("rapports") && can("rapport", "view") && (
         <Link href="/rapports">
           <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
             <BarChart3 size={20} />
@@ -569,7 +604,7 @@ export default function DashboardPage() {
     </>
   )}
 
-  {(canManageWarehouse || isReadOnlyRole) && moduleEnabled("alertes") && (
+  {can("notification", "view") && moduleEnabled("alertes") && (
     <Link href="/alertes">
       <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
         <TriangleAlert size={20} />
@@ -578,9 +613,10 @@ export default function DashboardPage() {
     </Link>
   )}
 
-  {isAdminLike && (
+  {(can("activites", "view") || can("utilisateur", "view") ||
+    can("utilisateur.permissions", "manage") || can("badge", "view")) && (
     <>
-      {moduleEnabled("activites") && (
+      {moduleEnabled("activites") && can("activites", "view") && (
         <Link href="/activites">
           <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
             <Activity size={20} />
@@ -589,7 +625,7 @@ export default function DashboardPage() {
         </Link>
       )}
 
-      {moduleEnabled("utilisateurs") && (
+      {moduleEnabled("utilisateurs") && can("utilisateur", "view") && (
         <Link href="/utilisateurs">
           <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
             <Users size={20} />
@@ -611,7 +647,7 @@ export default function DashboardPage() {
 
       {/* Les badges des COMPTES utilisateurs — à ne pas confondre avec les
           badges QR des employés de pointage, qui ont leur propre écran. */}
-      {moduleEnabled("badges") && (
+      {moduleEnabled("badges") && can("badge", "view") && (
         <Link href="/badges">
           <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
             Badges des comptes
@@ -680,6 +716,15 @@ export default function DashboardPage() {
       <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
         <Wallet size={20} />
         Avances sur salaire
+      </li>
+    </Link>
+  )}
+
+  {can("presentation_reunion", "view") && (
+    <Link href="/reunion">
+      <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+        <BarChart3 size={20} />
+        Présentation hebdomadaire
       </li>
     </Link>
   )}

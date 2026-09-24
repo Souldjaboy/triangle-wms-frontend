@@ -217,7 +217,7 @@ export default function EtatsSablePage() {
               Imprimer l&apos;état
             </button>
           </div>
-          <div className="doc-sheet mx-auto mt-3 w-[297mm] max-w-full bg-white p-[12mm] text-black shadow print:w-auto print:p-0 print:shadow-none">
+          <div className="doc-sheet mx-auto mt-3 w-[297mm] max-w-full bg-white p-[12mm] text-black shadow print:shadow-none">
             <PrintableCompanyHeader
               company={{ ...company, email: undefined }}
               documentTitle="État des factures"
@@ -284,11 +284,96 @@ export default function EtatsSablePage() {
       )}
 
       <style jsx global>{`
+        /* SAND_ETAT_PRINT_SAME_AS_SCREEN_V1 */
+
+        @page {
+          size: A4 landscape;
+          margin: 0;
+        }
+
         @media print {
-          @page { size: A4 landscape; margin: 10mm; }
-          body { background: #fff; }
-          .doc-sheet tr { break-inside: avoid; page-break-inside: avoid; }
-          .signature-zone { break-inside: avoid; page-break-inside: avoid; }
+
+          html,
+          body {
+            width: 297mm !important;
+            min-width: 297mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
+          }
+
+          html,
+          body,
+          body * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+
+          main {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
+          }
+
+          /*
+           * La feuille reste exactement comme à l'écran :
+           * 297 mm de large, même padding, même design.
+           */
+          .doc-sheet {
+            width: 297mm !important;
+            min-width: 297mm !important;
+            max-width: 297mm !important;
+
+            margin: 0 !important;
+            padding: 12mm !important;
+
+            box-sizing: border-box !important;
+
+            background: white !important;
+            color: black !important;
+
+            box-shadow: none !important;
+          }
+
+          /*
+           * Le tableau peut continuer sur une page suivante
+           * si trop de lignes, sans changer de modèle.
+           */
+          .doc-sheet table {
+            width: 100% !important;
+            table-layout: auto !important;
+            border-collapse: collapse !important;
+          }
+
+          .doc-sheet thead {
+            display: table-header-group !important;
+          }
+
+          .doc-sheet tfoot {
+            display: table-row-group !important;
+          }
+
+          .doc-sheet tr {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+
+          .doc-sheet th,
+          .doc-sheet td {
+            break-inside: avoid !important;
+          }
+
+          .signature-zone {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+
+          /*
+           * Les boutons / éléments écran ne sont jamais imprimés.
+           */
+          .print\:hidden {
+            display: none !important;
+          }
         }
       `}</style>
     </main>

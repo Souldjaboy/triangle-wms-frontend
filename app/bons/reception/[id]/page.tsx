@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { authFetch } from "../../../lib/api";
+import PrintableCompanyHeader from "../../../components/PrintableCompanyHeader";
 import { usePermissions } from "../../../lib/permissions";
 
 /**
@@ -116,30 +117,15 @@ export default function BonReceptionPage() {
         )}
 
         {/* En-tête */}
-        <header className="flex items-start justify-between border-b-2 border-black pb-3">
-          <div className="flex items-start gap-3">
-            {company.logo_url ? (
-              <img src={company.logo_url} alt="Logo" className="h-16 w-16 object-contain" />
-            ) : (
-              <div className="flex h-16 w-16 items-center justify-center border border-black text-xl font-black">
-                {(company.company_name || "T").charAt(0).toUpperCase()}
-              </div>
-            )}
-            <div>
-              <p className="text-lg font-black uppercase">{company.company_name || "TRIANGLE WMS PRO"}</p>
-              {company.address && <p className="text-xs">{company.address}</p>}
-              {company.phone && <p className="text-xs">Tél. : {company.phone}</p>}
-            </div>
-          </div>
-          <div className="text-right">
-            <p className="text-xl font-black tracking-wide">{title}</p>
-            <p className="text-sm font-bold">N° {doc.doc_number}</p>
-            <p className="text-xs">Date : {fmtDate(doc.received_at_date) || fmtDate(req.requested_at)}</p>
-            <p className={`mt-1 inline-block border px-2 py-0.5 text-xs font-black ${isDraft ? "border-black" : "border-black bg-black text-white"}`}>
-              {doc.status}
-            </p>
-          </div>
-        </header>
+        <PrintableCompanyHeader
+          company={company}
+          documentTitle={title}
+          documentNumber={`N° ${doc.doc_number}`}
+          documentDate={`Date : ${
+            fmtDate(doc.received_at_date) ||
+            fmtDate(req.requested_at)
+          }`}
+        />
 
         {/* Références */}
         <section className="mt-4 grid grid-cols-2 gap-x-6 gap-y-1 text-sm">

@@ -29,6 +29,7 @@ type Mouvement = {
   reference: string; reason: string; performed_by_name: string; created_at: string;
   reverses_repayment_id: number | null;
 };
+type Portee = "self" | "all";
 
 const STATUTS: Record<string, { texte: string; classe: string }> = {
   BROUILLON:        { texte: "Brouillon",                classe: "bg-slate-200 text-slate-800" },
@@ -60,6 +61,8 @@ export default function AvancesPage() {
   const peutAnnuler = can("paie.avance", "cancel");
 
   const [avances, setAvances] = useState<Avance[]>([]);
+  const [portee, setPortee] = useState<Portee | null>(null);
+  const [monEmploye, setMonEmploye] = useState<any>(null);
   const [employes, setEmployes] = useState<any[]>([]);
   const [comptes, setComptes] = useState<{ banques: any[]; caisses: any[] }>({ banques: [], caisses: [] });
   const [fiche, setFiche] = useState<{ avance: Avance; echeancier: Echeance[]; mouvements: Mouvement[] } | null>(null);
@@ -70,15 +73,28 @@ export default function AvancesPage() {
   const [nouvelle, setNouvelle] = useState({ employee_id: "", amount_requested: "", installment_amount: "", reason: "" });
 
   const charger = useCallback(async () => {
-    const [ra, re, rb, rc] = await Promise.all([
-      authFetch("/avances", { cache: "no-store" }),
+    const ra = await authFetch("/avances", { cache: "no-store" });
+    const da = await ra.json().catch(() => ({}));
+    if (!ra.ok) { setErreur(da.error || "Impossible de charger les avances."); return; }
+    setAvances(Array.isArray(da.avances) ? da.avances : []);
+    const prochainePortee: Portee = da.scope === "all" ? "all" : "self";
+    setPortee(prochainePortee);
+    setMonEmploye(da.employee || null);
+
+    /* Un salarié en portée personnelle ne télécharge jamais l'annuaire des
+       salariés, les banques ni les caisses. La confidentialité ne dépend pas
+       seulement de ce qui est dessiné à l'écran. */
+    if (prochainePortee !== "all") {
+      setEmployes([]);
+      setComptes({ banques: [], caisses: [] });
+      return;
+    }
+
+    const [re, rb, rc] = await Promise.all([
       authFetch("/attendance-v2/employees", { cache: "no-store" }),
       authFetch("/accounting/banks", { cache: "no-store" }).catch(() => null),
       authFetch("/caisses", { cache: "no-store" }).catch(() => null),
     ]);
-    const da = await ra.json().catch(() => ({}));
-    if (!ra.ok) { setErreur(da.error || "Impossible de charger les avances."); return; }
-    setAvances(Array.isArray(da.avances) ? da.avances : []);
     const de = await re.json().catch(() => ({}));
     setEmployes(Array.isArray(de.employees) ? de.employees : []);
     const banques = rb && rb.ok ? await rb.json().catch(() => []) : [];
@@ -114,30 +130,912 @@ export default function AvancesPage() {
     setFiche({ avance: d.avance, echeancier: d.echeancier || [], mouvements: d.mouvements || [] });
   };
 
-  /** Choisir un compte financier, en toutes lettres. */
-  const choisirCompte = (): { caisse_id?: number; bank_id?: number } | null => {
+  /* SALARY_ADVANCE_TREASURY_V3 */
+
+  /**
+   * Aucun bank_id / caisse_id =
+   * Trésorerie générale de la société active.
+   */
+  const choisirCompte = (): {
+    caisse_id?: number;
+    bank_id?: number;
+  } | null => {
+
     const { banques, caisses } = comptes;
-    const choix = window.prompt("Depuis quel compte ? Tapez « caisse » ou « banque » :",
-      caisses.length ? "caisse" : "banque");
-    if (!choix) return null;
-    const parCaisse = /caisse/i.test(choix);
-    const liste = parCaisse ? caisses : banques;
-    if (!liste.length) { setErreur(parCaisse ? "Aucune caisse ouverte." : "Aucune banque enregistrée."); return null; }
-    const nomDe = (c: any) => c.nom_caisse || c.bank_name || `#${c.id}`;
-    const rang = Number(window.prompt(
-      liste.map((c: any, i: number) => `${i + 1}. ${nomDe(c)}`).join("\n"), "1"));
-    const compte = liste[rang - 1];
-    if (!compte) return null;
-    return parCaisse ? { caisse_id: compte.id } : { bank_id: compte.id };
+
+    const choix = window.prompt(
+      [
+        "Depuis quel compte ?",
+        "",
+        "1. tresorerie",
+        "2. caisse",
+        "3. banque",
+        "",
+        "Par défaut : tresorerie"
+      ].join("\n"),
+      "tresorerie"
+    );
+
+    if (choix === null) return null;
+
+    const valeur = String(choix)
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toLowerCase();
+
+    /*
+     * {} est volontaire :
+     * le backend interprète l'absence de
+     * bank_id et caisse_id comme Trésorerie.
+     */
+    if (
+      !valeur ||
+      valeur === "1" ||
+      valeur === "tresorerie" ||
+      valeur === "treso"
+    ) {
+      return {};
+    }
+
+    const parCaisse =
+      valeur === "2" ||
+      valeur.includes("caisse");
+
+    const parBanque =
+      valeur === "3" ||
+      valeur.includes("banque");
+
+    if (!parCaisse && !parBanque) {
+      setErreur(
+        "Choisissez tresorerie, caisse ou banque."
+      );
+      return null;
+    }
+
+    const liste =
+      parCaisse ? caisses : banques;
+
+    if (!liste.length) {
+      setErreur(
+        parCaisse
+          ? "Aucune caisse disponible."
+          : "Aucune banque disponible."
+      );
+      return null;
+    }
+
+    const nomDe = (c: any) =>
+      c.nom_caisse ||
+      c.bank_name ||
+      c.name ||
+      `#${c.id}`;
+
+    const choixCompte = window.prompt(
+      [
+        parCaisse
+          ? "Choisissez la caisse :"
+          : "Choisissez la banque :",
+        "",
+        ...liste.map(
+          (c: any, i: number) =>
+            `${i + 1}. ${nomDe(c)}`
+        )
+      ].join("\n"),
+      "1"
+    );
+
+    if (choixCompte === null) {
+      return null;
+    }
+
+    const rang =
+      Number(choixCompte);
+
+    const compte =
+      liste[rang - 1];
+
+    if (!compte) {
+      setErreur("Compte invalide.");
+      return null;
+    }
+
+    return parCaisse
+      ? {
+          caisse_id:
+            Number(compte.id)
+        }
+      : {
+          bank_id:
+            Number(compte.id)
+        };
   };
+
+
+  const imprimerBonAvance = (
+    data: {
+      avance: any;
+      echeancier: any[];
+      mouvements: any[];
+    }
+  ) => {
+
+    const a = data.avance;
+
+    /* SALARY_ADVANCE_DOCUMENT_3_SIGNATURES_V3 */
+    const montantAccorde =
+      Number(
+        a.amount_paid ||
+        a.amount_authorized ||
+        a.amount_requested ||
+        0
+      );
+
+    const resteARegulariser =
+      Math.max(
+        0,
+        Number(a.balance || 0)
+      );
+
+    const montantRegularise =
+      Math.max(
+        0,
+        montantAccorde - resteARegulariser
+      );
+
+    const statutRegularisation =
+      montantAccorde > 0 &&
+      resteARegulariser <= 0
+        ? "Intégralement régularisée"
+        : montantRegularise > 0
+          ? "Partiellement régularisée"
+          : "À régulariser";
+
+    const w = window.open(
+      "",
+      "_blank",
+      "width=900,height=1000"
+    );
+
+    if (!w) {
+      setErreur(
+        "Autorisez les fenêtres contextuelles pour imprimer."
+      );
+      return;
+    }
+
+    const esc = (v: unknown) =>
+      String(v ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+
+    const compte =
+      a.bank_id
+        ? "Banque"
+        : a.caisse_id
+          ? "Caisse"
+          : "Trésorerie générale";
+
+    const echeancier =
+      (data.echeancier || [])
+        .map(
+          (e: any) => `
+            <tr>
+              <td>${e.rank}</td>
+              <td>${esc(e.period_code)}</td>
+              <td class="num">
+                ${fcfa(e.amount_due)}
+              </td>
+              <td class="num">
+                ${fcfa(e.amount_taken)}
+              </td>
+              <td>
+                ${
+                  e.status === "RETENUE"
+                    ? "Retenue"
+                    : e.status === "A_VENIR"
+                      ? "À venir"
+                      : esc(e.status)
+                }
+              </td>
+            </tr>
+          `
+        )
+        .join("");
+
+    w.document.write(`<!doctype html>
+<html lang="fr">
+<head>
+
+<meta charset="utf-8">
+<title>Avance ${esc(a.reference)}</title>
+
+<style>
+
+@page {
+  size: A4 portrait;
+  margin: 12mm;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: white;
+  color: black;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 12px;
+}
+
+.document {
+  width: 100%;
+}
+
+.entete {
+  display: flex;
+  justify-content: space-between;
+  gap: 25px;
+  border-bottom: 3px solid black;
+  padding-bottom: 12px;
+}
+
+.societe {
+  font-size: 19px;
+  font-weight: 900;
+}
+
+.titre {
+  text-align: right;
+}
+
+.titre h1 {
+  margin: 0;
+  font-size: 21px;
+}
+
+.reference {
+  margin-top: 5px;
+  font-family: monospace;
+  font-weight: bold;
+}
+
+.infos {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px 25px;
+  margin-top: 20px;
+}
+
+.champ {
+  border-bottom: 1px solid #aaa;
+  padding: 8px 0;
+}
+
+.libelle {
+  display: block;
+  text-transform: uppercase;
+  font-size: 9px;
+  color: #555;
+}
+
+.valeur {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: bold;
+}
+
+.montant {
+  margin-top: 22px;
+  border: 2px solid black;
+  padding: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.montant strong {
+  font-size: 20px;
+}
+
+.texte {
+  margin-top: 20px;
+  line-height: 1.7;
+  text-align: justify;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px;
+}
+
+th {
+  border-top: 2px solid black;
+  border-bottom: 2px solid black;
+  padding: 7px;
+  text-align: left;
+}
+
+td {
+  border-bottom: 1px solid #aaa;
+  padding: 7px;
+}
+
+.num {
+  text-align: right;
+}
+
+.note {
+  margin-top: 20px;
+  border: 1px solid #777;
+  padding: 10px;
+  line-height: 1.5;
+  font-size: 10px;
+}
+
+.signatures {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 28px;
+  margin-top: 55px;
+}
+
+.signature {
+  border-top: 1px solid black;
+  padding-top: 8px;
+  text-align: center;
+  font-weight: bold;
+}
+
+.espace {
+  height: 45px;
+}
+
+@media print {
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="document">
+
+  <div class="entete">
+
+    <div>
+      <div class="societe">
+        ${esc(
+          a.company_name ||
+          "Entreprise"
+        )}
+      </div>
+
+      <div>
+        Avance sur salaire
+      </div>
+    </div>
+
+    <div class="titre">
+      <h1>
+        RECONNAISSANCE D'AVANCE
+      </h1>
+
+      <div class="reference">
+        ${esc(a.reference)}
+      </div>
+    </div>
+
+  </div>
+
+
+  <div class="infos">
+
+    <div class="champ">
+      <span class="libelle">
+        Salarié
+      </span>
+
+      <span class="valeur">
+        ${esc(a.full_name)}
+      </span>
+    </div>
+
+
+    <div class="champ">
+      <span class="libelle">
+        Mode de décaissement
+      </span>
+
+      <span class="valeur">
+        ${compte}
+      </span>
+    </div>
+
+
+    <div class="champ">
+      <span class="libelle">
+        Première retenue
+      </span>
+
+      <span class="valeur">
+        ${esc(
+          a.first_period_code ||
+          "—"
+        )}
+      </span>
+    </div>
+
+
+    <div class="champ">
+      <span class="libelle">
+        Retenue mensuelle
+      </span>
+
+      <span class="valeur">
+        ${
+          Number(
+            a.installment_amount
+          )
+            ? fcfa(
+                a.installment_amount
+              )
+            : "En une fois"
+        }
+      </span>
+    </div>
+
+
+    <div class="champ">
+      <span class="libelle">
+        Motif
+      </span>
+
+      <span class="valeur">
+        ${esc(a.reason || "—")}
+      </span>
+    </div>
+
+
+    <div class="champ">
+      <span class="libelle">
+        Solde restant
+      </span>
+
+      <span class="valeur">
+        ${fcfa(a.balance || 0)}
+      </span>
+    </div>
+
+  </div>
+
+
+  <div class="montant">
+
+    <span>
+      Montant effectivement avancé
+    </span>
+
+    <strong>
+      ${fcfa(
+        a.amount_paid ||
+        a.amount_authorized ||
+        a.amount_requested
+      )}
+    </strong>
+
+  </div>
+
+
+  <div class="texte">
+
+    Je soussigné(e)
+    <strong>
+      ${esc(a.full_name)}
+    </strong>,
+    reconnais avoir reçu la somme
+    indiquée ci-dessus à titre
+    d'avance sur salaire.
+
+    Le remboursement sera effectué
+    principalement par retenues sur
+    salaire selon l'échéancier prévu.
+
+    Je peux également effectuer à tout
+    moment un remboursement anticipé,
+    total ou partiel.
+
+  </div>
+
+
+  ${
+    echeancier
+      ? `
+        <table>
+
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Période</th>
+              <th class="num">
+                Prévu
+              </th>
+              <th class="num">
+                Retenu
+              </th>
+              <th>État</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            ${echeancier}
+          </tbody>
+
+        </table>
+      `
+      : ""
+  }
+
+
+  <div class="note">
+
+    Chaque retenue mensuelle ou
+    remboursement effectué fera
+    apparaître le nouveau solde restant.
+
+    Une preuve distincte peut être
+    imprimée et signée après chaque
+    opération.
+
+  </div>
+
+
+    <div style="
+    margin-top:22px;
+    border:2px solid #111;
+    padding:12px 14px;
+  ">
+    <div style="
+      font-weight:900;
+      font-size:13px;
+      margin-bottom:8px;
+      text-transform:uppercase;
+    ">
+      Situation de l'avance
+    </div>
+
+    <table style="margin-top:0">
+      <tbody>
+        <tr>
+          <td>Montant accordé</td>
+          <td class="num">
+            <strong>${fcfa(montantAccorde)}</strong>
+          </td>
+        </tr>
+
+        <tr>
+          <td>Montant déjà régularisé / remboursé</td>
+          <td class="num">
+            <strong>${fcfa(montantRegularise)}</strong>
+          </td>
+        </tr>
+
+        <tr>
+          <td>Reste à régulariser</td>
+          <td class="num">
+            <strong>${fcfa(resteARegulariser)}</strong>
+          </td>
+        </tr>
+
+        <tr>
+          <td>Statut de régularisation</td>
+          <td class="num">
+            <strong>${esc(statutRegularisation)}</strong>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+<div class="signatures">
+
+    <div class="signature">
+
+      LE SALARIÉ
+
+      <div class="espace"></div>
+
+      Signature
+
+    </div>
+
+
+    <div class="signature">
+
+      LA DIRECTION
+
+      <div class="espace"></div>
+
+      Signature et cachet
+
+    </div>
+
+    <div class="signature">
+      LA COMPTABILITÉ
+      <div class="espace"></div>
+      Signature
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+window.onload = function () {
+  window.print();
+};
+</script>
+
+</body>
+</html>`);
+
+    w.document.close();
+  };
+
+
+  const imprimerPreuveAvance = (
+    a: any,
+    m: any
+  ) => {
+
+    const w = window.open(
+      "",
+      "_blank",
+      "width=850,height=900"
+    );
+
+    if (!w) return;
+
+    const montant =
+      Math.abs(
+        Number(m.amount || 0)
+      );
+
+    const solde =
+      Number(
+        m.balance_after || 0
+      );
+
+    w.document.write(`<!doctype html>
+<html lang="fr">
+
+<head>
+
+<meta charset="utf-8">
+
+<title>
+Preuve retenue avance
+</title>
+
+<style>
+
+@page {
+  size: A4 portrait;
+  margin: 15mm;
+}
+
+body {
+  color: black;
+  background: white;
+  font-family: Arial, sans-serif;
+}
+
+.cadre {
+  border: 2px solid black;
+  padding: 30px;
+}
+
+h1 {
+  margin-top: 0;
+  text-align: center;
+  font-size: 21px;
+}
+
+.ligne {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  border-bottom: 1px solid #aaa;
+  padding: 10px 0;
+}
+
+.texte {
+  margin-top: 30px;
+  line-height: 1.7;
+}
+
+.signatures {
+  display: flex;
+  gap: 80px;
+  margin-top: 70px;
+}
+
+.signature {
+  flex: 1;
+  border-top: 1px solid black;
+  padding-top: 8px;
+  text-align: center;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="cadre">
+
+<h1>
+ATTESTATION DE RETENUE /
+REMBOURSEMENT
+</h1>
+
+
+<div class="ligne">
+  <strong>Salarié</strong>
+  <span>
+    ${a.full_name || ""}
+  </span>
+</div>
+
+
+<div class="ligne">
+  <strong>Avance</strong>
+  <span>
+    ${a.reference || ""}
+  </span>
+</div>
+
+
+<div class="ligne">
+  <strong>Date</strong>
+
+  <span>
+    ${
+      new Date(
+        m.created_at
+      ).toLocaleDateString(
+        "fr-FR"
+      )
+    }
+  </span>
+</div>
+
+
+<div class="ligne">
+  <strong>Type</strong>
+
+  <span>
+    ${
+      ORIGINES[m.origin] ||
+      m.origin
+    }
+  </span>
+</div>
+
+
+<div class="ligne">
+
+  <strong>
+    Montant
+  </strong>
+
+  <span>
+    ${fcfa(montant)}
+  </span>
+
+</div>
+
+
+<div class="ligne">
+
+  <strong>
+    Solde restant
+  </strong>
+
+  <span>
+    ${fcfa(solde)}
+  </span>
+
+</div>
+
+
+<div class="texte">
+
+Le présent document confirme
+qu'un montant de
+<strong>
+${fcfa(montant)}
+</strong>
+
+a été ${
+  m.origin === "RETENUE_PAIE"
+    ? "retenu sur le salaire"
+    : "remboursé"
+}
+
+au titre de l'avance
+<strong>
+${a.reference || ""}
+</strong>.
+
+Après cette opération,
+le solde restant à rembourser est
+de
+
+<strong>
+${fcfa(solde)}
+</strong>.
+
+</div>
+
+
+<div class="signatures">
+
+  <div class="signature">
+    LE SALARIÉ
+    <br><br><br>
+    Signature
+  </div>
+
+  <div class="signature">
+    LA DIRECTION
+    <br><br><br>
+    Signature et cachet
+  </div>
+
+    <div class="signature">
+      LA COMPTABILITÉ
+      <div class="espace"></div>
+      Signature
+    </div>
+
+</div>
+
+</div>
+
+<script>
+window.onload=function(){
+  window.print();
+};
+</script>
+
+</body>
+</html>`);
+
+    w.document.close();
+  };
+
 
   const creer = async (e: React.FormEvent) => {
     e.preventDefault();
     const montant = Number(nouvelle.amount_requested);
-    if (!nouvelle.employee_id || !(montant > 0)) { setErreur("Employé et montant sont obligatoires."); return; }
+    if ((portee === "all" && !nouvelle.employee_id) || !(montant > 0)) {
+      setErreur(portee === "all" ? "Employé et montant sont obligatoires." : "Le montant est obligatoire.");
+      return;
+    }
     const d = new Date();
     await agir("/avances", {
-      employee_id: Number(nouvelle.employee_id),
+      ...(portee === "all" ? { employee_id: Number(nouvelle.employee_id) } : {}),
       amount_requested: montant,
       installment_amount: Number(nouvelle.installment_amount || 0),
       first_period_code: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
@@ -157,6 +1055,11 @@ export default function AvancesPage() {
             Une avance n’est pas une dépense : c’est de l’argent avancé au salarié, qu’il
             rembourse ensuite. Le solde restant décide de tout.
           </p>
+          {portee === "self" && (
+            <p className="mt-2 rounded-xl bg-blue-50 p-3 text-sm font-bold text-blue-900">
+              Espace personnel de {monEmploye?.full_name || "salarié"} : vous voyez uniquement vos demandes.
+            </p>
+          )}
         </header>
 
         {(message || erreur) && (
@@ -177,16 +1080,23 @@ export default function AvancesPage() {
           <section className="mt-6 rounded-2xl bg-white p-5 shadow-sm">
             <h2 className="text-xl font-black">Demander une avance</h2>
             <form onSubmit={creer} className="mt-4 grid gap-3 md:grid-cols-4">
-              <label className="block md:col-span-1">
-                <span className="mb-1 block text-sm font-bold">Employé</span>
-                <select className="min-h-12 w-full rounded-xl border p-3" value={nouvelle.employee_id}
-                  onChange={(e) => setNouvelle({ ...nouvelle, employee_id: e.target.value })}>
-                  <option value="">Choisir…</option>
-                  {employes.map((e) => (
-                    <option key={e.id} value={e.id}>{e.employee_number}. {e.full_name}</option>
-                  ))}
-                </select>
-              </label>
+              {portee === "all" ? (
+                <label className="block md:col-span-1">
+                  <span className="mb-1 block text-sm font-bold">Employé</span>
+                  <select className="min-h-12 w-full rounded-xl border p-3" value={nouvelle.employee_id}
+                    onChange={(e) => setNouvelle({ ...nouvelle, employee_id: e.target.value })}>
+                    <option value="">Choisir…</option>
+                    {employes.map((e) => (
+                      <option key={e.id} value={e.id}>{e.employee_number}. {e.full_name}</option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <div className="rounded-xl bg-slate-100 p-3 md:col-span-1">
+                  <span className="block text-sm font-bold">Demande pour</span>
+                  <span>{monEmploye?.full_name || "Votre fiche salarié"}</span>
+                </div>
+              )}
               <label className="block">
                 <span className="mb-1 block text-sm font-bold">Montant demandé</span>
                 <input type="number" min={1} className="min-h-12 w-full rounded-xl border p-3"
@@ -224,8 +1134,34 @@ export default function AvancesPage() {
                 <h2 className="text-xl font-black">{fiche.avance.full_name}</h2>
                 <p className="font-mono text-sm text-slate-500">{fiche.avance.reference}</p>
               </div>
-              <button onClick={() => setFiche(null)}
-                className="min-h-10 rounded-xl bg-slate-200 px-4 font-black">Fermer</button>
+              <div className="flex flex-wrap gap-2">
+
+                {["VERSEE", "EN_REMBOURSEMENT", "REMBOURSEE"].includes(
+                  fiche.avance.status
+                ) && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      imprimerBonAvance(
+                        fiche
+                      )
+                    }
+                    className="min-h-10 rounded-xl border border-slate-900 bg-white px-4 font-black"
+                  >
+                    🖨️ Bon d&apos;avance
+                  </button>
+                )}
+
+                <button
+                  onClick={() =>
+                    setFiche(null)
+                  }
+                  className="min-h-10 rounded-xl bg-slate-200 px-4 font-black"
+                >
+                  Fermer
+                </button>
+
+              </div>
             </div>
 
             <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -286,6 +1222,26 @@ export default function AvancesPage() {
                           <td className="p-2">{fcfa(m.balance_after)}</td>
                           <td className="p-2 text-slate-500">{m.performed_by_name}</td>
                           <td className="p-2">
+
+                            <div className="flex flex-wrap gap-2">
+
+                              {m.origin !== "CONTREPASSATION" && (
+
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    imprimerPreuveAvance(
+                                      fiche.avance,
+                                      m
+                                    )
+                                  }
+                                  className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-black"
+                                >
+                                  🖨️ Preuve
+                                </button>
+
+                              )}
+
                             {peutAnnuler && m.origin !== "CONTREPASSATION" && !m.reverses_repayment_id && (
                               <button disabled={occupe} onClick={async () => {
                                 const motif = window.prompt("Motif de la contrepassation (obligatoire) :") ?? "";
@@ -296,6 +1252,9 @@ export default function AvancesPage() {
                                 Contrepasser
                               </button>
                             )}
+
+                            </div>
+
                           </td>
                         </tr>
                       ))}
@@ -309,7 +1268,9 @@ export default function AvancesPage() {
 
         {/* ── LA LISTE ── */}
         <section className="mt-6 overflow-hidden rounded-2xl bg-white shadow-sm">
-          <div className="border-b p-5"><h2 className="text-xl font-black">Toutes les avances</h2></div>
+          <div className="border-b p-5"><h2 className="text-xl font-black">
+            {portee === "all" ? "Toutes les avances" : "Mes demandes d’avance"}
+          </h2></div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[900px] text-left">
               <thead className="bg-slate-50 text-sm text-slate-600">

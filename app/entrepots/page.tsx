@@ -1,12 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { authHeaders } from "../lib/api";
+import { usePermissions } from "../lib/permissions";
 
 export default function WarehousesPage() {
+  const { can } = usePermissions();
   const [warehouses, setWarehouses] = useState<any[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [message, setMessage] = useState("");
-  const [isAdmin, setIsAdmin] = useState(false);
+  const canCreate = can("entrepot", "create");
+  const canUpdate = can("entrepot", "update");
+  const canDelete = can("entrepot", "delete");
 
   const [formData, setFormData] = useState({
     code: "",
@@ -19,9 +24,7 @@ export default function WarehousesPage() {
 
   const fetchWarehouses = async () => {
     const response = await fetch("/api/warehouses", {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-      },
+      headers: authHeaders(),
     });
 
     const data = await response.json();
@@ -31,20 +34,6 @@ export default function WarehousesPage() {
 
   useEffect(() => {
     fetchWarehouses();
-
-    const savedUser = localStorage.getItem("user");
-
-    if (savedUser) {
-      const user = JSON.parse(savedUser);
-
-      if (
-        user.role === "admin" ||
-        user.role === "super_admin" ||
-        user.is_super_admin === true
-      ) {
-        setIsAdmin(true);
-      }
-    }
   }, []);
 
   const handleChange = (e: any) => {
@@ -71,15 +60,12 @@ export default function WarehousesPage() {
     e.preventDefault();
     setMessage("");
 
-    if (!isAdmin) {
+    if ((editingId && !canUpdate) || (!editingId && !canCreate)) {
       alert("Vous n'avez pas l'autorisation.");
       return;
     }
 
-    const headers = {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${localStorage.getItem("token")}`,
-    };
+    const headers = authHeaders({ "Content-Type": "application/json" });
 
     let response;
 
@@ -104,11 +90,9 @@ export default function WarehousesPage() {
       return;
     }
 
-    setMessage(
-      editingId
-        ? "Entrepôt modifié avec succès."
-        : "Entrepôt ajouté avec succès."
-    );
+    const crees = Number(data.rayons_created || 0);
+    setMessage(`${editingId ? "Entrepôt modifié" : "Entrepôt ajouté"} avec succès.` +
+      (crees ? ` ${crees} rayon(s) utilisable(s) créé(s).` : ""));
 
     resetForm();
     await fetchWarehouses();
@@ -128,7 +112,7 @@ export default function WarehousesPage() {
   };
 
   const deleteWarehouse = async (id: number) => {
-    if (!isAdmin) {
+    if (!canDelete) {
       alert("Vous n'avez pas l'autorisation.");
       return;
     }
@@ -137,9 +121,7 @@ export default function WarehousesPage() {
 
     await fetch(`/api/warehouses/${id}`, {
       method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-      },
+      headers: authHeaders(),
     });
 
     await fetchWarehouses();
@@ -152,7 +134,7 @@ export default function WarehousesPage() {
       </h1>
 
       <p className="text-gray-500 mb-8">
-        Gestion des entrepôts de l’entreprise.
+        Gestion simple des entrepôts et de leurs rayons.
       </p>
 
       {message && (
@@ -161,9 +143,9 @@ export default function WarehousesPage() {
         </div>
       )}
 
-      <form
+      {(canCreate || (editingId !== null && canUpdate)) && <form
         onSubmit={handleSubmit}
-        className="bg-white p-6 rounded-2xl shadow mb-10 grid grid-cols-3 gap-4"
+        className="bg-white p-6 rounded-2xl shadow mb-10 grid gap-4 md:grid-cols-3"
       >
         <input
           type="text"
@@ -206,7 +188,7 @@ export default function WarehousesPage() {
         <input
           type="number"
           name="racks_count"
-          placeholder="Nombre de rayons"
+          placeholder="Nombre de rayons à rendre utilisables"
           value={formData.racks_count}
           onChange={handleChange}
           className="border p-3 rounded-xl text-black"
@@ -228,7 +210,11 @@ export default function WarehousesPage() {
         >
           {editingId ? "Modifier entrepôt" : "Ajouter entrepôt"}
         </button>
-      </form>
+        <p className="text-sm text-gray-500 md:col-span-3">
+          Si vous augmentez ce nombre, les rayons manquants sont créés avec un premier emplacement vide.
+          Réduire le nombre ne supprime jamais un rayon qui pourrait contenir du stock.
+        </p>
+      </form>}
 
       <div className="bg-white rounded-2xl shadow p-6">
         <h2 className="text-2xl font-bold text-black mb-5">
@@ -261,19 +247,19 @@ export default function WarehousesPage() {
                   <td>{warehouse.racks_count || 0}</td>
                   <td>{warehouse.status}</td>
                   <td className="space-x-2">
-                    <button
+                    {canUpdate && <button
                       onClick={() => editWarehouse(warehouse)}
                       className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold"
                     >
                       Modifier
-                    </button>
+                    </button>}
 
-                    <button
+                    {canDelete && <button
                       onClick={() => deleteWarehouse(warehouse.id)}
                       className="bg-red-600 text-white px-4 py-2 rounded-xl font-bold"
                     >
                       Supprimer
-                    </button>
+                    </button>}
                   </td>
                 </tr>
               ))}

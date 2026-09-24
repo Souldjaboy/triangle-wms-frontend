@@ -46,6 +46,62 @@ export default function CementPricesPage() {
     }
   };
 
+
+  const modifier=async(r:any)=>{
+    const destination=prompt("Destination",r.destination);
+    if(destination===null) return;
+
+    const cement_price=prompt(
+      "Prix ciment",
+      String(r.cement_price)
+    );
+    if(cement_price===null) return;
+
+    const transport_price=prompt(
+      "Transport",
+      String(r.transport_price)
+    );
+    if(transport_price===null) return;
+
+    const rep=await authFetch(`/cement/prices/${r.id}`,{
+      method:"PATCH",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        destination,
+        cement_price:Number(cement_price),
+        transport_price:Number(transport_price)
+      })
+    });
+
+    const d=await rep.json().catch(()=>({}));
+
+    if(!rep.ok){
+      alert(d.error || "Modification impossible.");
+      return;
+    }
+
+    await load();
+  };
+
+  const supprimer=async(r:any)=>{
+    if(!confirm(
+      `Supprimer définitivement le tarif ${r.destination} ?`
+    )) return;
+
+    const rep=await authFetch(`/cement/prices/${r.id}`,{
+      method:"DELETE"
+    });
+
+    const d=await rep.json().catch(()=>({}));
+
+    if(!rep.ok){
+      alert(d.error || "Suppression impossible.");
+      return;
+    }
+
+    await load();
+  };
+
   if(!can("cement","view")) return <main className="p-8">Accès refusé.</main>;
 
   return (
@@ -77,6 +133,7 @@ export default function CementPricesPage() {
               <th className="p-3 text-left">Classe</th>
               <th className="p-3 text-left">Prix</th>
               <th className="p-3 text-left">Transport</th>
+              <th className="p-3 text-left">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -87,6 +144,27 @@ export default function CementPricesPage() {
                 <td className="p-3">{r.strength}</td>
                 <td className="p-3">{money(r.cement_price)}</td>
                 <td className="p-3">{money(r.transport_price)}</td>
+                <td className="p-3">
+                  <div className="flex gap-2">
+                    {can("cement","update") && (
+                      <button
+                        onClick={()=>modifier(r)}
+                        className="rounded bg-blue-600 px-3 py-2 text-xs font-bold text-white"
+                      >
+                        Modifier
+                      </button>
+                    )}
+
+                    {can("cement","delete") && (
+                      <button
+                        onClick={()=>supprimer(r)}
+                        className="rounded bg-red-600 px-3 py-2 text-xs font-bold text-white"
+                      >
+                        Supprimer
+                      </button>
+                    )}
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>

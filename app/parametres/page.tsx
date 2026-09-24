@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { authFetch } from "../lib/api";
 
 export default function ParametresPage() {
   const [message, setMessage] = useState("");
@@ -22,7 +23,7 @@ export default function ParametresPage() {
   });
 
   const fetchSettings = async () => {
-    const response = await fetch("/api/company-settings");
+    const response = await authFetch("/company-settings/current");
     const data = await response.json();
 
     if (data) {
@@ -65,7 +66,7 @@ export default function ParametresPage() {
     const uploadData = new FormData();
     uploadData.append("logo", file);
 
-    const response = await fetch("/api/upload-logo", {
+    const response = await authFetch("/upload-logo", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
@@ -106,7 +107,7 @@ export default function ParametresPage() {
       return;
     }
 
-    await fetch("/api/company-settings", {
+    await authFetch("/company-settings", {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
@@ -150,6 +151,32 @@ export default function ParametresPage() {
       <p className="text-gray-500 mb-8">
         Informations utilisées dans les rapports, PDF et documents officiels.
       </p>
+
+        <a
+          href="/parametres/documents"
+          className="mb-8 mt-5 flex items-center justify-between rounded-2xl border border-gray-200 bg-white px-6 py-5 shadow transition hover:-translate-y-0.5 hover:shadow-lg"
+        >
+          <div className="flex items-center gap-4">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-black text-2xl text-white">
+              📄
+            </div>
+
+            <div>
+              <div className="text-xl font-black text-black">
+                Documents & PDF
+              </div>
+
+              <div className="mt-1 text-sm text-gray-500">
+                Modèles, logo, couleurs, typographie, en-tête, pied de page et impression
+              </div>
+            </div>
+          </div>
+
+          <span className="text-2xl font-black text-black">
+            →
+          </span>
+        </a>
+
 
       {message && (
         <div className="bg-green-100 text-green-700 p-4 rounded-xl mb-6 font-bold">

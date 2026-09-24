@@ -2,6 +2,10 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import DashboardBackButton from "../components/DashboardBackButton";
 import PWARegister from "../components/PWARegister";
+import ChatRealtimeBridge from "../components/ChatRealtimeBridge";
+import TrianglePushManager from "../components/TrianglePushManager";
+import GlobalTriangleNotifications from "../components/GlobalTriangleNotifications";
+import InternalChatShareButton from "../components/InternalChatShareButton";
 import ProductAvailabilityGuard from "../components/ProductAvailabilityGuard";
 import { productConfig } from "./lib/product-config";
 import { absoluteUrl, compactObject, defaultSeoDescription, seoBusiness, seoKeywords, siteUrl } from "./lib/seo";
@@ -179,7 +183,11 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify([organizationJsonLd, localBusinessJsonLd, websiteJsonLd, softwareJsonLd]) }}
         />
         <PWARegister />
+        <ChatRealtimeBridge />
+        <TrianglePushManager />
+        <GlobalTriangleNotifications />
         <DashboardBackButton />
+        <InternalChatShareButton />
         <ProductAvailabilityGuard>{children}</ProductAvailabilityGuard>
       </body>
     </html>

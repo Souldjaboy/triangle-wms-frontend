@@ -78,6 +78,77 @@ export default function FactureSablePage() {
     return () => clearTimeout(t);
   }, [invoice, search, declarerImpression]);
 
+
+  function documentUrl() {
+    if (typeof window === "undefined") return "";
+    return window.location.href.split("?")[0];
+  }
+
+  function documentLabel() {
+    const anyDoc:any = invoice;
+
+    return (
+      anyDoc?.invoice_number ||
+      "Document"
+    );
+  }
+
+  function enregistrerPDF() {
+    /*
+     * Le navigateur ouvre son moteur PDF natif.
+     * Chrome / Edge / Safari :
+     * Imprimer -> Enregistrer au format PDF.
+     */
+    window.print();
+  }
+
+  function partagerWhatsApp() {
+    const texte =
+      `Bonjour,\n\nVeuillez trouver le document ${documentLabel()} :\n${documentUrl()}`;
+
+    window.open(
+      `https://wa.me/?text=${encodeURIComponent(texte)}`,
+      "_blank",
+      "noopener,noreferrer"
+    );
+  }
+
+  function partagerEmail() {
+    const sujet =
+      `${documentLabel()} - Triangle WMS`;
+
+    const corps =
+      `Bonjour,\n\nVeuillez trouver le document ${documentLabel()} à cette adresse :\n\n${documentUrl()}\n\nCordialement.`;
+
+    window.location.href =
+      `mailto:?subject=${encodeURIComponent(sujet)}&body=${encodeURIComponent(corps)}`;
+  }
+
+  async function partagerDocument() {
+    const data = {
+      title: documentLabel(),
+      text: `Document ${documentLabel()}`,
+      url: documentUrl()
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(data);
+        return;
+      }
+
+      await navigator.clipboard.writeText(documentUrl());
+      alert("Lien du document copié.");
+    } catch (e:any) {
+      if (e?.name !== "AbortError") {
+        try {
+          await navigator.clipboard.writeText(documentUrl());
+          alert("Lien du document copié.");
+        } catch {}
+      }
+    }
+  }
+
   if (error) return <div className="p-8 font-semibold text-red-700">{error}</div>;
   if (!invoice) return <div className="p-8 text-gray-600">Chargement de la facture…</div>;
 
@@ -90,6 +161,41 @@ export default function FactureSablePage() {
     <div className="min-h-screen bg-gray-200 py-6 print:bg-white print:py-0">
       <div className="mx-auto mb-4 flex max-w-[210mm] items-center justify-between gap-2 px-4 print:hidden">
         <Link href="/sable/factures" className="font-bold text-blue-700">← Factures sable</Link>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={enregistrerPDF}
+            className="rounded-lg bg-blue-700 px-3 py-2 text-sm font-bold text-white"
+          >
+            ⬇️ Télécharger PDF
+          </button>
+
+          <button
+            type="button"
+            onClick={partagerWhatsApp}
+            className="rounded-lg bg-green-600 px-3 py-2 text-sm font-bold text-white"
+          >
+            WhatsApp
+          </button>
+
+          <button
+            type="button"
+            onClick={partagerEmail}
+            className="rounded-lg bg-sky-700 px-3 py-2 text-sm font-bold text-white"
+          >
+            E-mail
+          </button>
+
+          <button
+            type="button"
+            onClick={partagerDocument}
+            className="rounded-lg border-2 border-slate-800 px-3 py-2 text-sm font-bold text-slate-900"
+          >
+            Partager
+          </button>
+        </div>
+
         <button
           onClick={() => { window.print(); declarerImpression(); }}
           className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white"
@@ -110,7 +216,7 @@ export default function FactureSablePage() {
         </div>
       )}
 
-      <div className="doc-sheet relative mx-auto w-[210mm] min-h-[297mm] bg-white p-[14mm] text-black shadow print:w-auto print:min-h-0 print:p-0 print:shadow-none">
+      <div className="doc-sheet relative mx-auto w-[210mm] min-h-[297mm] bg-white p-[14mm] text-black shadow print:shadow-none">
         {/* Filigrane ANNULÉ — visible à l'écran ET à l'impression : un
             document annulé ne doit jamais pouvoir être imprimé sans que ça se
             voie, y compris sur un exemplaire déjà tiré avant l'annulation. */}
@@ -187,11 +293,97 @@ export default function FactureSablePage() {
       </div>
 
       <style jsx global>{`
+        @page {
+          size: A4 portrait;
+          margin: 0;
+        }
+
         @media print {
-          @page { size: A4; margin: 12mm; }
-          body { background: #fff; }
-          .doc-sheet tr { break-inside: avoid; page-break-inside: avoid; }
-          .signature-zone { break-inside: avoid; page-break-inside: avoid; }
+
+          html,
+          body {
+            width: 210mm !important;
+            height: 297mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
+          }
+
+          /*
+           * IMPORTANT :
+           * conserver réellement les fonds noirs,
+           * couleurs, bordures et images comme à l'écran.
+           */
+          html,
+          body,
+          body * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+
+          /*
+           * Une seule vraie feuille A4.
+           * Aucun recalcul automatique de largeur par Chrome.
+           */
+          .doc-sheet {
+            width: 210mm !important;
+            min-width: 210mm !important;
+            max-width: 210mm !important;
+
+            height: 297mm !important;
+            min-height: 297mm !important;
+            max-height: 297mm !important;
+
+            margin: 0 !important;
+            padding: 14mm !important;
+
+            box-sizing: border-box !important;
+            overflow: hidden !important;
+
+            page-break-before: avoid !important;
+            page-break-after: avoid !important;
+            break-before: avoid-page !important;
+            break-after: avoid-page !important;
+
+            box-shadow: none !important;
+
+            transform: none !important;
+          }
+
+          /*
+           * L'enveloppe générale ne doit pas générer
+           * quelques pixels supplémentaires qui créent
+           * une deuxième page blanche.
+           */
+          body > div,
+          #__next,
+          main {
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+
+          .doc-sheet table,
+          .doc-sheet thead,
+          .doc-sheet tbody,
+          .doc-sheet tfoot,
+          .doc-sheet tr,
+          .doc-sheet td,
+          .doc-sheet th {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+
+          .signature-zone {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+
+          /*
+           * Tous les boutons/navigation restent invisibles.
+           */
+          .print\:hidden {
+            display: none !important;
+          }
         }
       `}</style>
     </div>

@@ -1107,7 +1107,9 @@ export default function StocksPage() {
           >
             <option value="">Choisir entrepôt destination</option>
 
-            {warehouses.map((warehouse: any) => (
+            {warehouses.filter((warehouse: any) =>
+              !formData.source_warehouse || warehouse.name !== formData.source_warehouse
+            ).map((warehouse: any) => (
               <option key={warehouse.id} value={warehouse.name}>
                 {warehouse.code} - {warehouse.name}
               </option>

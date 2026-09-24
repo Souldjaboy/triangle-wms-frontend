@@ -46,9 +46,10 @@ export default function CementUnpaidPage(){
             <th className="border p-2">Opération</th>
             <th className="border p-2">Client</th>
             <th className="border p-2">Site</th>
-            <th className="border p-2">Montant</th>
-            <th className="border p-2">Payé</th>
-            <th className="border p-2">Reste</th>
+            <th className="border p-2">Montant facture</th>
+            <th className="border p-2">Payé total</th>
+            <th className="border p-2">Dépôt utilisé</th>
+            <th className="border p-2">Reste réellement dû</th>
             <th className="border p-2">Statut</th>
             <th className="border p-2 print:hidden">Action</th>
           </tr>
@@ -64,6 +65,9 @@ export default function CementUnpaidPage(){
               <td className="border p-2">{r.destination}</td>
               <td className="border p-2 text-right">{money(r.total_amount)}</td>
               <td className="border p-2 text-right">{money(r.paid_amount)}</td>
+              <td className="border p-2 text-right">
+                {Number(r.deposit_used || 0) > 0 ? money(r.deposit_used) : "—"}
+              </td>
               <td className="border p-2 text-right font-bold">{money(r.remaining_amount)}</td>
               <td className="border p-2"><StatutFactureBadge status={r.status} /></td>
               <td className="border p-2 print:hidden">
@@ -86,7 +90,7 @@ export default function CementUnpaidPage(){
             <strong>{data.totals?.invoice_count || 0}</strong>
           </div>
           <div className="mt-2 flex justify-between text-lg">
-            <span>Total impayé :</span>
+            <span>Total réellement impayé :</span>
             <strong>{money(data.totals?.total_remaining || data.totals?.total_unpaid || 0)}</strong>
           </div>
         </div>

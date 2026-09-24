@@ -65,6 +65,71 @@ export default function SandPricesPage() {
     load();
   }
 
+
+  async function modifierTarif(p:any) {
+
+    const destination=prompt("Destination",p.destination);
+    if(destination===null) return;
+
+    const quantity_reference=prompt(
+      "Référence m³",
+      String(p.quantity_reference)
+    );
+    if(quantity_reference===null) return;
+
+    const price=prompt(
+      "Prix",
+      String(p.price)
+    );
+    if(price===null) return;
+
+    const transport_price=prompt(
+      "Transport",
+      String(p.transport_price)
+    );
+    if(transport_price===null) return;
+
+    const r=await authFetch(`/sand/prices/${p.id}`,{
+      method:"PATCH",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        destination,
+        quantity_reference:Number(quantity_reference),
+        price:Number(price),
+        transport_price:Number(transport_price)
+      })
+    });
+
+    const d=await r.json().catch(()=>({}));
+
+    if(!r.ok){
+      alert(d.error || "Modification impossible.");
+      return;
+    }
+
+    await load();
+  }
+
+  async function supprimerTarif(p:any) {
+
+    if(!confirm(
+      `Supprimer définitivement le tarif ${p.destination} ?`
+    )) return;
+
+    const r=await authFetch(`/sand/prices/${p.id}`,{
+      method:"DELETE"
+    });
+
+    const d=await r.json().catch(()=>({}));
+
+    if(!r.ok){
+      alert(d.error || "Suppression impossible.");
+      return;
+    }
+
+    await load();
+  }
+
   return (
     <main className="min-h-screen bg-gray-100 p-6 text-black">
       <div className="mx-auto max-w-6xl">
@@ -126,6 +191,7 @@ export default function SandPricesPage() {
                 <th className="p-3">Prix</th>
                 <th className="p-3">Prix/m³</th>
                 <th className="p-3">Transport</th>
+                <th className="p-3">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -136,6 +202,23 @@ export default function SandPricesPage() {
                   <td className="p-3 font-bold">{money(p.price)}</td>
                   <td className="p-3">{money(p.unit_price_m3)}</td>
                   <td className="p-3">{money(p.transport_price)}</td>
+                  <td className="p-3">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={()=>modifierTarif(p)}
+                        className="rounded bg-blue-600 px-3 py-2 text-xs font-bold text-white"
+                      >
+                        Modifier
+                      </button>
+
+                      <button
+                        onClick={()=>supprimerTarif(p)}
+                        className="rounded bg-red-600 px-3 py-2 text-xs font-bold text-white"
+                      >
+                        Supprimer
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>

@@ -358,7 +358,7 @@ const routeModuleRules: Array<{ prefixes: string[]; module: ProductModule }> = [
   { prefixes: ["/partenaires"], module: "crm" },
   { prefixes: ["/utilisateurs"], module: "utilisateurs" },
   { prefixes: ["/badges"], module: "badges" },
-  { prefixes: ["/notifications", "/alertes"], module: "notifications" },
+  { prefixes: ["/notifications", "/alertes", "/rappels"], module: "notifications" },
   { prefixes: ["/chat"], module: "chat" },
   { prefixes: ["/demandes"], module: "demandes" },
   { prefixes: ["/activites"], module: "logistique" },
