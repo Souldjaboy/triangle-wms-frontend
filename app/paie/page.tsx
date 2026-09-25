@@ -20,12 +20,16 @@ import { usePermissions } from "../lib/permissions";
 type Periode = {
   id: number; code: string; debut: string; fin: string; status: string;
   validee_par: string | null; paies: number; reopen_reason: string;
+  /* Exception d'absences : portée par la période, jamais globale. */
+  absences_non_retenues?: boolean;
+  absences_non_retenues_motif?: string;
 };
 type Ligne = {
   id: number; employee_id: number; employee_name: string;
   monthly_salary: string | null; daily_rate: string | null;
   expected_days: number; attended_days: number; absence_days: number;
   late_minutes: number; absence_deduction: string; advance_deduction: string;
+  absence_deduction_annulee?: string; advance_deduction_externe?: string;
   adjustments: string; net_salary: string | null; status: string;
   payment_method: string | null; payment_reference: string;
 };
@@ -83,6 +87,11 @@ export default function PaiePage() {
   const [paie, setPaie] = useState<Paie | null>(null);
   const [lignes, setLignes] = useState<Ligne[]>([]);
   const [comptes, setComptes] = useState<{ banques: any[]; caisses: any[] }>({ banques: [], caisses: [] });
+  /* Qui a soumis, et ce que le serveur autorise. On n'en déduit rien
+     localement : l'écran reprend la décision du backend, pour que le bouton
+     affiché soit exactement celui qui marchera. */
+  const [demande, setDemande] = useState<any>(null);
+  const [droits, setDroits] = useState<any>({});
   const [message, setMessage] = useState("");
   const [erreur, setErreur] = useState("");
   const [occupe, setOccupe] = useState(false);
@@ -101,9 +110,11 @@ export default function PaiePage() {
        `period_month` de la paie d'une période porte bien son mois. */
     const r = await authFetch(`/attendance-v2/payroll?month=${code}`, { cache: "no-store" });
     const d = await r.json().catch(() => ({}));
-    if (!r.ok) { setPaie(null); setLignes([]); return; }
+    if (!r.ok) { setPaie(null); setLignes([]); setDemande(null); setDroits({}); return; }
     setPaie(d.run || null);
     setLignes(Array.isArray(d.items) ? d.items : []);
+    setDemande(d.demande || null);
+    setDroits(d.droits || {});
   }, [code]);
 
   const chargerComptes = useCallback(async () => {
@@ -321,6 +332,29 @@ export default function PaiePage() {
                   {paie ? "Recalculer la paie" : "Préparer la paie"}
                 </button>
               )}
+              {/* Un mois où le pointage a été défaillant ne doit pas coûter aux
+                  salariés ce qu'ils n'ont pas manqué. La décision porte sur
+                  CETTE période seulement ; les absences restent enregistrées. */}
+              {droits.est_super_admin && periode && (
+                <button disabled={occupe}
+                  onClick={async () => {
+                    if (periode.absences_non_retenues) {
+                      if (!window.confirm(`Rétablir la retenue des absences sur ${code} ? Les absences réduiront à nouveau le salaire.`)) return;
+                      await agir(`/paie/periodes/${code}/exception-absences`, { actif: false });
+                      return;
+                    }
+                    const motif = window.prompt(
+                      "Motif de l'exception (10 caractères minimum) — il restera attaché à la période :",
+                      "Régularisation exceptionnelle " + code + " — incidents du système de pointage — décision direction"
+                    );
+                    if (!motif || motif.trim().length < 10) return;
+                    await agir(`/paie/periodes/${code}/exception-absences`, { actif: true, reason: motif.trim() });
+                  }}
+                  className={`min-h-12 rounded-xl px-5 font-black ${periode.absences_non_retenues
+                    ? "border-2 border-amber-500 text-amber-800" : "border-2 border-slate-400 text-slate-800"}`}>
+                  {periode.absences_non_retenues ? "Rétablir la retenue des absences" : "Ne pas retenir les absences"}
+                </button>
+              )}
               {peutSoumettre && paie && ["DRAFT", "CORRECTION_DEMANDEE", "REFUSEE"].includes(paie.status) && (
                 <button disabled={occupe || bloquees > 0} onClick={() => agir(`/paie/runs/${paie.id}/soumettre`)}
                   className="min-h-12 rounded-xl bg-blue-600 px-5 font-black text-white disabled:opacity-40"
@@ -328,7 +362,20 @@ export default function PaiePage() {
                   Soumettre à la direction
                 </button>
               )}
-              {peutValider && paie?.status === "EN_ATTENTE_DIRECTION" && (
+              {/* Retirer sa propre soumission n'est pas décider : c'est
+                  renoncer. L'auteur reste bloqué sans ce bouton, puisque la
+                  Direction ne peut pas trancher s'il est seul habilité. */}
+              {droits.peut_retirer_sa_soumission && paie?.status === "EN_ATTENTE_DIRECTION" && (
+                <button disabled={occupe}
+                  onClick={async () => {
+                    const motif = window.prompt("Motif du retrait (facultatif) :") ?? "";
+                    await agir(`/paie/runs/${paie.id}/retirer-soumission`, { reason: motif.trim() });
+                  }}
+                  className="min-h-12 rounded-xl border-2 border-slate-400 px-5 font-black text-slate-800">
+                  Retirer ma soumission
+                </button>
+              )}
+              {peutValider && droits.peut_decider && paie?.status === "EN_ATTENTE_DIRECTION" && (
                 <>
                   <button disabled={occupe} onClick={() => decider("VALIDEE")}
                     className="min-h-12 rounded-xl bg-emerald-600 px-5 font-black text-white disabled:opacity-40">
@@ -347,6 +394,37 @@ export default function PaiePage() {
             </div>
           </div>
 
+          {/* Dire pourquoi les boutons de décision manquent vaut mieux que de
+              les afficher et de laisser le serveur refuser après le clic. */}
+          {paie?.status === "EN_ATTENTE_DIRECTION" && peutValider && !droits.peut_decider && (
+            <p className="mt-4 rounded-xl bg-amber-100 p-3 font-bold text-amber-900">
+              Vous avez soumis cette paie : la validation revient à quelqu'un d'autre.
+              Vous pouvez retirer votre soumission pour la corriger.
+            </p>
+          )}
+          {paie?.status === "EN_ATTENTE_DIRECTION" && droits.est_super_admin && droits.est_auteur_de_la_soumission && (
+            <p className="mt-4 rounded-xl bg-blue-50 p-3 text-sm font-bold text-blue-900">
+              Vous avez soumis cette paie et vous êtes super administrateur : vous pouvez
+              la valider vous-même. L'opération sera tracée comme auto-validation.
+            </p>
+          )}
+          {demande && paie?.status === "EN_ATTENTE_DIRECTION" && (
+            <p className="mt-2 text-sm text-slate-600">
+              Soumise par <b>{demande.submitted_by_name || "—"}</b> pour {fcfa(demande.amount_submitted)}.
+            </p>
+          )}
+          {periode?.absences_non_retenues && (
+            <div className="mt-4 rounded-xl border-2 border-amber-400 bg-amber-50 p-3 text-sm text-amber-900">
+              <p className="font-black">
+                Exception : les absences de {code} ne réduisent pas le salaire.
+              </p>
+              <p className="mt-1">{periode.absences_non_retenues_motif}</p>
+              <p className="mt-1 text-xs">
+                Les absences restent comptées et visibles ci-dessous. Recalculez la paie après
+                tout changement d'exception. La période suivante retient ses absences normalement.
+              </p>
+            </div>
+          )}
           {bloquees > 0 && (
             <p className="mt-4 rounded-xl bg-amber-100 p-3 font-bold text-amber-900">
               {bloquees} salaire(s) sans montant calculable : renseignez leur salaire mensuel
@@ -367,6 +445,7 @@ export default function PaiePage() {
                   <th className="p-3">Jours</th>
                   <th className="p-3">Salaire</th>
                   <th className="p-3">Retenue absence</th>
+                  <th className="p-3">Non retenu</th>
                   <th className="p-3">Avance retenue</th>
                   <th className="p-3">Net</th>
                   <th className="p-3">État</th>
@@ -388,6 +467,12 @@ export default function PaiePage() {
                     </td>
                     <td className="p-3">{fcfa(l.monthly_salary)}</td>
                     <td className="p-3">{fcfa(l.absence_deduction)}</td>
+                    {/* Ce que l'exception a épargné au salarié. Zéro en mois
+                        normal : la colonne ne dit quelque chose que lorsqu'il y
+                        a quelque chose à dire. */}
+                    <td className="p-3 text-amber-800">
+                      {Number(l.absence_deduction_annulee || 0) > 0 ? fcfa(l.absence_deduction_annulee!) : "—"}
+                    </td>
                     <td className="p-3">{Number(l.advance_deduction) ? fcfa(l.advance_deduction) : "—"}</td>
                     <td className="p-3 font-black">{fcfa(l.net_salary)}</td>
                     <td className="p-3 text-sm font-bold">
