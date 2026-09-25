@@ -6,9 +6,9 @@
  * additionnée au stock disponible.
  */
 
-/* Entrepôts du site. La liste sert de choix par défaut à la saisie manuelle ;
-   le serveur crée l'entrepôt s'il manque, mais ne renomme jamais l'existant. */
-export const WAREHOUSE_CODES = ["W-EM2S-A", "W-EM2S-B", "W-EM2S-C"];
+/* Les entrepôts ne sont plus listés ici : voir useEntrepots.ts. Une liste
+   figée masquait D et E, et réaffectait silencieusement vers A tout produit
+   rattaché à un entrepôt absent de la liste. */
 
 export type ReceptionRow = {
   id: number;

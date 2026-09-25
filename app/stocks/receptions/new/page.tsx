@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { authFetch } from "../../../lib/api";
 import ProductSearchSelect, { type ProductHit } from "../../../components/ProductSearchSelect";
-import { WAREHOUSE_CODES, n } from "../shared";
+import { n } from "../shared";
+import { useEntrepotsAutorises, optionsEntrepot } from "../useEntrepots";
 
 /**
  * SAISIE MANUELLE D'UNE RÉCEPTION.
@@ -35,7 +36,7 @@ type Draft = {
 
 const emptyLine = (key: number): Draft => ({
   key, product: null, label: "", quantity: "", unit: "EACH",
-  warehouseCode: WAREHOUSE_CODES[0], supplierReference: "", notes: "",
+  warehouseCode: "", supplierReference: "", notes: "",
 });
 
 const today = () => {
@@ -50,6 +51,7 @@ export default function NouvelleReceptionPage() {
     supplierReference: "", carrier: "", notes: "",
   });
   const [lines, setLines] = useState<Draft[]>([emptyLine(1)]);
+  const entrepots = useEntrepotsAutorises();
   const [seq, setSeq] = useState(2);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -83,6 +85,13 @@ export default function NouvelleReceptionPage() {
     return { quantity, byWarehouse, toReview, count: filled.length };
   }, [filled]);
 
+  /* Un sélecteur vide sans explication ferait croire qu'il n'y a aucun
+     entrepôt. On dit pourquoi. */
+  const messageEntrepots = entrepots.erreur
+    || (!entrepots.chargement && entrepots.codes.length === 0
+        ? "Aucun entrepôt actif n'est accessible avec vos droits."
+        : "");
+
   const save = async () => {
     if (!filled.length) return setError("Ajoutez au moins un produit reçu, avec une quantité.");
     const invalid = lines.find(
@@ -90,6 +99,11 @@ export default function NouvelleReceptionPage() {
     );
     if (invalid) {
       return setError("Une ligne est incomplète : chaque ligne doit avoir une désignation et une quantité supérieure à 0.");
+    }
+    /* Choisir un entrepôt à la place de l'utilisateur, c'est ce qui envoyait
+       les réceptions dans le mauvais. On le demande. */
+    if (filled.some((l) => !String(l.warehouseCode || "").trim())) {
+      return setError("Chaque ligne doit indiquer son entrepôt de destination.");
     }
     setError(""); setBusy(true);
     const res = await authFetch("/stock/receptions", {
@@ -126,6 +140,9 @@ export default function NouvelleReceptionPage() {
           « en attente de rangement » jusqu&apos;à sa mise en stock.
         </p>
 
+        {messageEntrepots && (
+          <p className="mt-4 rounded-xl bg-amber-50 p-3 text-sm font-semibold text-amber-900">{messageEntrepots}</p>
+        )}
         {error && <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-800">{error}</p>}
 
         {/* ---------- EN-TÊTE ---------- */}
@@ -193,8 +210,11 @@ export default function NouvelleReceptionPage() {
                       product: p,
                       label: p ? p.name : l.label,
                       unit: p?.unit || l.unit,
-                      warehouseCode: p?.warehouse && WAREHOUSE_CODES.includes(p.warehouse)
-                        ? p.warehouse : l.warehouseCode,
+                      /* L'entrepôt du produit est retenu TEL QUEL. Le code
+                         précédent le remplaçait par le premier de la liste
+                         figée dès qu'il n'y figurait pas : une ligne destinée
+                         à D partait dans A, sans message. */
+                      warehouseCode: String(p?.warehouse || "").trim() || l.warehouseCode,
                     })}
                     placeholder="Rechercher un produit… (laissez vide si le produit n'existe pas encore)"
                   />
@@ -213,9 +233,13 @@ export default function NouvelleReceptionPage() {
                     <input value={l.unit} onChange={(e) => setLine(l.key, { unit: e.target.value })} className={INPUT} />
                   </Field>
                   <Field label="Entrepôt destination">
-                    <select value={l.warehouseCode}
+                    <select value={l.warehouseCode} disabled={entrepots.chargement}
                             onChange={(e) => setLine(l.key, { warehouseCode: e.target.value })} className={INPUT}>
-                      {WAREHOUSE_CODES.map((w) => <option key={w} value={w}>{w}</option>)}
+                      <option value="">
+                        {entrepots.chargement ? "Chargement…" : "Choisir un entrepôt"}
+                      </option>
+                      {optionsEntrepot(entrepots.codes, l.warehouseCode)
+                        .map((w) => <option key={w} value={w}>{w}</option>)}
                     </select>
                   </Field>
                   <Field label="Référence fournisseur" hint="facultatif">

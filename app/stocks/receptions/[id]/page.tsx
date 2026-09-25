@@ -7,9 +7,10 @@ import { authFetch, apiUrl, authHeaders } from "../../../lib/api";
 import { usePermissions } from "../../../lib/permissions";
 import ProductSearchSelect, { type ProductHit } from "../../../components/ProductSearchSelect";
 import {
-  ReceptionDetail, ReceptionLine, Suggestion, Putaway, WAREHOUSE_CODES,
+  ReceptionDetail, ReceptionLine, Suggestion, Putaway,
   n, fdate, fdatetime, STATUS_TONE, MATCH_TONE, MATCH_LABEL, buildLocationCode,
 } from "../shared";
+import { useEntrepotsAutorises, optionsEntrepot } from "../useEntrepots";
 
 /**
  * DÉTAIL D'UNE RÉCEPTION — rapprochement produit puis mise en stock.
@@ -522,9 +523,10 @@ function LineForm({ line, receptionId, onDone, onError, onClose }: {
 }) {
   const [form, setForm] = useState({
     label: line.received_label, quantity: String(Number(line.quantity_received)),
-    unit: line.unit || "EACH", warehouseCode: line.warehouse_code || WAREHOUSE_CODES[0],
+    unit: line.unit || "EACH", warehouseCode: line.warehouse_code || "",
     notes: "",
   });
+  const entrepots = useEntrepotsAutorises();
   const [busy, setBusy] = useState(false);
 
   const save = async () => {
@@ -559,9 +561,11 @@ function LineForm({ line, receptionId, onDone, onError, onClose }: {
           <input value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} className={INPUT} />
         </Field>
         <Field label="Entrepôt destination">
-          <select value={form.warehouseCode}
+          <select value={form.warehouseCode} disabled={entrepots.chargement}
                   onChange={(e) => setForm({ ...form, warehouseCode: e.target.value })} className={INPUT}>
-            {[...new Set([...WAREHOUSE_CODES, form.warehouseCode])].map((w) => <option key={w} value={w}>{w}</option>)}
+            <option value="">{entrepots.chargement ? "Chargement…" : "Choisir un entrepôt"}</option>
+            {optionsEntrepot(entrepots.codes, form.warehouseCode)
+              .map((w) => <option key={w} value={w}>{w}</option>)}
           </select>
         </Field>
         <div className="sm:col-span-2 lg:col-span-4">
@@ -589,8 +593,9 @@ function AddLineForm({ receptionId, onDone, onError, onClose }: {
 }) {
   const [product, setProduct] = useState<ProductHit | null>(null);
   const [form, setForm] = useState({
-    label: "", quantity: "", unit: "EACH", warehouseCode: WAREHOUSE_CODES[0], notes: "",
+    label: "", quantity: "", unit: "EACH", warehouseCode: "", notes: "",
   });
+  const entrepots = useEntrepotsAutorises();
   const [busy, setBusy] = useState(false);
 
   const save = async () => {
@@ -639,9 +644,11 @@ function AddLineForm({ receptionId, onDone, onError, onClose }: {
           <input value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} className={INPUT} />
         </Field>
         <Field label="Entrepôt destination">
-          <select value={form.warehouseCode}
+          <select value={form.warehouseCode} disabled={entrepots.chargement}
                   onChange={(e) => setForm({ ...form, warehouseCode: e.target.value })} className={INPUT}>
-            {WAREHOUSE_CODES.map((w) => <option key={w} value={w}>{w}</option>)}
+            <option value="">{entrepots.chargement ? "Chargement…" : "Choisir un entrepôt"}</option>
+            {optionsEntrepot(entrepots.codes, form.warehouseCode)
+              .map((w) => <option key={w} value={w}>{w}</option>)}
           </select>
         </Field>
       </div>

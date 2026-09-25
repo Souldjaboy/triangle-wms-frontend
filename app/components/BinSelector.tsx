@@ -21,30 +21,45 @@ export type Bin = {
 };
 type Tree = Record<string, Record<string, Record<string, Record<string, Bin[]>>>>;
 
+/** Un rayon réel dont aucun bac n'est sélectionnable, et pourquoi. */
+export type RayonIndisponible = {
+  motif: string; explication: string; bacs: number; quantite: number;
+};
+type Indisponibles = Record<string, Record<string, RayonIndisponible>>;
+
 const n = (v: unknown) => Number(v || 0).toLocaleString("fr-FR");
 const SELECT = "mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-100 disabled:text-gray-400";
 
 export function useBinTree() {
   const [tree, setTree] = useState<Tree>({});
+  /* Les rayons réels qu'on ne peut pas proposer comme destination. Ils sont
+     tenus à part de `tree` : les y mettre les rendrait sélectionnables, et un
+     transfert partirait vers un emplacement que personne ne peut retrouver. */
+  const [indisponibles, setIndisponibles] = useState<Indisponibles>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
     const r = await authFetch("/stock/locations/tree", { cache: "no-store" });
-    if (r.ok) setTree((await r.json()).tree || {});
-    else setError("Erreur de chargement des emplacements.");
+    if (r.ok) {
+      const data = await r.json();
+      setTree(data.tree || {});
+      setIndisponibles(data.rayonsIndisponibles || {});
+    } else setError("Erreur de chargement des emplacements.");
     setLoading(false);
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  return { tree, loading, error, reload: load };
+  return { tree, indisponibles, loading, error, reload: load };
 }
 
 export default function BinSelector({
-  tree, value, onSelect, label = "Emplacement", disabled = false, compact = false,
+  tree, indisponibles = {}, value, onSelect, label = "Emplacement",
+  disabled = false, compact = false,
 }: {
   tree: Tree;
+  indisponibles?: Indisponibles;
   value: Bin | null;
   onSelect: (bin: Bin | null) => void;
   label?: string;
@@ -93,6 +108,11 @@ export default function BinSelector({
     if (niveau === "lv") setLv(v);
   };
 
+  const rayonsEcartes = useMemo(
+    () => (w && indisponibles[w] ? Object.entries(indisponibles[w]).sort(([a], [b]) => a.localeCompare(b)) : []),
+    [indisponibles, w]
+  );
+
   const grille = compact ? "grid gap-2 sm:grid-cols-5" : "grid gap-3 sm:grid-cols-2 lg:grid-cols-5";
 
   return (
@@ -109,6 +129,15 @@ export default function BinSelector({
           <select value={r} disabled={disabled || !w} onChange={(e) => set("r", e.target.value)} className={SELECT}>
             <option value="">—</option>
             {rayons.map((x) => <option key={x} value={x}>{x}</option>)}
+            {/* Un rayon réel sans bac précis reste VISIBLE mais non choisissable.
+                Le faire disparaître donnait à croire qu'il n'existait plus :
+                la liste commençait à F et personne ne pouvait deviner où
+                étaient passés A à E. */}
+            {rayonsEcartes.map(([nom, info]) => (
+              <option key={`x-${nom}`} value="" disabled>
+                {nom} — emplacement précis requis{info.quantite > 0 ? ` (${n(info.quantite)} en stock)` : ""}
+              </option>
+            ))}
           </select>
         </label>
         <label className="block text-xs text-gray-500">Location
@@ -136,6 +165,31 @@ export default function BinSelector({
           </select>
         </label>
       </div>
+      {/* Un rayon écarté laisse le doute : « est-il perdu ? ». On répond, avec
+          le chiffre qui compte — le stock qui attend d'être localisé. */}
+      {w && rayonsEcartes.length > 0 && rayons.length > 0 && (
+        <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+          <p className="font-bold">
+            {rayonsEcartes.length} rayon{rayonsEcartes.length > 1 ? "s" : ""} de {w} ne {rayonsEcartes.length > 1 ? "peuvent" : "peut"} pas encore recevoir de transfert
+            {rayonsEcartes.some(([, i]) => i.quantite > 0)
+              ? ` (${n(rayonsEcartes.reduce((t, [, i]) => t + i.quantite, 0))} unités concernées)`
+              : ""}.
+          </p>
+          <ul className="mt-1 list-disc pl-5">
+            {rayonsEcartes.map(([nom, info]) => (
+              <li key={nom}>
+                <b>{nom}</b> — {info.explication}
+                {info.quantite > 0 ? ` · ${n(info.quantite)} en stock` : ""}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1">
+            Leur stock est conservé et reste consultable. Pour les rendre
+            utilisables, précisez le bac depuis l’inventaire des emplacements —
+            rien n’est déplacé sans que vous indiquiez les quantités.
+          </p>
+        </div>
+      )}
       {w && rayons.length === 0 && (
         <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
           <p className="font-bold">

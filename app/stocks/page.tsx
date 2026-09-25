@@ -26,7 +26,7 @@ export default function StocksPage() {
   const [highlightMovementId, setHighlightMovementId] = useState<number | null>(null);
   /* Emplacement exact de l'opération. Renseigné, il fait passer l'écriture par
      le moteur de stock par emplacement plutôt que par le mouvement global. */
-  const { tree: binTree, reload: reloadBinTree } = useBinTree();
+  const { tree: binTree, indisponibles: rayonsEcartes, reload: reloadBinTree } = useBinTree();
   const [binSource, setBinSource] = useState<Bin | null>(null);
   const [binDestination, setBinDestination] = useState<Bin | null>(null);
   const [binsProduit, setBinsProduit] = useState<any[]>([]);
@@ -797,7 +797,7 @@ export default function StocksPage() {
                           Retirer
                         </button>
                       </div>
-                      <BinSelector tree={binTree} value={l.bin} label="" compact
+                      <BinSelector tree={binTree} indisponibles={rayonsEcartes} value={l.bin} label="" compact
                         onSelect={(bin) => setLocalisation((p) => p.map((x) => x.key === l.key ? { ...x, bin } : x))} />
                       <input type="number" min={1} value={l.quantity} placeholder="Quantité"
                              onChange={(e) => setLocalisation((p) => p.map((x) => x.key === l.key ? { ...x, quantity: e.target.value } : x))}
@@ -933,7 +933,7 @@ export default function StocksPage() {
                                 largeur : ligne, quantité et retrait
                                 s'empilent au lieu de se serrer à 375 px. */}
                             <div className="min-w-[200px] flex-1 basis-full sm:basis-auto">
-                              <BinSelector tree={binTree} value={l.bin} label="" compact
+                              <BinSelector tree={binTree} indisponibles={rayonsEcartes} value={l.bin} label="" compact
                                 onSelect={(b) => setRepartitionMouvement((r) =>
                                   r.map((x, j) => (j === i ? { ...x, bin: b } : x)))} />
                             </div>
@@ -988,8 +988,8 @@ export default function StocksPage() {
 
             {selectedType === "Transfert" && (
               <div className="mt-2 space-y-3">
-                <BinSelector tree={binTree} value={binSource} onSelect={setBinSource} label="SOURCE" />
-                <BinSelector tree={binTree} value={binDestination} onSelect={setBinDestination} label="DESTINATION" />
+                <BinSelector tree={binTree} indisponibles={rayonsEcartes} value={binSource} onSelect={setBinSource} label="SOURCE" />
+                <BinSelector tree={binTree} indisponibles={rayonsEcartes} value={binDestination} onSelect={setBinDestination} label="DESTINATION" />
                 {binSource && binDestination && binSource.id === binDestination.id && (
                   <p className="rounded-lg bg-red-50 p-2 text-sm font-semibold text-red-800">
                     Source et destination identiques.
@@ -1004,7 +1004,7 @@ export default function StocksPage() {
 
             {selectedType === "Entrée" && (
               <div className="mt-2">
-                <BinSelector tree={binTree} value={binDestination} onSelect={setBinDestination}
+                <BinSelector tree={binTree} indisponibles={rayonsEcartes} value={binDestination} onSelect={setBinDestination}
                              label="Bac de destination" />
                 <p className="mt-1 text-xs text-blue-900">
                   L&apos;entrée sera enregistrée <b>en attente</b> : aucune unité n&apos;est ajoutée
