@@ -23,6 +23,10 @@ type Periode = {
   /* Exception d'absences : portée par la période, jamais globale. */
   absences_non_retenues?: boolean;
   absences_non_retenues_motif?: string;
+  /* Les retards se décident SÉPARÉMENT : un mois peut ne pas retenir ses
+     absences et garder ses retards. */
+  retards_non_retenus?: boolean;
+  retards_non_retenus_motif?: string;
 };
 type Ligne = {
   id: number; employee_id: number; employee_name: string;
@@ -30,6 +34,15 @@ type Ligne = {
   expected_days: number; attended_days: number; absence_days: number;
   late_minutes: number; absence_deduction: string; advance_deduction: string;
   absence_deduction_annulee?: string; advance_deduction_externe?: string;
+  /* BRUT et OFFICIEL. Le brut ne remplace jamais l'officiel : il l'accompagne,
+     pour que le chiffre du bulletin puisse être remonté à son origine. */
+  absence_days_brut?: number; absence_days_officiel?: number;
+  absences_neutralisees?: number;
+  late_minutes_brut?: number; late_minutes_officiel?: number;
+  /* Le calendrier administratif, catégorie par catégorie. */
+  jours_feries?: number; jours_chomes_payes?: number; jours_chomes_non_payes?: number;
+  retenue_jour_chome?: string; travail_jour_chome_jours?: number;
+  repos_compensateur_jours?: number;
   primes_total?: string; heures_sup_total?: string; heures_sup_heures?: string;
   retenues_autres_total?: string; non_remunere?: boolean; net_corrige_manuellement?: boolean;
   adjustments: string; net_salary: string | null; status: string;
@@ -434,6 +447,30 @@ export default function PaiePage() {
                   {periode.absences_non_retenues ? "Rétablir la retenue des absences" : "Ne pas retenir les absences"}
                 </button>
               )}
+              {/* Les retards ont leur propre bouton, et ce n'est pas un détail :
+                  neutraliser des absences et neutraliser des retards sont deux
+                  décisions. Les lier ferait décider la seconde à l'insu de
+                  celui qui ne demandait que la première. */}
+              {droits.est_super_admin && periode && (
+                <button disabled={occupe}
+                  onClick={async () => {
+                    if (periode.retards_non_retenus) {
+                      if (!window.confirm(`Rendre à nouveau opposables les retards de ${code} ?`)) return;
+                      await agir(`/paie/periodes/${code}/exception-retards`, { actif: false });
+                      return;
+                    }
+                    const motif = window.prompt(
+                      "Motif (15 caractères minimum) — les minutes enregistrées resteront lisibles pour l'audit :",
+                      "Retards non opposables " + code + " — données de pointage non fiables — décision direction"
+                    );
+                    if (!motif || motif.trim().length < 15) return;
+                    await agir(`/paie/periodes/${code}/exception-retards`, { actif: true, reason: motif.trim() });
+                  }}
+                  className={`min-h-12 rounded-xl px-5 font-black ${periode.retards_non_retenus
+                    ? "border-2 border-amber-500 text-amber-800" : "border-2 border-slate-400 text-slate-800"}`}>
+                  {periode.retards_non_retenus ? "Rendre les retards opposables" : "Ne pas retenir les retards"}
+                </button>
+              )}
               {peutSoumettre && paie && ["DRAFT", "CORRECTION_DEMANDEE", "REFUSEE"].includes(paie.status) && (
                 <button disabled={occupe || bloquees > 0} onClick={() => agir(`/paie/runs/${paie.id}/soumettre`)}
                   className="min-h-12 rounded-xl bg-blue-600 px-5 font-black text-white disabled:opacity-40"
@@ -650,6 +687,18 @@ export default function PaiePage() {
         );
       })()}
 
+      {periode?.retards_non_retenus && (
+        <section className="mt-4 rounded-2xl border-2 border-amber-400 bg-amber-50 p-4">
+          <p className="font-black text-amber-900">
+            Les retards de {code} ne sont pas opposables.
+          </p>
+          <p className="mt-1 text-sm text-amber-900">{periode.retards_non_retenus_motif}</p>
+          <p className="mt-1 text-xs text-amber-800">
+            Les minutes de retard enregistrées restent lisibles pour l'audit : c'est le total
+            officiel qui est neutralisé, jamais la minute pointée.
+          </p>
+        </section>
+      )}
       {periode?.absences_non_retenues && (
             <div className="mt-4 rounded-xl border-2 border-amber-400 bg-amber-50 p-3 text-sm text-amber-900">
               <p className="font-black">
@@ -843,6 +892,21 @@ export default function PaiePage() {
                             </span>
                             <b className="text-red-700">−{fcfa(l.absence_deduction)}</b>
                           </div>
+                          {/* UNE RETENUE DE JOUR CHÔMÉ N'EST PAS UNE ABSENCE.
+                              Elle a sa propre ligne, nommée : présenter ces
+                              francs comme une absence accuserait le salarié
+                              d'un manquement là où il n'y a qu'une journée que
+                              l'entreprise ne paie pas. */}
+                          {Number(l.retenue_jour_chome || 0) > 0 && (
+                            <div className="flex justify-between border-t py-1">
+                              <span>Jour(s) chômé(s) non payé(s)
+                                <span className="block text-xs text-slate-500">
+                                  {l.jours_chomes_non_payes} journée(s) — ce n’est pas une absence
+                                </span>
+                              </span>
+                              <b className="text-orange-700">−{fcfa(l.retenue_jour_chome!)}</b>
+                            </div>
+                          )}
                           <div className="flex justify-between border-t py-1">
                             <span>Retenue d’avance
                               {Number(l.advance_deduction_externe || 0) > 0 && (
@@ -856,6 +920,62 @@ export default function PaiePage() {
                           <div className="mt-1 flex justify-between border-t-2 border-slate-900 py-2 text-base">
                             <span className="font-black">NET À PAYER</span>
                             <b className="font-black">{fcfa(l.net_salary)}</b>
+                          </div>
+                          {/* CE QUE LES JOURNÉES DISENT, à côté de ce qu'elles
+                              coûtent. Les absences officielles et brutes
+                              ensemble : un bulletin qui annonce zéro absence
+                              doit pouvoir dire ce que le pointage disait. */}
+                          <div className="mt-3 grid grid-cols-2 gap-2 border-t pt-2 text-xs sm:grid-cols-4">
+                            <div>
+                              <p className="text-slate-500">Jours attendus</p>
+                              <p className="font-black">{l.expected_days}</p>
+                            </div>
+                            <div>
+                              <p className="text-slate-500">Absences retenues</p>
+                              <p className="font-black">{l.absence_days_officiel ?? l.absence_days}</p>
+                              {Number(l.absences_neutralisees || 0) > 0 && (
+                                <p className="text-amber-700">
+                                  {l.absence_days_brut} au pointage brut
+                                </p>
+                              )}
+                            </div>
+                            {Number(l.jours_feries || 0) > 0 && (
+                              <div>
+                                <p className="text-slate-500">Jours fériés</p>
+                                <p className="font-black">{l.jours_feries}</p>
+                              </div>
+                            )}
+                            {Number(l.jours_chomes_payes || 0) > 0 && (
+                              <div>
+                                <p className="text-slate-500">Jours chômés payés</p>
+                                <p className="font-black">{l.jours_chomes_payes}</p>
+                                <p className="text-slate-500">salaire maintenu</p>
+                              </div>
+                            )}
+                            {Number(l.jours_chomes_non_payes || 0) > 0 && (
+                              <div>
+                                <p className="text-slate-500">Jours chômés non payés</p>
+                                <p className="font-black">{l.jours_chomes_non_payes}</p>
+                              </div>
+                            )}
+                            {Number(l.travail_jour_chome_jours || 0) > 0 && (
+                              <div>
+                                <p className="text-slate-500">Travail un jour chômé</p>
+                                <p className="font-black">{l.travail_jour_chome_jours}</p>
+                                {Number(l.repos_compensateur_jours || 0) > 0 && (
+                                  <p className="text-slate-500">
+                                    dont {l.repos_compensateur_jours} en repos compensateur
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                            <div>
+                              <p className="text-slate-500">Retard retenu</p>
+                              <p className="font-black">{l.late_minutes_officiel ?? l.late_minutes} min</p>
+                              {Number(l.late_minutes_brut || 0) > Number(l.late_minutes_officiel ?? l.late_minutes) && (
+                                <p className="text-amber-700">{l.late_minutes_brut} min au brut</p>
+                              )}
+                            </div>
                           </div>
                           {l.net_corrige_manuellement && (
                             <p className="mt-2 rounded-lg bg-amber-100 p-2 text-xs text-amber-900">

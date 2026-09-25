@@ -23,6 +23,16 @@ type Totaux = {
   journees_incompletes: number; corrections: number; anomalies: number;
   duree_travaillee: string; retard_cumule: string;
   par_source: Record<string, number>;
+  /* Les journées du calendrier administratif, chacune dans sa catégorie. */
+  jours_chomes_payes?: number; jours_chomes_non_payes?: number;
+  travail_jours_chomes?: number; repos_compensateurs?: number;
+  /* Le BRUT, pour l'audit : il ne remplace pas l'officiel, il l'accompagne. */
+  absences_brutes?: number; absences_neutralisees?: number;
+  retards_bruts?: number; minutes_retard_brutes?: number; retards_neutralises?: number;
+  regularisation?: {
+    absences_neutralisees: boolean; retards_neutralises: boolean;
+    motif_absences: string; motif_retards: string; mention: string;
+  };
 };
 type LigneGlobale = {
   employee_id: number; matricule: number; nom: string; poste: string; site: string | null; totaux: Totaux;
@@ -32,6 +42,9 @@ type Journee = {
   heure_prevue: string | null; arrivee: string | null; depart: string | null;
   pause_debut: string | null; pause_fin: string | null;
   retard_minutes: number; duree_minutes: number; corrections: number; motif: string;
+  du_brut?: boolean; statut_pointage?: string; categorie_journee?: string | null;
+  jour_special?: { id: number; label: string; type: string; est_chome: boolean;
+                   est_paye: boolean; traitement: string; motif: string } | null;
 };
 
 const STATUTS: Record<string, { texte: string; classe: string }> = {
@@ -43,6 +56,12 @@ const STATUTS: Record<string, { texte: string; classe: string }> = {
   ABSENCE_JUSTIFIEE: { texte: "Absence justifiée",  classe: "bg-slate-200 text-slate-700" },
   REPOS:             { texte: "Repos",              classe: "bg-slate-100 text-slate-500" },
   FERIE:             { texte: "Jour férié",         classe: "bg-blue-50 text-blue-800" },
+  /* Une journée chômée n'est ni un repos, ni une absence : sa propre catégorie.
+     La confondre avec un repos effacerait la décision ; la confondre avec une
+     absence accuserait le salarié de ce qu'il n'a pas fait. */
+  CHOME_PAYE:         { texte: "Jour chômé payé",     classe: "bg-blue-50 text-blue-800" },
+  CHOME_NON_PAYE:     { texte: "Jour chômé non payé", classe: "bg-orange-100 text-orange-900" },
+  TRAVAIL_JOUR_CHOME: { texte: "Travail un jour chômé", classe: "bg-violet-100 text-violet-900" },
 };
 const SOURCES: Record<string, string> = {
   QR: "Badge QR",
@@ -231,12 +250,14 @@ export default function RapportsPointagePage() {
             <Totalisation totaux={global.totaux_generaux} />
 
             <div className="mt-5 overflow-x-auto">
-              <table className="w-full min-w-[980px] text-left text-sm">
+              <table className="w-full min-w-[1120px] text-left text-sm">
                 <thead className="bg-slate-50 text-slate-600">
                   <tr>
                     <th className="p-2">Employé</th><th className="p-2">Site</th>
                     <th className="p-2">Dus</th><th className="p-2">Travaillés</th>
-                    <th className="p-2">Absences</th><th className="p-2">Retards</th>
+                    <th className="p-2">Absences</th>
+                    <th className="p-2">Chômés<br /><span className="text-xs font-normal">payés / non payés</span></th>
+                    <th className="p-2">Retards</th>
                     <th className="p-2">Retard cumulé</th><th className="p-2">Durée</th>
                     <th className="p-2">Incomplètes</th><th className="p-2">QR / Manuel</th>
                     <th className="p-2 sans-impression">Détail</th>
@@ -252,6 +273,20 @@ export default function RapportsPointagePage() {
                       <td className="p-2 font-bold">{e.totaux.jours_travailles}</td>
                       <td className={`p-2 ${e.totaux.absences ? "font-black text-red-600" : ""}`}>
                         {e.totaux.absences}
+                        {e.totaux.regularisation?.absences_neutralisees
+                          && (e.totaux.absences_brutes ?? 0) > 0 ? (
+                          <span className="block text-xs font-normal text-slate-500">
+                            {e.totaux.absences_brutes} au brut
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className="p-2">
+                        {e.totaux.jours_chomes_payes ?? 0} / {e.totaux.jours_chomes_non_payes ?? 0}
+                        {(e.totaux.travail_jours_chomes ?? 0) > 0 ? (
+                          <span className="block text-xs text-violet-800">
+                            {e.totaux.travail_jours_chomes} travaillé(s)
+                          </span>
+                        ) : null}
                       </td>
                       <td className={`p-2 ${e.totaux.retards ? "font-bold text-amber-700" : ""}`}>
                         {e.totaux.retards}
@@ -320,29 +355,55 @@ function EnTete({ entete, periode, titre }: { entete: any; periode: any; titre: 
 }
 
 function Totalisation({ totaux }: { totaux: Totaux }) {
-  const cases: [string, string | number][] = [
+  const r = totaux.regularisation;
+  const cases: ([string, string | number] | [string, string | number, string])[] = [
     ["Jours attendus", totaux.jours_attendus],
     ["Jours travaillés", totaux.jours_travailles],
-    ["Absences", totaux.absences],
+    /* Le chiffre OFFICIEL, et juste au-dessous ce que le brut disait. Les deux
+       ensemble, jamais l'un à la place de l'autre : un document officiel qui
+       annonce 110 absences pendant que la paie n'en retient aucune n'est pas
+       une nuance, c'est une contradiction. */
+    ["Absences", totaux.absences,
+      r?.absences_neutralisees ? `${totaux.absences_brutes ?? 0} au pointage brut` : ""],
     ["Absences justifiées", totaux.absences_justifiees],
     ["Repos", totaux.repos],
     ["Jours fériés", totaux.feries],
+    ["Jours chômés payés", totaux.jours_chomes_payes ?? 0],
+    ["Jours chômés non payés", totaux.jours_chomes_non_payes ?? 0],
+    ["Travail un jour chômé", totaux.travail_jours_chomes ?? 0,
+      totaux.repos_compensateurs ? `dont ${totaux.repos_compensateurs} en repos compensateur` : ""],
     ["Samedis travaillés", totaux.samedis_travailles],
-    ["Retards", totaux.retards],
+    ["Retards", totaux.retards,
+      r?.retards_neutralises ? `${totaux.retards_bruts ?? 0} au pointage brut` : ""],
     ["Retard cumulé", totaux.retard_cumule],
     ["Durée travaillée", totaux.duree_travaillee],
     ["Départs anticipés", totaux.departs_anticipes],
     ["Journées incomplètes", totaux.journees_incompletes],
   ];
   return (
-    <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-      {cases.map(([libelle, valeur]) => (
-        <div key={libelle} className="rounded-xl bg-slate-100 p-3">
-          <p className="text-xs text-slate-500">{libelle}</p>
-          <p className="text-lg font-black">{valeur}</p>
+    <>
+      {r?.mention && (
+        <div className="mt-4 rounded-xl border-2 border-amber-400 bg-amber-50 p-3">
+          <p className="font-black text-amber-900">{r.mention}</p>
+          {r.motif_absences && (
+            <p className="mt-1 text-sm text-amber-800">Motif : {r.motif_absences}</p>
+          )}
+          <p className="mt-1 text-xs text-amber-700">
+            Les pointages d'origine sont conservés intégralement : aucun n'a été supprimé,
+            modifié ni créé. Les valeurs brutes restent disponibles pour l'audit.
+          </p>
         </div>
-      ))}
-    </div>
+      )}
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+        {cases.map(([libelle, valeur, note]) => (
+          <div key={libelle} className="rounded-xl bg-slate-100 p-3">
+            <p className="text-xs text-slate-500">{libelle}</p>
+            <p className="text-lg font-black">{valeur}</p>
+            {note ? <p className="text-xs text-slate-500">{note}</p> : null}
+          </div>
+        ))}
+      </div>
+    </>
   );
 }
 

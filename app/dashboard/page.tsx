@@ -28,6 +28,7 @@ import {
   Users,
   ClipboardCheck,
   Settings,
+  Calendar,
   Factory,
   LogOut,
 } from "lucide-react";
@@ -765,6 +766,15 @@ export default function DashboardPage() {
         <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
           <Settings size={20} />
           Paramètres pointage
+        </li>
+      </Link>
+
+      {/* Le calendrier administratif : une journée déclarée ici n'est jamais
+          comptée comme une absence injustifiée. */}
+      <Link href="/calendrier-pointage">
+        <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+          <Calendar size={20} />
+          Jours fériés et chômés
         </li>
       </Link>
 
