@@ -62,6 +62,21 @@ const STATUTS_PAIE: Record<string, string> = {
   CANCELLED: "Annulée",
 };
 
+/* POURQUOI une action de la Direction n'est pas proposée. Le serveur le nomme ;
+   l'écran le traduit. Avant, l'écran le DÉDUISAIT de la négation d'un autre
+   droit — et une absence de réponse se lisait donc comme une règle métier. */
+const MOTIFS_DROIT: Record<string, string> = {
+  AUCUNE_SOUMISSION:        "cette paie n'a pas été soumise à la Direction.",
+  DEMANDE_INTROUVABLE:      "aucune demande en attente n'existe pour cette paie.",
+  DROIT_VALIDATE_MANQUANT:  "votre compte n'a pas le droit « Valider » sur la paie.",
+  DROIT_SUBMIT_MANQUANT:    "le retrait passe par le droit « Soumettre » sur la paie, que votre compte n'a pas.",
+  NI_AUTEUR_NI_SUPER_ADMIN: "seul l'auteur de la soumission, ou le super administrateur, peut la retirer.",
+  AUTEUR_DE_LA_SOUMISSION:  "vous avez soumis cette paie, et vous n'êtes pas super administrateur.",
+  DROITS_INDISPONIBLES:     "le contrôle des droits est momentanément indisponible.",
+};
+const texteMotif = (cle: unknown) =>
+  MOTIFS_DROIT[String(cle || "")] || "le serveur n'en donne pas la raison.";
+
 const fcfa = (v: unknown) =>
   v === null || v === undefined || v === "" ? "—"
     : `${Math.round(Number(v)).toLocaleString("fr-FR")} FCFA`;
@@ -75,7 +90,6 @@ export default function PaiePage() {
   const { can } = usePermissions();
   const peutPreparer = can("paie", "prepare");
   const peutSoumettre = can("paie", "submit");
-  const peutValider = can("paie", "validate");
   const peutAjuster = can("paie", "adjust");
   const peutPayer = can("paie", "pay");
   const peutImprimer = can("paie", "print");
@@ -103,6 +117,23 @@ export default function PaiePage() {
   const [message, setMessage] = useState("");
   const [erreur, setErreur] = useState("");
   const [occupe, setOccupe] = useState(false);
+
+  /* UN DROIT ABSENT N'EST PAS UN DROIT REFUSÉ.
+     Cette distinction est tout le correctif. La page annonçait « la validation
+     revient à quelqu'un d'autre » sur `!droits.peut_decider`, c'est-à-dire sur
+     `!undefined` quand le serveur ne renvoyait pas encore l'objet `droits` :
+     une absence de données rendue en règle métier, et pas un seul bouton pour
+     en sortir. On ne conclut donc plus rien tant que le serveur n'a pas
+     répondu, et on le dit. */
+  const droitsConnus = typeof droits?.peut_decider === "boolean";
+  const enAttente = paie?.status === "EN_ATTENTE_DIRECTION";
+  const estAuteur = droits?.est_auteur_de_la_soumission === true;
+  const estSuperAdmin = droits?.est_super_admin === true;
+  const incoherence = droitsConnus ? droits?.incoherence || null : null;
+  /* Les trois situations sont exclusives, et chacune a ses boutons. */
+  const casAuteurSimple = droitsConnus && !incoherence && estAuteur && !estSuperAdmin;
+  const casAuteurSuperAdmin = droitsConnus && !incoherence && estAuteur && estSuperAdmin;
+  const casTiersValidateur = droitsConnus && !incoherence && !estAuteur;
 
   const periode = useMemo(() => periodes.find((p) => p.code === code) || null, [periodes, code]);
 
@@ -413,30 +444,48 @@ export default function PaiePage() {
               {/* Retirer sa propre soumission n'est pas décider : c'est
                   renoncer. L'auteur reste bloqué sans ce bouton, puisque la
                   Direction ne peut pas trancher s'il est seul habilité. */}
-              {droits.peut_retirer_sa_soumission && paie?.status === "EN_ATTENTE_DIRECTION" && (
-                <button disabled={occupe}
+              {enAttente && droits.peut_retirer_sa_soumission && (
+                <button disabled={occupe} data-action="retirer-soumission"
                   onClick={async () => {
-                    const motif = window.prompt("Motif du retrait (facultatif) :") ?? "";
+                    const motif = window.prompt(
+                      "Motif du retrait (10 caractères minimum) — il restera attaché à la demande :",
+                      "Correction de la paie avant nouvelle soumission"
+                    );
+                    if (!motif || motif.trim().length < 10) return;
                     await agir(`/paie/runs/${paie.id}/retirer-soumission`, { reason: motif.trim() });
                   }}
                   className="min-h-12 rounded-xl border-2 border-slate-400 px-5 font-black text-slate-800">
                   Retirer ma soumission
                 </button>
               )}
-              {peutValider && droits.peut_decider && paie?.status === "EN_ATTENTE_DIRECTION" && (
+              {/* Un seul juge du droit de décider : le serveur. On n'ajoute plus
+                  `peutValider`, lu d'un AUTRE endpoint — deux sources
+                  concurrentes finissent toujours par se contredire, et c'est
+                  alors le bouton qui disparaît sans que personne sache
+                  pourquoi. `droits.peut_decider` inclut déjà ce droit,
+                  évalué par le moteur qui gardera la route. */}
+              {enAttente && droits.peut_decider && (
                 <>
                   <button disabled={occupe} onClick={() => decider("VALIDEE")}
+                    data-action="autoriser-paie"
+                    title="Autoriser la paie ne débite aucune caisse et ne paie personne : le paiement reste un geste distinct."
                     className="min-h-12 rounded-xl bg-emerald-600 px-5 font-black text-white disabled:opacity-40">
-                    Autoriser le paiement
+                    Autoriser la paie
                   </button>
-                  <button disabled={occupe} onClick={() => decider("CORRECTION_DEMANDEE")}
-                    className="min-h-12 rounded-xl bg-amber-500 px-5 font-black text-black disabled:opacity-40">
-                    Demander une correction
-                  </button>
-                  <button disabled={occupe} onClick={() => decider("REFUSEE")}
-                    className="min-h-12 rounded-xl bg-red-600 px-5 font-black text-white disabled:opacity-40">
-                    Refuser
-                  </button>
+                  {/* Se demander à soi-même une correction n'a pas de sens : le
+                      geste juste, pour l'auteur, est de retirer sa soumission. */}
+                  {!estAuteur && (
+                    <>
+                      <button disabled={occupe} onClick={() => decider("CORRECTION_DEMANDEE")}
+                        className="min-h-12 rounded-xl bg-amber-500 px-5 font-black text-black disabled:opacity-40">
+                        Demander une correction
+                      </button>
+                      <button disabled={occupe} onClick={() => decider("REFUSEE")}
+                        className="min-h-12 rounded-xl bg-red-600 px-5 font-black text-white disabled:opacity-40">
+                        Refuser
+                      </button>
+                    </>
+                  )}
                 </>
               )}
             </div>
@@ -444,16 +493,58 @@ export default function PaiePage() {
 
           {/* Dire pourquoi les boutons de décision manquent vaut mieux que de
               les afficher et de laisser le serveur refuser après le clic. */}
-          {paie?.status === "EN_ATTENTE_DIRECTION" && peutValider && !droits.peut_decider && (
+          {/* Le serveur ne renvoie pas encore les droits : on ne prétend pas
+              savoir qui doit valider. C'est exactement le cas où la page
+              affirmait le contraire, sans bouton. */}
+          {enAttente && !droitsConnus && (
             <p className="mt-4 rounded-xl bg-amber-100 p-3 font-bold text-amber-900">
-              Vous avez soumis cette paie : la validation revient à quelqu'un d'autre.
-              Vous pouvez retirer votre soumission pour la corriger.
+              Cette paie attend une décision, mais le serveur n'a pas renvoyé vos droits
+              sur cette paie : aucune action n'est proposée, car elle serait refusée après
+              le clic. Le backend doit être mis à jour — la réponse de
+              <code className="mx-1 rounded bg-amber-200 px-1">/attendance-v2/payroll</code>
+              doit contenir le champ <b>droits</b>.
             </p>
           )}
-          {paie?.status === "EN_ATTENTE_DIRECTION" && droits.est_super_admin && droits.est_auteur_de_la_soumission && (
+          {enAttente && incoherence && (
+            <p className="mt-4 rounded-xl bg-amber-100 p-3 font-bold text-amber-900">
+              Cette paie est marquée « en attente du directeur », mais aucune demande en
+              attente ne lui correspond
+              {incoherence.derniere_demande_statut
+                ? ` (la dernière demande est « ${incoherence.derniere_demande_statut} »)` : ""}.
+              Rien ne peut être ni autorisé ni retiré : préparez la paie, puis soumettez-la
+              à nouveau.
+            </p>
+          )}
+          {/* CAS 1 — l'auteur ordinaire : la séparation s'applique, et le seul
+              geste qui lui reste est de retirer sa soumission. */}
+          {enAttente && casAuteurSimple && (
+            <p className="mt-4 rounded-xl bg-amber-100 p-3 font-bold text-amber-900">
+              Vous avez soumis cette paie : la validation revient à quelqu'un d'autre.
+              {droits.peut_retirer_sa_soumission
+                ? " Vous pouvez retirer votre soumission pour la corriger."
+                : ` Le retrait n'est pas possible non plus : ${texteMotif(droits.motif_sans_retrait)}`}
+            </p>
+          )}
+          {/* CAS 2 — l'auteur EST le super administrateur, relu en base : il
+              autorise lui-même, et le retrait lui reste ouvert. */}
+          {enAttente && casAuteurSuperAdmin && (
             <p className="mt-4 rounded-xl bg-blue-50 p-3 text-sm font-bold text-blue-900">
               Vous avez soumis cette paie et vous êtes super administrateur : vous pouvez
-              la valider vous-même. L'opération sera tracée comme auto-validation.
+              l'autoriser vous-même — l'opération sera tracée comme auto-validation — ou
+              retirer votre soumission pour la corriger. Autoriser ne paie personne.
+            </p>
+          )}
+          {/* CAS 3 — un tiers habilité : il tranche la soumission d'autrui. */}
+          {enAttente && casTiersValidateur && droits.peut_decider && (
+            <p className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm font-bold text-emerald-900">
+              Cette paie a été soumise par quelqu'un d'autre : vous pouvez l'autoriser,
+              demander une correction ou la refuser. Autoriser ne débite aucune caisse et
+              ne paie aucun salarié.
+            </p>
+          )}
+          {enAttente && casTiersValidateur && !droits.peut_decider && (
+            <p className="mt-4 rounded-xl bg-slate-100 p-3 text-sm font-bold text-slate-800">
+              Décision indisponible : {texteMotif(droits.motif_sans_decision)}
             </p>
           )}
           {demande && paie?.status === "EN_ATTENTE_DIRECTION" && (
