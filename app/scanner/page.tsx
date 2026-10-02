@@ -3,6 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Html5QrcodeScanner } from "html5-qrcode";
 import { QRCodeCanvas } from "qrcode.react";
+import { authFetch } from "../lib/api";
+
+/* Un badge de pointage v2 n'encode qu'un jeton aléatoire (base64url, ~32
+   caractères) : ni emplacement, ni produit, ni employé lisible. */
+const JETON_BADGE_V2 = /^[A-Za-z0-9_-]{24,64}$/;
 
 export default function ScannerPage() {
   const [result, setResult] = useState("");
@@ -12,6 +17,7 @@ export default function ScannerPage() {
   const [scanDetails, setScanDetails] = useState<any>(null);
   const [inventoryValues, setInventoryValues] = useState<any>({});
   const [message, setMessage] = useState("");
+  const [badgePointage, setBadgePointage] = useState("");
 
   const scannerRef = useRef<any>(null);
 
@@ -47,6 +53,7 @@ export default function ScannerPage() {
     setResult(sourceValue);
     setMessage("");
     setScanDetails(null);
+    setBadgePointage("");
 
     const found = locations.find(
       (location: any) => location.emplacement_code === cleanCode
@@ -55,6 +62,10 @@ export default function ScannerPage() {
     setMatchedLocation(found || null);
 
     const data = await resolveScan(cleanCode).catch(() => null);
+
+    if ((!data || data.error) && JETON_BADGE_V2.test(cleanCode)) {
+      setBadgePointage(cleanCode);
+    }
 
     if (data && !data.error) {
       setScanDetails(data);
@@ -130,28 +141,24 @@ export default function ScannerPage() {
       }))
     : [];
 
-  const scanAttendance = async (action_type: string) => {
-    const badgeCode = scanDetails?.employee?.badge_code;
-
-    if (!badgeCode) return;
-
-    const response = await fetch("/api/attendance/scan", {
+  /* Pointage par le moteur v2 : badge à jeton aléatoire, borné à la société
+     active, droit `pointage.qr|scan`, périmètre d'opérateur, anti-rebond et
+     ordre des étapes appliqués par le serveur. L'ancien scan par code imprimé
+     (`/attendance/scan`, prévisible) n'existe plus. */
+  const scanAttendance = async () => {
+    if (!badgePointage) return;
+    const response = await authFetch("/attendance-v2/qr/scan", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        badge_code: badgeCode,
-        action_type,
-      }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ qr_token: badgePointage }),
     });
-
     const data = await response.json().catch(() => ({}));
     setMessage(
       response.ok
-        ? `${data.user?.fullname || "Employé"} : ${data.action} enregistré`
-        : data.error || "Erreur pointage"
+        ? `${data.employe?.nom || "Employé"} : ${data.action_libelle || data.action || "pointage"} ${data.repetition ? "déjà enregistré" : "enregistré"}`
+        : data.error || "Pointage refusé"
     );
+    if (response.ok) setBadgePointage("");
   };
 
   const getProductsForLocation = (location: any) =>
@@ -555,6 +562,21 @@ export default function ScannerPage() {
                 </div>
               )}
 
+              {badgePointage && !scanDetails && (
+                <div className="space-y-3 rounded-xl border p-4">
+                  <h3 className="text-xl font-bold text-black">Badge de pointage</h3>
+                  <p className="text-sm text-gray-600">
+                    Le serveur identifiera l&apos;employé et l&apos;étape (arrivée, pause, retour, fin).
+                  </p>
+                  <button
+                    onClick={scanAttendance}
+                    className="w-full rounded-xl bg-green-600 py-3 font-bold text-white"
+                  >
+                    Pointer ce badge
+                  </button>
+                </div>
+              )}
+
               {scanDetails?.type === "employee" && (
                 <div className="space-y-4">
                   <div className="border rounded-xl p-4">
@@ -571,38 +593,13 @@ export default function ScannerPage() {
                       <strong>Badge :</strong>{" "}
                       {scanDetails.employee.badge_code || "-"}
                     </p>
-                    <p>
-                      <strong>Statut du jour :</strong>{" "}
-                      {scanDetails.today?.status || "Aucun pointage"}
-                    </p>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      onClick={() => scanAttendance("checkin")}
-                      className="bg-green-500 text-white font-bold rounded-xl py-3"
-                    >
-                      Début travail
-                    </button>
-                    <button
-                      onClick={() => scanAttendance("pause_start")}
-                      className="bg-yellow-500 text-black font-bold rounded-xl py-3"
-                    >
-                      Début pause
-                    </button>
-                    <button
-                      onClick={() => scanAttendance("pause_end")}
-                      className="bg-blue-500 text-white font-bold rounded-xl py-3"
-                    >
-                      Fin pause
-                    </button>
-                    <button
-                      onClick={() => scanAttendance("checkout")}
-                      className="bg-red-500 text-white font-bold rounded-xl py-3"
-                    >
-                      Fin travail
-                    </button>
-                  </div>
+                  <p className="rounded-xl bg-amber-100 p-3 text-sm font-bold text-amber-900">
+                    {scanDetails.avertissement ||
+                      "Ancien badge imprimé : il ne permet plus de pointer."}{" "}
+                    <a href="/pointage-qr" className="underline">Ouvrir le pointage par badge</a>
+                  </p>
                 </div>
               )}
             </div>
