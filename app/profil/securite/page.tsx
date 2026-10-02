@@ -341,6 +341,11 @@ export default function SecuriteComptePage() {
           </>
         )}
 
+        {config?.droits?.["biometrie.voir"] && (
+          <p className="text-center text-sm font-bold">
+            <Link href="/parametres/securite/biometrie" className="underline">Gérer la biométrie de l&apos;entreprise →</Link>
+          </p>
+        )}
         <p className="text-center text-sm text-gray-500">
           <Link href="/dashboard" className="underline">Retour au tableau de bord</Link>
         </p>

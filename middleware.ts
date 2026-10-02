@@ -224,12 +224,17 @@ export function middleware(req: NextRequest) {
     }
   }
 
+  /* Biométrie : la direction y a droit côté serveur (centre des droits) ;
+     l'écran vérifie ensuite chaque droit. Le reste des paramètres reste
+     réservé à l'administration. */
+  const pageBiometrie = pathname.startsWith("/parametres/securite/biometrie");
+
   if (
     pathname.startsWith("/parametres") ||
     pathname.startsWith("/parametres-pointage") ||
     pathname.startsWith("/pos/parametres-paiement")
   ) {
-    if (!isAdmin) {
+    if (!isAdmin && !(pageBiometrie && isDirection)) {
       return NextResponse.redirect(
         new URL("/dashboard?access=admin", req.url)
       );
