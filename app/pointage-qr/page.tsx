@@ -15,11 +15,18 @@
  *
  * Le QR ne contient qu'un jeton opaque. Rien à en lire : ni nom, ni matricule,
  * ni société.
+ *
+ * Mode « badge + visage » (si l'entreprise l'a activé, si l'opérateur a le
+ * droit `pointage.biometrie` et si ce navigateur est un appareil déclaré) :
+ * le badge désigne l'employé, son visage le confirme, et le pointage passe
+ * par le même moteur. Le badge seul reste toujours possible.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { authFetch } from "../lib/api";
+import { api, useAppareilLocal } from "../lib/biometrie";
 import { usePermissions } from "../lib/permissions";
+import PointageVisage, { type ResultatVisage } from "./PointageVisage";
 
 type Resultat = {
   success?: boolean;
@@ -29,7 +36,7 @@ type Resultat = {
   retard_minutes?: number;
   heure?: string;
   message?: string;
-  employe?: { id: number; nom: string; matricule: number; badge: string; poste: string };
+  employe?: { id?: number; nom?: string; matricule?: number; badge?: string; poste?: string };
   error?: string;
   code?: string;
 };
@@ -66,6 +73,23 @@ export default function PointageQrPage() {
   const [resultat, setResultat] = useState<Resultat | null>(null);
   const [erreurCamera, setErreurCamera] = useState("");
   const [envoi, setEnvoi] = useState(false);
+  const [biometrie, setBiometrie] = useState<{ visage: boolean; droit: boolean } | null>(null);
+  const [modeVisage, setModeVisage] = useState(false);
+  const [badgeVisage, setBadgeVisage] = useState("");
+  const appareil = useAppareilLocal();
+
+  /* La biométrie n'est proposée que si l'entreprise l'a activée et que
+     l'opérateur a le droit : sinon l'écran reste exactement celui du badge. */
+  useEffect(() => {
+    let annule = false;
+    api("/biometrics/config").then((c) => {
+      if (!annule && c.ok) {
+        setBiometrie({ visage: c.data?.modalites?.face === true, droit: c.data?.droits?.["pointage.biometrie"] === true });
+      }
+    }).catch(() => {});
+    return () => { annule = true; };
+  }, []);
+  const visagePossible = Boolean(biometrie?.visage && biometrie?.droit && appareil);
 
   const scannerRef = useRef<any>(null);
   /* Une caméra lit le même QR dix fois par seconde. Sans ce garde-fou, dix
@@ -81,6 +105,17 @@ export default function PointageQrPage() {
     if (dernierJeton.current.valeur === propre && maintenant - dernierJeton.current.a < 3000) return;
     dernierJeton.current = { valeur: propre, a: maintenant };
 
+    /* Badge + visage : on arrête la caméra arrière (un téléphone n'en ouvre
+       souvent qu'une à la fois) et on passe la main à la vérification. */
+    if (modeVisage && visagePossible) {
+      const scanner = scannerRef.current;
+      scannerRef.current = null;
+      setCamera(false);
+      if (scanner) { try { await scanner.stop(); await scanner.clear(); } catch { /* déjà arrêtée */ } }
+      setBadgeVisage(propre);
+      return;
+    }
+
     setEnvoi(true);
     try {
       const reponse = await authFetch("/attendance-v2/qr/scan", {
@@ -95,7 +130,15 @@ export default function PointageQrPage() {
     } finally {
       setEnvoi(false);
     }
-  }, [envoi]);
+  }, [envoi, modeVisage, visagePossible]);
+
+  const finVisage = (r: ResultatVisage) => {
+    setBadgeVisage("");
+    setResultat(r.ok
+      ? { success: true, repetition: r.repetition, action_libelle: r.action, retard_minutes: r.retard,
+          employe: { nom: r.nom }, message: r.message }
+      : { success: false, error: r.message });
+  };
 
   /* Le scanner est chargé à la demande : `html5-qrcode` touche au DOM et à
      `navigator.mediaDevices`, absents au rendu serveur. */
@@ -193,14 +236,18 @@ export default function PointageQrPage() {
             {succes ? (
               <>
                 <p className="text-2xl font-black leading-tight">{resultat.employe?.nom}</p>
-                <p className="mt-1 text-sm text-slate-700">
-                  Matricule {resultat.employe?.matricule} · {resultat.employe?.poste} · badge {resultat.employe?.badge}
-                </p>
+                {resultat.employe?.matricule !== undefined ? (
+                  <p className="mt-1 text-sm text-slate-700">
+                    Matricule {resultat.employe?.matricule} · {resultat.employe?.poste} · badge {resultat.employe?.badge}
+                  </p>
+                ) : (
+                  <p className="mt-1 text-sm font-bold text-emerald-900">Visage confirmé</p>
+                )}
                 <p className="mt-4 text-3xl font-black">
                   {resultat.action_libelle || ETAPES[String(resultat.action)] || "Pointage"}
                 </p>
                 <p className="mt-1 text-xl font-bold">
-                  {resultat.heure
+                  {resultat.heure === undefined && resultat.employe?.matricule === undefined ? "" : resultat.heure
                     ? new Date(resultat.heure).toLocaleTimeString("fr-FR",
                         { timeZone: "Africa/Bamako", hour: "2-digit", minute: "2-digit" })
                     : "—"}
@@ -226,6 +273,31 @@ export default function PointageQrPage() {
             )}
           </section>
         )}
+
+        {/* ── LE MODE : BADGE SEUL OU BADGE + VISAGE ── */}
+        {biometrie?.visage && biometrie?.droit && (
+          <section className="mt-5 rounded-2xl bg-white p-5 shadow-sm">
+            {appareil ? (
+              <label className="flex items-start gap-3">
+                <input type="checkbox" className="mt-1 h-5 w-5" checked={modeVisage}
+                  onChange={(e) => setModeVisage(e.target.checked)} />
+                <span>
+                  <span className="block font-black">Confirmer par le visage (badge + visage)</span>
+                  <span className="block text-sm text-slate-600">
+                    Poste « {appareil.name} ». Le badge désigne l&apos;employé, son visage le confirme.
+                  </span>
+                </span>
+              </label>
+            ) : (
+              <p className="text-sm text-slate-600">
+                Badge + visage disponible : associez d&apos;abord ce navigateur à un appareil déclaré
+                (Paramètres › Sécurité › Biométrie › Appareils).
+              </p>
+            )}
+          </section>
+        )}
+
+        {badgeVisage && <PointageVisage badge={badgeVisage} onTermine={finVisage} />}
 
         {/* ── LA CAMÉRA ── */}
         <section className="mt-5 rounded-2xl bg-white p-5 shadow-sm">

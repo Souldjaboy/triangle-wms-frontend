@@ -147,6 +147,10 @@ export default function ParametresPage() {
       <h1 className="text-4xl font-bold text-black mb-2">
         Paramètres entreprise
       </h1>
+      <div className="mb-6 flex flex-wrap gap-3">
+        <a href="/parametres/securite/biometrie" className="rounded-xl bg-black px-4 py-2 font-bold text-white">Sécurité → Biométrie</a>
+        <a href="/profil/securite" className="rounded-xl border border-gray-300 bg-white px-4 py-2 font-bold text-black">Mon compte → Passkeys</a>
+      </div>
 
       <p className="text-gray-500 mb-8">
         Informations utilisées dans les rapports, PDF et documents officiels.
