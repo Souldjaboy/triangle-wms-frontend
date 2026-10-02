@@ -30,6 +30,7 @@ const protectedRoutes = [
   "/pointage",
   "/parametres-pointage",
   "/parametres",
+  "/profil",
 ];
 
 const protectedClientRoutes = [
@@ -266,6 +267,7 @@ export const config = {
     "/pointage/:path*",
     "/parametres-pointage/:path*",
     "/parametres/:path*",
+    "/profil/:path*",
     "/client/dashboard/:path*",
     "/client/orders/:path*",
     "/client/profile/:path*",

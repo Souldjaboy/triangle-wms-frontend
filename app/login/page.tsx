@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiUrl } from "../lib/api";
+import { connexionParPasskey, usePasskeysSupportees } from "../lib/biometrie";
 import { productConfig } from "../lib/product-config";
 import InstallPWAButton from "../../components/InstallPWAButton";
 import WhatsAppSupportButton from "../../components/WhatsAppSupportButton";
@@ -11,6 +12,7 @@ import SocialAuthButtons from "../../components/SocialAuthButtons";
 export default function LoginPage() {
   /* TRIANGLE_LOGIN_REDIRECT_NOTIFICATION_V2 */
   const router = useRouter();
+  const passkeysPossibles = usePasskeysSupportees();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -18,24 +20,10 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async (e: any) => {
-    e.preventDefault();
-
-    setLoading(true);
-    setError("");
-
-    try {
-      const response = await fetch(apiUrl("/login"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email,
-          password,
-        }),
-      });
-
+  /* Traitement commun d'une réponse de connexion — mot de passe ou passkey :
+     le serveur applique les mêmes contrôles (vérification, abonnement,
+     version), l'écran fait la même chose de la réponse. */
+  const appliquerReponseConnexion = async (response: Response) => {
       const data = await response.json();
 
       if (!response.ok) {
@@ -54,13 +42,11 @@ export default function LoginPage() {
         }
 
         setError(data.error || "Erreur connexion");
-        setLoading(false);
         return;
       }
 
       if (String(data.user?.role || "").toLowerCase() === "customer") {
         setError("Ce compte est un compte client. Utilisez la connexion client.");
-        setLoading(false);
         return;
       }
 
@@ -123,11 +109,47 @@ export default function LoginPage() {
             : "/dashboard"
         )
       );
+  };
+
+  const handleLogin = async (e: any) => {
+    e.preventDefault();
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch(apiUrl("/login"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email,
+          password,
+        }),
+      });
+
+      await appliquerReponseConnexion(response);
     } catch (error) {
       console.error(error);
       setError("Erreur serveur");
     }
 
+    setLoading(false);
+  };
+
+  /* Face ID, Touch ID, Windows Hello, empreinte du téléphone : l'appareil
+     vérifie la personne et signe ; aucune donnée biométrique ne quitte
+     l'appareil. Le serveur applique ensuite exactement les contrôles du
+     mot de passe. */
+  const handlePasskey = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      await appliquerReponseConnexion(await connexionParPasskey());
+    } catch (error) {
+      setError(error instanceof Error && error.name !== "NotAllowedError" ? error.message : "Connexion par passkey annulée.");
+    }
     setLoading(false);
   };
 
@@ -232,6 +254,18 @@ export default function LoginPage() {
               {loading ? "Connexion..." : "Se connecter"}
             </button>
           </form>
+
+          {passkeysPossibles && (
+            <button
+              type="button"
+              onClick={handlePasskey}
+              disabled={loading}
+              className="mt-3 w-full rounded-xl border-2 border-black py-3 font-bold text-black hover:bg-gray-50 disabled:opacity-60"
+            >
+              Se connecter avec une passkey
+              <span className="block text-xs font-normal text-gray-600">Face ID, Touch ID, Windows Hello, empreinte du téléphone</span>
+            </button>
+          )}
 
           <button
             type="button"

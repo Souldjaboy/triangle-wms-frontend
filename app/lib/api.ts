@@ -66,11 +66,19 @@ export async function authFetch(path: string, options: RequestInit = {}) {
   ) {
     const payload = await response.clone().json().catch(() => ({}));
     const message = String(payload?.error || "").toLowerCase();
+    /* Un refus métier codé (droit refusé, visage non reconnu, passkey
+       refusée, validation renforcée demandée, badge inconnu) n'est PAS une
+       fin de session : seules les réponses SANS code déconnectent — c'est le
+       cas de toutes celles d'authenticateToken (jeton absent, expiré, autre
+       version). */
+    const code = String(payload?.code || "");
+    const refusMetier = code !== "" && !/TOKEN|SESSION/i.test(code);
 
     if (
-      response.status === 401 ||
+      !refusMetier &&
+      (response.status === 401 ||
       message.includes("token") ||
-      message.includes("auth")
+      message.includes("auth"))
     ) {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
