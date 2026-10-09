@@ -20,7 +20,7 @@ export default function SandInvoicesPage() {
     <main className="min-h-screen bg-gray-100 p-6 text-black">
       <div className="mx-auto max-w-7xl">
         <Link href="/sable" className="font-bold">← Retour</Link>
-        <h1 className="mt-4 text-3xl font-black">Factures sable</h1>
+        <h1 className="mt-4 text-3xl font-black">Factures sable</h1><Link href="/sable/etats-factures" className="mt-4 inline-block rounded bg-blue-700 px-4 py-2 font-bold text-white">États des factures</Link>
 
         <div className="mt-6 overflow-x-auto rounded-2xl bg-white shadow">
           <table className="w-full">
