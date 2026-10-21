@@ -27,6 +27,11 @@ export type RayonIndisponible = {
 };
 type Indisponibles = Record<string, Record<string, RayonIndisponible>>;
 
+/** Un niveau réel dont aucun bac n'est sélectionnable, et pourquoi. */
+export type NiveauIndisponible = RayonIndisponible & { rang: number; regularisable: boolean };
+/* entrepôt → rayon → étagère → niveau */
+type Chemins = Record<string, Record<string, Record<string, Record<string, NiveauIndisponible>>>>;
+
 const n = (v: unknown) => Number(v || 0).toLocaleString("fr-FR");
 const SELECT = "mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-100 disabled:text-gray-400";
 
@@ -36,6 +41,10 @@ export function useBinTree() {
      tenus à part de `tree` : les y mettre les rendrait sélectionnables, et un
      transfert partirait vers un emplacement que personne ne peut retrouver. */
   const [indisponibles, setIndisponibles] = useState<Indisponibles>({});
+  /* Le détail complet : un niveau écarté ne doit pas disparaître davantage
+     qu'un rayon écarté. C'est ce qui manquait — le niveau D1 s'évaporait
+     parce que D2 et D3 allaient bien. */
+  const [chemins, setChemins] = useState<Chemins>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -46,20 +55,22 @@ export function useBinTree() {
       const data = await r.json();
       setTree(data.tree || {});
       setIndisponibles(data.rayonsIndisponibles || {});
+      setChemins(data.cheminsIndisponibles || {});
     } else setError("Erreur de chargement des emplacements.");
     setLoading(false);
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  return { tree, indisponibles, loading, error, reload: load };
+  return { tree, indisponibles, chemins, loading, error, reload: load };
 }
 
 export default function BinSelector({
-  tree, indisponibles = {}, value, onSelect, label = "Emplacement",
+  tree, indisponibles = {}, chemins = {}, value, onSelect, label = "Emplacement",
   disabled = false, compact = false,
 }: {
   tree: Tree;
   indisponibles?: Indisponibles;
+  chemins?: Chemins;
   value: Bin | null;
   onSelect: (bin: Bin | null) => void;
   label?: string;
@@ -93,8 +104,11 @@ export default function BinSelector({
   const rayons = useMemo(() => (w && tree[w] ? Object.keys(tree[w]).sort() : []), [tree, w]);
   const locations = useMemo(
     () => (w && r && tree[w]?.[r] ? Object.keys(tree[w][r]).sort() : []), [tree, w, r]);
+  /* PAS de .sort() : le serveur les a déjà rangés par rang physique, et
+     l'ordre d'insertion de l'objet JSON le conserve. Trier ici remettrait
+     « TOP » entre « 3 » et « 4 », et « D10 » avant « D2 ». */
   const levels = useMemo(
-    () => (w && r && l && tree[w]?.[r]?.[l] ? Object.keys(tree[w][r][l]).sort() : []), [tree, w, r, l]);
+    () => (w && r && l && tree[w]?.[r]?.[l] ? Object.keys(tree[w][r][l]) : []), [tree, w, r, l]);
   const bins: Bin[] = useMemo(
     () => (w && r && l && lv ? tree[w]?.[r]?.[l]?.[lv] || [] : []), [tree, w, r, l, lv]);
 
@@ -107,6 +121,28 @@ export default function BinSelector({
     if (niveau === "l") { setL(v); setLv(""); }
     if (niveau === "lv") setLv(v);
   };
+
+  /* Les étagères du rayon choisi qui n'offrent aucun niveau sélectionnable. */
+  const etageresEcartees = useMemo(() => {
+    const sous = w && r ? chemins[w]?.[r] || {} : {};
+    return Object.entries(sous)
+      .filter(([et]) => !(tree[w]?.[r]?.[et]))
+      .map(([et, niveaux]) => {
+        const liste = Object.values(niveaux);
+        return [et, {
+          explication: liste[0]?.explication || "emplacement précis requis",
+          bacs: liste.reduce((n2, x) => n2 + x.bacs, 0),
+          quantite: liste.reduce((n2, x) => n2 + x.quantite, 0),
+        }] as const;
+      })
+      .sort(([a2], [b2]) => a2.localeCompare(b2));
+  }, [chemins, tree, w, r]);
+
+  /* Les niveaux écartés de l'étagère choisie, à leur place physique. */
+  const niveauxEcartes = useMemo(() => {
+    const sous = w && r && l ? chemins[w]?.[r]?.[l] || {} : {};
+    return Object.entries(sous).sort((a2, b2) => (a2[1].rang ?? 8999) - (b2[1].rang ?? 8999));
+  }, [chemins, w, r, l]);
 
   const rayonsEcartes = useMemo(
     () => (w && indisponibles[w] ? Object.entries(indisponibles[w]).sort(([a], [b]) => a.localeCompare(b)) : []),
@@ -144,12 +180,27 @@ export default function BinSelector({
           <select value={l} disabled={disabled || !r} onChange={(e) => set("l", e.target.value)} className={SELECT}>
             <option value="">—</option>
             {locations.map((x) => <option key={x} value={x}>{x}</option>)}
+            {/* Une étagère entière peut n'avoir aucun niveau utilisable : elle
+                reste affichée, sinon elle semblerait ne pas exister. */}
+            {etageresEcartees.map(([nom, info]) => (
+              <option key={`x-${nom}`} value="" disabled>
+                {nom} — emplacement précis requis{info.quantite > 0 ? ` (${n(info.quantite)} en stock)` : ""}
+              </option>
+            ))}
           </select>
         </label>
         <label className="block text-xs text-gray-500">Level
           <select value={lv} disabled={disabled || !l} onChange={(e) => set("lv", e.target.value)} className={SELECT}>
             <option value="">—</option>
             {levels.map((x) => <option key={x} value={x}>{x}</option>)}
+            {/* LE CAS ZERBO : D2 et D3 sont bons, D1 n'a que des FULLBIN. Sans
+                cette ligne, D1 disparaissait purement et simplement et son
+                stock devenait introuvable. */}
+            {niveauxEcartes.map(([nom, info]) => (
+              <option key={`x-${nom}`} value="" disabled>
+                {nom} — emplacement précis requis{info.quantite > 0 ? ` (${n(info.quantite)} en stock)` : ""}
+              </option>
+            ))}
           </select>
         </label>
         <label className="block text-xs text-gray-500">BIN
@@ -167,6 +218,35 @@ export default function BinSelector({
       </div>
       {/* Un rayon écarté laisse le doute : « est-il perdu ? ». On répond, avec
           le chiffre qui compte — le stock qui attend d'être localisé. */}
+      {/* Un niveau écarté sous le chemin courant : la phrase la plus utile,
+          parce qu'elle répond à « où est passé D1 ? » au moment exact où la
+          question se pose. */}
+      {niveauxEcartes.length > 0 && (
+        <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+          <p className="font-bold">
+            {niveauxEcartes.length} niveau{niveauxEcartes.length > 1 ? "x" : ""} de {r} / {l}{" "}
+            {niveauxEcartes.length > 1 ? "existent" : "existe"} mais ne {niveauxEcartes.length > 1 ? "peuvent" : "peut"} pas
+            recevoir de transfert.
+          </p>
+          <ul className="mt-1 list-disc pl-5">
+            {niveauxEcartes.map(([nom, info]) => (
+              <li key={nom}>
+                <b>{nom}</b> — {info.explication}
+                {info.quantite > 0 ? ` · ${n(info.quantite)} en stock` : ""}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1">
+            Leur stock est conservé. Pour les rendre utilisables, précisez le bac
+            depuis l’inventaire des emplacements.
+          </p>
+          <a href="/emplacements?statut=A_REGULARISER"
+             className="mt-1 inline-block font-bold text-blue-700 underline">
+            Ouvrir la régularisation des emplacements
+          </a>
+        </div>
+      )}
+
       {w && rayonsEcartes.length > 0 && rayons.length > 0 && (
         <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
           <p className="font-bold">

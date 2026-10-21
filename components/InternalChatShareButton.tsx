@@ -81,7 +81,12 @@ export default function InternalChatShareButton() {
       type="button"
       onClick={send}
       title="Envoyer dans le chat interne"
-      className="fixed bottom-40 right-6 z-[80] rounded-full bg-yellow-500 px-4 py-3 font-black text-black shadow-xl print:hidden"
+      /* z-40 : AU-DESSUS du contenu de la page (z-10 au plus), SOUS les
+           fenêtres bloquantes (z-50). En z-80, ce bouton recouvrait le
+           « Confirmer » de toutes les modales de l'application sur
+           téléphone — on voyait le bouton, on le touchait, et c'est le
+           partage qui s'ouvrait. */
+      className="fixed bottom-40 right-6 z-40 rounded-full bg-yellow-500 px-4 py-3 font-black text-black shadow-xl print:hidden"
     >
       💬 Envoyer dans le chat
     </button>

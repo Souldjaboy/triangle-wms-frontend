@@ -86,10 +86,21 @@ export default function ComptabilitePage() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
 
-  const user = useMemo(() => {
-    if (typeof window === "undefined") return null;
-    const saved = localStorage.getItem("user");
-    return saved ? JSON.parse(saved) : null;
+  /* LIRE localStorage PENDANT LE RENDU CASSE L'HYDRATATION.
+     Le serveur ne voit aucun compte et rend « Accès refusé » ; le navigateur,
+     lui, trouve l'utilisateur et rend les onglets. Les deux HTML diffèrent,
+     React abandonne l'hydratation (erreur #418) et refait tout le DOM — on
+     perd le focus, l'état des champs, et la page clignote.
+     On lit donc APRÈS le montage, et tant qu'on n'a pas lu, serveur et
+     navigateur rendent exactement la même chose : le bloc de chargement. */
+  const [user, setUser] = useState<any>(null);
+  const [monte, setMonte] = useState(false);
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("user");
+      setUser(saved ? JSON.parse(saved) : null);
+    } catch { setUser(null); }
+    setMonte(true);
   }, []);
 
   const role = String(user?.role || "").toLowerCase();
@@ -186,9 +197,9 @@ export default function ComptabilitePage() {
     setLoading(false);
   };
 
-  useEffect(() => {
-    loadAll();
-  }, []);
+  /* Après le montage seulement : avant, `canViewFullModule` est faux par
+     défaut et loadAll() repartirait sans rien charger. */
+  useEffect(() => { if (monte) loadAll(); }, [monte]);
 
   useEffect(() => {
     if (activeTab === "payroll" && canViewFullModule) loadPayroll();
@@ -357,7 +368,10 @@ export default function ComptabilitePage() {
 
       {message && <div className="mb-5 rounded-lg bg-yellow-100 p-4 font-bold">{message}</div>}
 
-      {!canViewFullModule ? (
+      {/* Tant que le compte n'est pas lu, on n'affirme RIEN sur les droits :
+          « refusé » serait faux une fraction de seconde, et le dire puis se
+          dédire est pire que d'attendre. */}
+      {monte && !canViewFullModule ? (
         <div className="rounded-lg bg-white p-8 shadow">
           <h2 className="text-2xl font-black">Accès comptabilité refusé</h2>
           <p className="mt-2 text-gray-600">
@@ -366,7 +380,7 @@ export default function ComptabilitePage() {
         </div>
       ) : null}
 
-      {canViewFullModule && <div className="mb-6 flex gap-2 overflow-x-auto">
+      {monte && canViewFullModule && <div className="mb-6 flex gap-2 overflow-x-auto">
         {[
           ["dashboard", "Tableau"],
           ["banks", "Banques"],
@@ -393,7 +407,7 @@ export default function ComptabilitePage() {
         ))}
       </div>}
 
-      {loading ? (
+      {!monte || loading ? (
         <div className="rounded-lg bg-white p-8 font-bold shadow">Chargement comptabilité...</div>
       ) : canViewFullModule ? (
         <>

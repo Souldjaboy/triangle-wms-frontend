@@ -98,7 +98,7 @@ export default function PaiementsFacture({
   const paiements: Paiement[] = data?.paiements || [];
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-start justify-center overflow-y-auto bg-black/50 p-4">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4">
       <div className="my-8 w-full max-w-3xl rounded-2xl bg-white p-6 shadow-xl">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>

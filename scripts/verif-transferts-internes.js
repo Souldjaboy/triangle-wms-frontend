@@ -171,6 +171,8 @@ async function ouvrirOnglet(page) {
     /* Présent et actif ne suffit pas : le bouton flottant « Envoyer dans le
        chat » (z-80) recouvrait la confirmation sur téléphone. On vérifie donc
        que c'est bien LUI que l'on touche au point où il s'affiche. */
+    /* Le bouton flottant « Envoyer dans le chat » est passé en z-40 : il doit
+       désormais se trouver SOUS la fenêtre, pas devant elle. */
     const recouvert = await confirmer.evaluate((n) => {
       const b = n.getBoundingClientRect();
       const dessus = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
@@ -197,12 +199,11 @@ async function ouvrirOnglet(page) {
        l'onglet « Tableau » avant que ce composant ne soit monté, parce que la
        page lit localStorage pendant le rendu. On la nomme pour ne pas la
        confondre avec une régression, mais toute AUTRE erreur fait échouer. */
-    const connue = (m) => /Minified React error #418/.test(m);
-    const nouvelles = erreursConsole.filter((m) => !connue(m));
-    v("aucune erreur JavaScript nouvelle", nouvelles.length === 0, nouvelles.join(" | "));
-    if (erreursConsole.some(connue)) {
-      console.log("      · hydratation #418 : défaut préexistant de app/comptabilite/page.tsx");
-    }
+    /* L'hydratation #418 venait de app/comptabilite/page.tsx, qui lisait
+       localStorage PENDANT le rendu : le serveur ne voyait aucun compte, le
+       navigateur en trouvait un, et les deux HTML divergeaient. Corrigé : on
+       n'accepte donc plus aucune erreur. */
+    v("aucune erreur JavaScript", erreursConsole.length === 0, erreursConsole.join(" | "));
     await ctx.close();
   }
 

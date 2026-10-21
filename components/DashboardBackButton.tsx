@@ -88,7 +88,9 @@ export default function DashboardBackButton() {
       title="Accueil"
       aria-label="Accueil"
       onClick={goHome}
-      className="fixed bottom-5 left-5 z-[100] flex h-[50px] w-[50px] items-center justify-center rounded-full bg-yellow-500 text-black shadow-lg transition hover:scale-110 hover:shadow-2xl print:hidden"
+      /* z-40, comme le bouton de partage : un raccourci de navigation ne
+           passe pas devant une confirmation qui attend une réponse. */
+      className="fixed bottom-5 left-5 z-40 flex h-[50px] w-[50px] items-center justify-center rounded-full bg-yellow-500 text-black shadow-lg transition hover:scale-110 hover:shadow-2xl print:hidden"
     >
       <Home size={24} aria-hidden="true" />
     </button>
