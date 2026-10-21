@@ -1,21 +1,25 @@
 "use client";
 
-import { useEffect,useState } from "react";
+import { useCallback,useEffect,useState } from "react";
 import Link from "next/link";
 import { authFetch } from "../../lib/api";
 import { usePermissions } from "../../lib/permissions";
+import PaiementsFacture from "./PaiementsFacture";
 
 const money=(v:any)=>new Intl.NumberFormat("fr-FR").format(Number(v||0))+" FCFA";
 
 export default function CementInvoicesPage(){
   const {can}=usePermissions();
   const [rows,setRows]=useState<any[]>([]);
+  const [paiements,setPaiements]=useState<any>(null);
+  const [flash,setFlash]=useState("");
 
-  useEffect(()=>{
-    authFetch("/cement/invoices")
-      .then(r=>r.json())
-      .then(d=>setRows(Array.isArray(d)?d:[]));
+  const charger=useCallback(async ()=>{
+    const r=await authFetch("/cement/invoices");
+    const d=await r.json().catch(()=>[]);
+    setRows(Array.isArray(d)?d:[]);
   },[]);
+  useEffect(()=>{ charger(); },[charger]);
 
   if(!can("cement","view")) return <main className="p-8">Accès refusé.</main>;
 
@@ -25,6 +29,8 @@ export default function CementInvoicesPage(){
         <h1 className="text-3xl font-black">Factures ciment</h1>
         <Link href="/ciment/impayes" className="rounded-lg bg-red-600 px-4 py-2 font-bold text-white">État des impayés</Link>
       </div>
+
+      {flash && <p className="mb-4 rounded-lg bg-green-50 p-3 font-semibold text-green-800">{flash}</p>}
 
       <div className="overflow-x-auto rounded-2xl bg-white shadow">
         <table className="w-full">
@@ -56,12 +62,28 @@ export default function CementInvoicesPage(){
                 <td className="p-3 text-center whitespace-nowrap">
                   <Link href={`/ciment/factures/${r.id}`} className="rounded bg-slate-900 px-3 py-1.5 text-xs font-bold text-white">Ouvrir</Link>
                   <Link href={`/ciment/factures/${r.id}?print=1`} className="ml-2 rounded border border-slate-900 px-3 py-1.5 text-xs font-bold text-slate-900">Imprimer</Link>
+                  {/* Les paiements restent accessibles même sur une facture
+                      soldée : c'est précisément là qu'on vient en annuler un. */}
+                  <button onClick={()=>setPaiements(r)}
+                    className="ml-2 rounded border border-emerald-700 px-3 py-1.5 text-xs font-bold text-emerald-800">
+                    Paiements
+                  </button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {paiements && (
+        <PaiementsFacture
+          invoice={paiements}
+          onClose={()=>setPaiements(null)}
+          onChanged={async (msg)=>{ setFlash(msg); await charger(); }}
+          peutContrepasser={can("cement","paiement_contrepasser")}
+          peutConstaterRemboursement={can("cement","remboursement_constater")}
+        />
+      )}
     </main>
   );
 }
