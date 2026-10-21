@@ -5,6 +5,7 @@ import Link from "next/link";
 import { authFetch } from "../lib/api";
 import { formatFCFA } from "../lib/format";
 import ImportButton from "../components/ImportButton";
+import TransfertsInternes from "./TransfertsInternes";
 
 const emptyBank = {
   bank_name: "",
@@ -372,6 +373,7 @@ export default function ComptabilitePage() {
           ["caisses", "Caisses"],
           ["transactions", "Mouvements"],
           ["transfers", "Transferts"],
+          ["internes", "Transferts internes"],
           ["vouchers", "Bons"],
           ["expenses", "Demandes"],
           ["payroll", "Salaires"],
@@ -870,6 +872,14 @@ export default function ComptabilitePage() {
               </Panel>
             </section>
           )}
+
+          {/* Déplacer des fonds entre comptes de la société : ni une recette,
+              ni une dépense. Le droit d'annuler est distinct du droit de déplacer,
+              comme pour toute contre-passation d'une opération validée. */}
+          {activeTab === "internes" && (
+            <TransfertsInternes peutDeplacer={canManage} peutAnnuler={canApprove} />
+          )}
+
 
           {activeTab === "vouchers" && (
             <section className="grid gap-6 lg:grid-cols-[420px_1fr]">
