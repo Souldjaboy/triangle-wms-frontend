@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { authFetch } from "../lib/api";
 import { usePermissions } from "../lib/permissions";
+import CorrigerDemande from "./CorrigerDemande";
 import ProductLinesGrid, { newLine, toPayload, type StockLine } from "../components/ProductLinesGrid";
 
 /**
@@ -47,6 +48,9 @@ export default function DemandesStockPage() {
   const [busy, setBusy] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [detail, setDetail] = useState<Detail | null>(null);
+  /* La demande en cours de correction. Distincte du détail : on corrige
+     depuis la liste, sans avoir à ouvrir la fiche d'abord. */
+  const [aCorriger, setACorriger] = useState<Request | null>(null);
   const [lines, setLines] = useState<StockLine[]>([newLine()]);
   const [head, setHead] = useState({ request_type: "entree", supplier_name: "", source_warehouse: "", target_warehouse: "", motif: "" });
 
@@ -199,6 +203,16 @@ export default function DemandesStockPage() {
                           {["VALIDEE", "PARTIELLEMENT_RECUE"].includes(r.status) && can("stock", "validate") && (
                             <button disabled={busy} onClick={() => act(r.id, "confirm")} className="rounded-lg bg-emerald-600 px-2 py-1 text-xs font-bold text-white">Confirmer réception</button>
                           )}
+                          {/* Une demande validée ou reçue n'est plus définitive :
+                              l'écran de correction décide lui-même quels gestes
+                              ont un sens pour son état. */}
+                          {["VALIDEE", "PARTIELLEMENT_RECUE", "RECUE"].includes(r.status)
+                            && (can("stock", "validate") || can("demande", "contrepasser")) && (
+                            <button onClick={() => setACorriger(r)}
+                                    className="rounded-lg bg-amber-100 px-2 py-1 text-xs font-bold text-amber-800">
+                              Corriger
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -208,6 +222,16 @@ export default function DemandesStockPage() {
             </div>
           )}
         </section>
+
+        {aCorriger && (
+          <CorrigerDemande
+            demande={aCorriger}
+            onClose={() => setACorriger(null)}
+            onChanged={async (message) => { setMsg(`✅ ${message}`); await load(); }}
+            peutDevalider={can("stock", "validate")}
+            peutContrepasser={can("demande", "contrepasser")}
+          />
+        )}
 
         {detail && (
           <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4" onClick={() => setDetail(null)}>
