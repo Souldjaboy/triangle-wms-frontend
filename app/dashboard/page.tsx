@@ -547,6 +547,15 @@ export default function DashboardPage() {
     </Link>
   )}
 
+  {(can("sand", "validate") || can("cement", "validate")) && (
+    <Link href="/factures-doublons">
+      <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+        <FileText size={20} />
+        Factures en double
+      </li>
+    </Link>
+  )}
+
   {can("etat_facture", "view") && (
     <Link href="/etats-factures">
       <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
