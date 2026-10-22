@@ -4,6 +4,7 @@
 const ROUTES: Array<[string, string]> = [
   ["/paie/avances", "paie.avance"],
   ["/paie", "paie"],
+  ["/etats-factures", "etat_facture"],
   ["/comptabilite", "comptabilite"],
   ["/accounting", "comptabilite"],
   ["/fret-chine-mali", "fret_chine_mali"],
@@ -15,6 +16,7 @@ const ROUTES: Array<[string, string]> = [
   ["/emplacements", "stock.emplacement"],
   ["/produits", "produit"],
   ["/documents", "document"],
+  ["/rh", "rh.document"],
   ["/pointage", "pointage"],
   ["/rapports", "rapport"],
   ["/utilisateurs", "utilisateur"],
