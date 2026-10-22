@@ -33,6 +33,20 @@ type Document = {
   id: number; reference: string; doc_type: string; title: string;
   period_code: string | null; issued_on: string; issued_by_name: string;
   pdf_sha256: string; full_name: string | null; cancelled_at: string | null;
+  cancel_reason: string | null; cancelled_by_name: string | null;
+  status: string; version: number; version_reason: string;
+  superseded_at: string | null; archivee: boolean; pdf_bytes: number;
+  printed_count: number;
+};
+type Version = {
+  id: number; reference: string; version: number; status: string;
+  issued_on: string; issued_by_name: string; version_reason: string;
+  superseded_at: string | null; cancelled_at: string | null;
+  cancel_reason: string | null; cancelled_by_name: string | null;
+  printed_count: number; archivee: boolean;
+};
+type Trace = {
+  id: number; action: string; reason: string; acted_by_name: string; acted_at: string;
 };
 
 type Clause = {
@@ -57,6 +71,16 @@ const ETAT: Record<string, string> = {
   ANNULE: "bg-red-100 text-red-800",
 };
 
+const ETAT_PIECE: Record<string, { libelle: string; classe: string }> = {
+  EMIS: { libelle: "En vigueur", classe: "bg-green-100 text-green-800" },
+  REMPLACE: { libelle: "Remplacée", classe: "bg-amber-100 text-amber-800" },
+  ANNULE: { libelle: "Annulée", classe: "bg-red-100 text-red-800" },
+};
+const ACTION_PIECE: Record<string, string> = {
+  APERCU: "Aperçu consulté", EMISSION: "Émise", REIMPRESSION: "Réimprimée",
+  NOUVELLE_VERSION: "Nouvelle version", REMPLACEMENT: "Remplacée", ANNULATION: "Annulée",
+};
+
 const TYPE_DOC: Record<string, string> = {
   CONTRAT: "Contrat", BULLETIN: "Bulletin de paie",
   ATTESTATION_TRAVAIL: "Attestation de travail",
@@ -78,6 +102,14 @@ export default function RegistresRhPage() {
   const [message, setMessage] = useState("");
   const [erreur, setErreur] = useState("");
   const [chargement, setChargement] = useState(true);
+  /* Les versions d'une pièce, ouvertes à la demande : la chaîne ne se devine
+     pas d'une ligne de tableau. */
+  const [versions, setVersions] = useState<null | {
+    document: Document; versions: Version[]; en_vigueur: Version | null; historique: Trace[];
+  }>(null);
+  const [aAnnuler, setAAnnuler] = useState<Document | null>(null);
+  const [motifAnnulation, setMotifAnnulation] = useState("");
+  const [occupe, setOccupe] = useState(false);
 
   /* Lu après le montage : lire localStorage pendant le rendu ferait diverger
      le HTML du serveur et celui du navigateur, et React refait alors tout le
@@ -105,6 +137,37 @@ export default function RegistresRhPage() {
   useEffect(() => { if (monte) charger(); }, [monte, charger]);
 
   const actifs = useMemo(() => contrats.filter((c) => c.status === "ACTIF").length, [contrats]);
+
+  /* La pièce ARCHIVÉE, octet pour octet. On ouvre l'URL du serveur plutôt que
+     de régénérer : une attestation signée se conserve, elle ne se recalcule
+     pas. Si l'archive manque ou a été altérée, le serveur refuse et le dit. */
+  const ouvrirPiece = (d: Document) => {
+    window.open(`/api/rh/documents/${d.id}/pdf`, "_blank", "noopener");
+  };
+
+  const ouvrirVersions = async (d: Document) => {
+    setErreur("");
+    const r = await authFetch(`/rh/documents/${d.id}/versions`);
+    const data = await r.json().catch(() => null);
+    if (r.ok && data) setVersions({ ...data, document: d });
+    else setErreur(data?.error || "Lecture des versions impossible.");
+  };
+
+  const annulerPiece = async () => {
+    if (!aAnnuler) return;
+    setOccupe(true); setErreur("");
+    const r = await authFetch(`/rh/documents/${aAnnuler.id}/annuler`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ motif: motifAnnulation.trim() }),
+    });
+    const d = await r.json().catch(() => ({}));
+    setOccupe(false);
+    if (r.ok) {
+      setMessage(d.avertissement || `Pièce ${aAnnuler.reference} annulée.`);
+      setAAnnuler(null); setMotifAnnulation("");
+      await charger();
+    } else setErreur(d.error || "Annulation impossible.");
+  };
 
   const terminer = async (c: Contrat) => {
     const motif = window.prompt(
@@ -303,29 +366,75 @@ export default function RegistresRhPage() {
             </select>
           </div>
           <p className="mb-3 text-sm text-gray-600">
-            Chaque pièce porte une référence unique et l'empreinte du PDF remis :
-            deux exemplaires d'une même référence sont le même document, octet
-            pour octet.
+            Chaque pièce porte une référence unique et l'empreinte du PDF remis.
+            Le fichier lui-même est conservé : « Voir » sert l'archive telle
+            qu'elle a été remise, et non une régénération qui pourrait différer.
           </p>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[800px] text-left text-sm">
               <thead className="bg-gray-100 text-gray-600">
-                <tr>{["Référence", "Type", "Salarié", "Période", "Émise le", "Par", "Empreinte"]
+                <tr>{["Référence", "Type", "Salarié", "Période", "Émise le", "Par", "État", ""]
                   .map((h) => <th key={h} className="p-3">{h}</th>)}</tr>
               </thead>
               <tbody>
                 {documents.length === 0 ? (
-                  <tr><td colSpan={7} className="p-4 text-gray-500">Aucune pièce remise.</td></tr>
+                  <tr><td colSpan={8} className="p-4 text-gray-500">Aucune pièce remise.</td></tr>
                 ) : documents.map((d) => (
-                  <tr key={d.id} className={`border-t ${d.cancelled_at ? "opacity-50" : ""}`}>
-                    <td className="p-3 font-mono text-xs">{d.reference}</td>
+                  <tr key={d.id} className={`border-t ${d.status !== "EMIS" ? "opacity-60" : ""}`}>
+                    <td className="p-3 font-mono text-xs">
+                      {d.reference}
+                      {d.version > 1 && (
+                        <span className="ml-1 rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-bold text-gray-700">
+                          v{d.version}
+                        </span>
+                      )}
+                      <span className="block text-[10px] text-gray-400" title={d.pdf_sha256}>
+                        {String(d.pdf_sha256 || "").slice(0, 12)}…
+                      </span>
+                    </td>
                     <td className="p-3">{TYPE_DOC[d.doc_type] || d.doc_type}</td>
                     <td className="p-3">{d.full_name || "—"}</td>
                     <td className="p-3">{d.period_code || "—"}</td>
                     <td className="p-3">{fdate(d.issued_on)}</td>
                     <td className="p-3 text-xs text-gray-600">{d.issued_by_name}</td>
-                    <td className="p-3 font-mono text-xs text-gray-400" title={d.pdf_sha256}>
-                      {String(d.pdf_sha256 || "").slice(0, 12)}…
+                    <td className="p-3">
+                      <span className={`rounded px-2 py-0.5 text-xs font-bold ${
+                        (ETAT_PIECE[d.status] || ETAT_PIECE.EMIS).classe}`}>
+                        {(ETAT_PIECE[d.status] || { libelle: d.status }).libelle}
+                      </span>
+                      {d.status === "ANNULE" && d.cancel_reason && (
+                        <span className="block text-[11px] text-red-700">{d.cancel_reason}</span>
+                      )}
+                      {d.printed_count > 1 && (
+                        <span className="block text-[11px] text-gray-500">
+                          sortie {d.printed_count}×
+                        </span>
+                      )}
+                      {!d.archivee && (
+                        <span className="block text-[11px] text-amber-700" title="Éditée avant la conservation des fichiers">
+                          fichier non conservé
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-3">
+                      <div className="flex flex-wrap gap-1">
+                        {d.archivee && can("rh.document", "print") && (
+                          <button onClick={() => ouvrirPiece(d)}
+                            className="rounded bg-gray-100 px-2 py-1 text-xs font-bold text-gray-800">
+                            {d.printed_count > 0 ? "Réimprimer" : "Voir"}
+                          </button>
+                        )}
+                        <button onClick={() => ouvrirVersions(d)}
+                          className="rounded bg-gray-100 px-2 py-1 text-xs font-bold text-gray-800">
+                          Versions
+                        </button>
+                        {d.status === "EMIS" && can("rh.document", "delete") && (
+                          <button onClick={() => { setAAnnuler(d); setMotifAnnulation(""); }}
+                            className="rounded bg-red-50 px-2 py-1 text-xs font-bold text-red-800">
+                            Annuler
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -363,6 +472,120 @@ export default function RegistresRhPage() {
             ))}
           </ul>
         </section>
+      )}
+      {/* ─────────────────────── LES VERSIONS D'UNE PIÈCE ──────────────── */}
+      {versions && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4"
+          role="dialog" aria-modal="true" aria-label="Versions de la pièce">
+          <div className="my-8 w-full max-w-3xl rounded-lg bg-white shadow-xl">
+            <div className="flex items-start justify-between border-b p-4">
+              <div>
+                <h2 className="font-black">{TYPE_DOC[versions.document.doc_type] || versions.document.doc_type}</h2>
+                <p className="text-sm text-gray-600">
+                  {versions.document.full_name || "—"}
+                  {versions.document.period_code ? ` — ${versions.document.period_code}` : ""}
+                </p>
+              </div>
+              <button onClick={() => setVersions(null)} aria-label="Fermer"
+                className="px-2 text-xl leading-none text-gray-500 hover:text-gray-900">×</button>
+            </div>
+            <div className="p-4">
+              {versions.versions.length === 1 && (
+                <p className="mb-3 text-sm text-gray-600">
+                  Cette pièce n&apos;a qu&apos;une version.
+                </p>
+              )}
+              <ul className="space-y-2">
+                {versions.versions.map((x) => (
+                  <li key={x.id} className={`rounded border p-3 text-sm ${
+                    x.status === "EMIS" ? "border-green-300 bg-green-50" : "bg-gray-50"}`}>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-mono">{x.reference}</span>
+                      <span className="rounded bg-gray-200 px-1.5 py-0.5 text-[11px] font-bold">v{x.version}</span>
+                      <span className={`rounded px-2 py-0.5 text-xs font-bold ${
+                        (ETAT_PIECE[x.status] || ETAT_PIECE.EMIS).classe}`}>
+                        {(ETAT_PIECE[x.status] || { libelle: x.status }).libelle}
+                      </span>
+                      <span className="text-gray-600">
+                        émise le {fdate(x.issued_on)} par {x.issued_by_name}
+                      </span>
+                    </div>
+                    {x.version_reason && (
+                      <p className="mt-1 text-gray-700">Motif : {x.version_reason}</p>
+                    )}
+                    {x.status === "ANNULE" && x.cancel_reason && (
+                      <p className="mt-1 text-red-700">
+                        Annulée par {x.cancelled_by_name} — {x.cancel_reason}
+                      </p>
+                    )}
+                    {!x.archivee && (
+                      <p className="mt-1 text-amber-700">
+                        Fichier non conservé : cette pièce a été éditée avant l&apos;archivage.
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+
+              <h3 className="mb-2 mt-5 text-sm font-black">Historique</h3>
+              <ul className="space-y-1 text-sm">
+                {versions.historique.map((h) => (
+                  <li key={h.id} className="flex flex-wrap gap-2 border-t py-1.5">
+                    <span className="font-medium">{ACTION_PIECE[h.action] || h.action}</span>
+                    <span className="text-gray-600">par {h.acted_by_name}</span>
+                    <span className="text-gray-500">le {fdate(h.acted_at)}</span>
+                    {h.reason && <span className="text-gray-700">— {h.reason}</span>}
+                  </li>
+                ))}
+              </ul>
+              {versions.historique.length === 0 && (
+                <p className="text-sm text-gray-500">Aucune trace.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─────────────────────────── ANNULER UNE PIÈCE ─────────────────── */}
+      {aAnnuler && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
+          role="dialog" aria-modal="true" aria-label="Annuler la pièce">
+          <div className="w-full max-w-lg rounded-lg bg-white shadow-xl">
+            <div className="border-b p-4">
+              <h2 className="font-black">Annuler la pièce {aAnnuler.reference} ?</h2>
+            </div>
+            <div className="p-4 text-sm">
+              <p className="mb-2">
+                La pièce <strong>reste au registre</strong>, marquée annulée, avec votre motif.
+                Son fichier est conservé.
+              </p>
+              <p className="mb-2 text-amber-800">
+                Si elle a déjà été remise au salarié, prévenez-le : le document qu&apos;il
+                détient ne fera plus foi.
+              </p>
+              <label className="mt-3 block">
+                <span className="mb-1 block text-gray-700">
+                  Motif de l&apos;annulation (10 caractères minimum)
+                </span>
+                <textarea value={motifAnnulation} onChange={(e) => setMotifAnnulation(e.target.value)}
+                  rows={3} className="w-full rounded border px-2 py-1.5" />
+                <span className={`text-xs ${
+                  motifAnnulation.trim().length >= 10 ? "text-green-700" : "text-gray-500"}`}>
+                  {motifAnnulation.trim().length} / 10
+                </span>
+              </label>
+            </div>
+            <div className="flex justify-end gap-2 border-t p-4">
+              <button onClick={() => { setAAnnuler(null); setMotifAnnulation(""); }}
+                className="rounded border px-4 py-2 text-sm hover:bg-gray-50">Retour</button>
+              <button onClick={annulerPiece}
+                disabled={occupe || motifAnnulation.trim().length < 10}
+                className="rounded bg-red-700 px-4 py-2 text-sm text-white disabled:opacity-50">
+                {occupe ? "…" : "Annuler la pièce"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </main>
   );
