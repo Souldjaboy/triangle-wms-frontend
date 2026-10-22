@@ -15,6 +15,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { authFetch } from "../../lib/api";
+import ReaffecterPaiement from "../../components/ReaffecterPaiement";
 
 const money = (v: any) => new Intl.NumberFormat("fr-FR").format(Number(v || 0)) + " FCFA";
 const fdate = (d: string | null) => {
@@ -33,12 +34,16 @@ type Paiement = {
 
 export default function PaiementsFacture({
   invoice, onClose, onChanged, peutContrepasser, peutConstaterRemboursement,
+  peutReaffecter = false,
 }: {
   invoice: any;
   onClose: () => void;
   onChanged: (message: string) => void;
   peutContrepasser: boolean;
   peutConstaterRemboursement: boolean;
+  /* Réaffecter et contrepasser sont deux droits distincts : l'un déplace
+     l'imputation, l'autre fait ressortir l'argent. */
+  peutReaffecter?: boolean;
 }) {
   const [data, setData] = useState<any>(null);
   const [erreur, setErreur] = useState("");
@@ -47,6 +52,7 @@ export default function PaiementsFacture({
   const [motif, setMotif] = useState("");
   const [aRembourser, setARembourser] = useState<Paiement | null>(null);
   const [reference, setReference] = useState("");
+  const [aReaffecter, setAReaffecter] = useState<Paiement | null>(null);
 
   const charger = useCallback(async () => {
     const r = await authFetch(`/cement/invoices/${invoice.id}/payments`);
@@ -183,6 +189,12 @@ export default function PaiementsFacture({
                         Annuler le paiement
                       </button>
                     )}
+                    {!p.contrepasse && peutReaffecter && (
+                      <button onClick={() => { setAReaffecter(p); setErreur(""); }}
+                              className="ml-2 rounded-lg bg-blue-50 px-3 py-2 text-xs font-bold text-blue-800">
+                        Réaffecter
+                      </button>
+                    )}
                     {p.contrepasse && p.refund_pending && peutConstaterRemboursement && (
                       <button onClick={() => { setARembourser(p); setReference(""); setErreur(""); }}
                               className="rounded-lg bg-amber-100 px-3 py-2 text-xs font-bold text-amber-900">
@@ -195,6 +207,16 @@ export default function PaiementsFacture({
             </tbody>
           </table>
         </div>
+
+        {aReaffecter && (
+          <ReaffecterPaiement
+            produit="ciment"
+            paiement={aReaffecter}
+            factureActuelle={{ numero: invoice.invoice_number, client: invoice.customer_name }}
+            onFerme={() => setAReaffecter(null)}
+            onFait={(m) => { onChanged(m); charger(); }}
+          />
+        )}
 
         {/* ── Confirmer l'annulation ──────────────────────────────────── */}
         {aAnnuler && (

@@ -82,6 +82,7 @@ export default function CementInvoicesPage(){
           onChanged={async (msg)=>{ setFlash(msg); await charger(); }}
           peutContrepasser={can("cement","paiement_contrepasser")}
           peutConstaterRemboursement={can("cement","remboursement_constater")}
+          peutReaffecter={can("cement","paiement_reaffecter")}
         />
       )}
     </main>

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import PaiementsDeFacture from "../../components/PaiementsDeFacture";
 import { authFetch } from "../../lib/api";
 import { usePermissions } from "../../lib/permissions";
 import PaiementFactureModal from "../../components/PaiementFactureModal";
@@ -14,6 +15,9 @@ export default function SandUnpaidPage() {
   const [rows,setRows]=useState<any[]>([]);
   const [paying,setPaying]=useState<any>(null);
   const [flash,setFlash]=useState("");
+  /* Les encaissements déjà portés sur une facture, et d'où ils viennent :
+     c'est en rapprochant les comptes qu'on découvre une mauvaise imputation. */
+  const [paiementsDe,setPaiementsDe]=useState<any>(null);
 
   /* Route dédiée : le serveur ne renvoie que les factures avec un reste dû,
      au lieu de charger toutes les factures puis filtrer côté navigateur.
@@ -80,6 +84,12 @@ export default function SandUnpaidPage() {
                         Enregistrer un paiement
                       </button>
                     )}
+                    {Number(r.paid_amount||0) > 0 && (
+                      <button onClick={()=>setPaiementsDe(r)}
+                        className="ml-2 rounded bg-gray-200 px-3 py-1.5 text-xs font-bold text-gray-800 whitespace-nowrap">
+                        Paiements
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -87,6 +97,16 @@ export default function SandUnpaidPage() {
           </table>
         </div>
       </div>
+
+      {paiementsDe && (
+        <PaiementsDeFacture
+          produit="sable"
+          factureId={paiementsDe.id}
+          peutReaffecter={can("sand","paiement_reaffecter")}
+          onFerme={()=>setPaiementsDe(null)}
+          onChange={async (msg)=>{ setFlash(msg); await load(); }}
+        />
+      )}
 
       {paying && (
         <PaiementFactureModal
