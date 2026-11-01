@@ -15,6 +15,7 @@ import {
   MapPin,
   ScanLine,
   FileText,
+  FolderOpen,
   Wallet,
   ShoppingCart,
   Calculator,
@@ -561,6 +562,15 @@ export default function DashboardPage() {
       <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
         <FileText size={20} />
         États de factures
+      </li>
+    </Link>
+  )}
+
+  {can("studio", "view") && (
+    <Link href="/studio">
+      <li className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer flex items-center gap-3">
+        <FolderOpen size={20} />
+        Triangle Studio
       </li>
     </Link>
   )}
