@@ -11,6 +11,7 @@ import {
 import {
   authFetch,
 } from "../lib/api";
+import PieceJointeChat from "../components/PieceJointeChat";
 
 type User = {
   id: number;
@@ -1245,109 +1246,40 @@ export default function ChatPage() {
     (
       message: any
     ) => {
+      /* UNE SEULE VOIE POUR TOUTES LES PIÈCES JOINTES.
+         Les quatre cas — audio, image, vidéo, fichier — posaient chacun un
+         lien direct vers `message.file_url`, c'est-à-dire « /uploads/chat/… ».
+         Cette adresse est demandée à l'origine du FRONTEND, qui ne réécrit
+         que « /api/:path* » vers le serveur : d'où le 404 au clic sur un
+         classeur Excel. La préfixer ne suffirait pas non plus, car une
+         navigation ordinaire ne porte pas l'en-tête d'autorisation : la
+         pièce jointe s'ouvrirait chez les uns et pas chez les autres, selon
+         l'état du cookie. Le composant récupère donc le fichier avec le
+         jeton de la session, puis l'ouvre depuis la mémoire du navigateur. */
       if (
-        message.message_type ===
-          "audio" &&
-        (
-          message.file_url ||
-          message.audio_url
-        )
+        message.file_url ||
+        message.audio_url
       ) {
         return (
-          <audio
-            controls
-            src={
+          <PieceJointeChat
+            fileUrl={
               message.file_url ||
               message.audio_url
             }
-            className="w-full max-w-sm"
+            fileName={
+              message.file_name
+            }
+            fileMime={
+              message.file_mime ||
+              (message.message_type ===
+              "audio"
+                ? "audio/webm"
+                : "")
+            }
+            fileSize={
+              message.file_size
+            }
           />
-        );
-      }
-
-      if (
-        message.message_type ===
-          "image" &&
-        message.file_url
-      ) {
-        return (
-          <a
-            href={
-              message.file_url
-            }
-            target="_blank"
-            rel="noreferrer"
-          >
-            <img
-              src={
-                message.file_url
-              }
-              alt={
-                message.file_name ||
-                "Photo"
-              }
-              className="max-h-80 max-w-full rounded-xl object-contain"
-            />
-
-            <div className="mt-2 text-xs">
-              {
-                message.file_name
-              }
-            </div>
-          </a>
-        );
-      }
-
-      if (
-        message.message_type ===
-          "video" &&
-        message.file_url
-      ) {
-        return (
-          <div>
-            <video
-              controls
-              src={
-                message.file_url
-              }
-              className="max-h-80 max-w-full rounded-xl"
-            />
-
-            <div className="mt-2 text-xs">
-              {
-                message.file_name
-              }
-            </div>
-          </div>
-        );
-      }
-
-      if (
-        message.message_type ===
-          "file" &&
-        message.file_url
-      ) {
-        return (
-          <a
-            href={
-              message.file_url
-            }
-            target="_blank"
-            rel="noreferrer"
-            className="block rounded-xl border border-current/20 p-3 font-bold underline"
-          >
-            📎{" "}
-            {message.file_name ||
-              "Fichier"}
-
-            {message.file_size ? (
-              <span className="ml-2 text-xs font-normal opacity-70">
-                {formatBytes(
-                  message.file_size
-                )}
-              </span>
-            ) : null}
-          </a>
         );
       }
 
