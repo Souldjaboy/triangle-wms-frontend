@@ -42,6 +42,14 @@ const PRETES: Tuile[] = [
     module: "studio.scanner",
   },
   {
+    titre: "Espace détente",
+    texte:
+      "Deux jeux courts pour une pause. Rien n'est envoyé au serveur : ni score, ni classement, ni temps passé. Et rien ne vient vous chercher ailleurs dans l'application.",
+    href: "/studio/detente",
+    Icone: Gamepad2,
+    module: "studio.detente",
+  },
+  {
     titre: "Studio graphique",
     texte:
       "Cartes de visite, badges avec QR, certificats, étiquettes, affichettes. Tout est en millimètres, et le PDF d'impression sort aux dimensions exactes. Les modèles sont originaux.",
@@ -91,11 +99,6 @@ const A_VENIR: { titre: string; Icone: typeof ScanLine; note: string }[] = [
     titre: "Partage externe",
     Icone: MessageSquare,
     note: "Les liens signés fonctionnent déjà depuis la bibliothèque. L'envoi par courriel demande un serveur SMTP configuré ; l'envoi de pièces jointes WhatsApp demande un compte WhatsApp Business API — sans lui, rien ne part automatiquement.",
-  },
-  {
-    titre: "Espace détente",
-    Icone: Gamepad2,
-    note: "Jeux courts, sur demande, jamais imposés à l'ouverture.",
   },
 ];
 
