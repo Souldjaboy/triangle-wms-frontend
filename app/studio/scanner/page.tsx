@@ -37,10 +37,11 @@ import {
   chargerVision, detecterCoins, redresser, aire, tailleRedressee,
   type Coins, type Vision,
 } from "../../lib/vision";
+import { LANGUES, fermerOcr, lireTexte, ocrDisponible, type ProgresOcr } from "../../lib/ocr";
 import {
   ArrowLeft, Camera, CameraOff, Check, ChevronLeft, ChevronRight, FileText,
   FolderOpen, Image as ImageIcon, Loader2, Play, RotateCcw, ScanLine,
-  Trash2, Upload, X, AlertTriangle, Crop, Lock, Layers,
+  Trash2, Upload, X, AlertTriangle, Crop, Lock, Layers, Type,
 } from "lucide-react";
 
 type Dossier = { id: number; name: string; path: string };
@@ -52,6 +53,7 @@ type Page = {
 type Seance = {
   id: number; title: string; folder_id: number | null; visibility: string;
   page_format: string; status: string; document_id: number | null;
+  ocr_language: string;
 };
 type AReprendre = {
   id: number; title: string; pages: number; octets: number;
@@ -154,6 +156,11 @@ export default function ScannerStudio() {
   }, []);
 
   useEffect(() => { chargerReprise(); chargerDossiers(); }, [chargerReprise, chargerDossiers]);
+
+  /* LE MOTEUR DE LECTURE RETIENT SON MODÈLE EN MÉMOIRE — plusieurs dizaines
+     de mégaoctets. On le libère en quittant l'écran, sinon un onglet laissé
+     ouvert toute la journée garde cette charge pour rien. */
+  useEffect(() => () => { fermerOcr(); }, []);
 
   if (droitsEnCours) {
     return (
@@ -281,6 +288,12 @@ function Demarrer({ dossiers, aReprendre, peutScanner, onOuverte, onReprise, onE
   const [visibilite, setVisibilite] = useState("PRIVE");
   const [format, setFormat] = useState("AUTO");
   const [occupe, setOccupe] = useState(false);
+  /* La reconnaissance de texte est un CHOIX, jamais une surprise : elle
+     coûte plusieurs mégaoctets de téléchargement. Vide = pas de lecture. */
+  const [langue, setLangue] = useState("");
+  const [ocrPossible, setOcrPossible] = useState<boolean | null>(null);
+
+  useEffect(() => { ocrDisponible().then(setOcrPossible); }, []);
 
   async function ouvrir(e: React.FormEvent) {
     e.preventDefault();
@@ -291,7 +304,7 @@ function Demarrer({ dossiers, aReprendre, peutScanner, onOuverte, onReprise, onE
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           titre: titre.trim(), dossier_id: dossierId || null,
-          visibilite, format,
+          visibilite, format, ocr_langue: langue,
         }),
       });
       const d = await r.json().catch(() => ({}));
@@ -381,6 +394,36 @@ function Demarrer({ dossiers, aReprendre, peutScanner, onOuverte, onReprise, onE
                 </select>
               </label>
             </div>
+            <div className="rounded-lg border border-gray-800 bg-gray-950 p-3">
+              <p className="flex items-center gap-2 text-xs font-medium text-gray-300">
+                <Type size={14} /> Reconnaissance du texte
+              </p>
+              {ocrPossible === false ? (
+                /* ON NE PROPOSE PAS CE QUI ÉCHOUERA. */
+                <p className="mt-1 text-xs text-amber-200">
+                  La reconnaissance de texte n&apos;est pas installée sur ce
+                  serveur. Les pages seront enregistrées sans texte : le PDF
+                  se cherchera par son nom et sa description.
+                </p>
+              ) : (
+                <>
+                  <select value={langue} onChange={(e) => setLangue(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-gray-800 bg-gray-900 px-3 py-2 outline-none focus:border-blue-600">
+                    <option value="">Sans reconnaissance — plus rapide</option>
+                    {Object.entries(LANGUES).map(([cle, l]) => (
+                      <option key={cle} value={cle}>
+                        {l.nom} — {l.poids} à télécharger une fois
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">
+                    {langue
+                      ? "Le texte est lu sur votre appareil : aucune image ne part vers un service extérieur. Le document devient trouvable par son contenu."
+                      : "Sans reconnaissance, le document ne se cherchera que par son nom, sa description et ses étiquettes."}
+                  </p>
+                </>
+              )}
+            </div>
             <p className="rounded-lg bg-gray-950 px-3 py-2 text-xs text-gray-500">
               « Selon chaque page » suit l&apos;orientation réelle de chaque
               feuille : une annexe tarifaire à l&apos;italienne ne sera pas
@@ -432,6 +475,7 @@ function Numeriser({
         <Relecture
           prise={prise}
           vision={vision}
+          langue={seance.ocr_language || ""}
           onAnnuler={() => setPrise(null)}
           onGardee={(page) => {
             setPrise(null);
@@ -838,9 +882,9 @@ function Viseur({ vision, visionEtape, visionErreur, onDemanderVision, onPrise, 
 
 /* ──────────────────── RELECTURE ET RETOUCHE DES COINS ─────────────────── */
 
-function Relecture({ prise, vision, seanceId, onAnnuler, onGardee, onErreur }: {
+function Relecture({ prise, vision, langue, seanceId, onAnnuler, onGardee, onErreur }: {
   prise: { canvas: HTMLCanvasElement; coins: Coins | null };
-  vision: Vision | null; seanceId: number;
+  vision: Vision | null; langue: string; seanceId: number;
   onAnnuler: () => void;
   onGardee: (p: Page) => void;
   onErreur: (e: string) => void;
@@ -850,6 +894,7 @@ function Relecture({ prise, vision, seanceId, onAnnuler, onGardee, onErreur }: {
   const [tire, setTire] = useState<keyof Coins | null>(null);
   const [envoi, setEnvoi] = useState(false);
   const [apercu, setApercu] = useState<string>("");
+  const [lecture, setLecture] = useState<ProgresOcr | null>(null);
 
   const ORDRE: (keyof Coins)[] = [
     "topLeftCorner", "topRightCorner", "bottomRightCorner", "bottomLeftCorner"];
@@ -952,12 +997,40 @@ function Relecture({ prise, vision, seanceId, onAnnuler, onGardee, onErreur }: {
         source = redresser(vision, prise.canvas, coins);
         coinsUtilises = coins;
       }
+
+      /* LA LECTURE SE FAIT SUR L'IMAGE REDRESSÉE, pas sur la photo d'origine :
+         un texte de travers se lit beaucoup moins bien. Et elle se fait AVANT
+         l'envoi, pour que la page parte déjà accompagnée de son texte. */
+      let texte = "";
+      if (langue) {
+        try {
+          setLecture({ etape: "Préparation de la lecture…", part: 0 });
+          const r = await lireTexte(source, langue, setLecture);
+          texte = r.texte;
+          /* On ne cache pas une lecture ratée : un texte vide ou une
+             confiance très basse veut dire que la page ne sera pas
+             trouvable par son contenu, et il vaut mieux le savoir
+             maintenant que six mois plus tard. */
+          if (!texte) {
+            onErreur("Aucun texte n'a pu être lu sur cette page : elle sera enregistrée sans texte.");
+          } else if (r.confiance > 0 && r.confiance < 45) {
+            onErreur(`Le texte lu est peu sûr (${Math.round(r.confiance)} %). La page est gardée, mais vérifiez l'éclairage et la netteté.`);
+          }
+        } catch (e) {
+          /* Une lecture impossible ne doit pas faire perdre la page. */
+          onErreur(`${(e as Error).message} La page est gardée sans texte.`);
+        } finally {
+          setLecture(null);
+        }
+      }
+
       const blob = await new Promise<Blob | null>((ok) =>
         source.toBlob((b) => ok(b), "image/jpeg", 0.92));
       if (!blob) { onErreur("La page n'a pas pu être encodée."); return; }
 
       const form = new FormData();
       form.append("page", blob, `page-${Date.now()}.jpg`);
+      if (texte) form.append("ocr_texte", texte);
       if (redressee) form.append("redressee", "1");
       if (coinsUtilises) {
         form.append("coins", JSON.stringify(
@@ -1021,6 +1094,21 @@ function Relecture({ prise, vision, seanceId, onAnnuler, onGardee, onErreur }: {
             <img src={apercu} alt="Aperçu de la page redressée"
               className="mx-auto block max-h-[40vh] w-auto" />
           </div>
+        </div>
+      )}
+
+      {lecture && (
+        /* LE TÉLÉCHARGEMENT DU MOTEUR PREND DU TEMPS LA PREMIÈRE FOIS.
+           Un bouton figé sans explication donne l'impression d'un blocage. */
+        <div className="mt-3 rounded-lg border border-blue-900 bg-blue-950/40 px-3 py-2">
+          <p className="flex items-center gap-2 text-xs text-blue-100">
+            <Loader2 size={14} className="shrink-0 animate-spin" />
+            {lecture.etape || "Lecture du texte…"}
+          </p>
+          <span className="mt-1 block h-1 w-full overflow-hidden rounded bg-blue-950">
+            <span className="block h-full bg-blue-400 transition-[width] duration-200"
+              style={{ width: `${Math.round(Math.min(1, lecture.part) * 100)}%` }} />
+          </span>
         </div>
       )}
 
@@ -1274,8 +1362,10 @@ function Assemblage({ seance, pages, onFermer, onFini, onErreur }: {
             </label>
             <p className="rounded-lg bg-gray-950 px-3 py-2 text-xs text-gray-500">
               {pages} page{pages > 1 ? "s" : ""} seront assemblées dans
-              l&apos;ordre affiché. Sans texte reconnu, le PDF ne se cherchera
-              que par son nom et sa description.
+              l&apos;ordre affiché.{" "}
+              {seance.ocr_language
+                ? "Le texte lu sur chaque page accompagne le document : il sera trouvable par son contenu."
+                : "Sans texte reconnu, le PDF ne se cherchera que par son nom et sa description."}
             </p>
             <div className="flex gap-2">
               <button onClick={lancer} disabled={occupe || !pages}

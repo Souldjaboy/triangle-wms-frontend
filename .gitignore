@@ -46,3 +46,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Mis en place par scripts/installer-ocr.js depuis node_modules.
+# Une vingtaine de mégaoctets : le dépôt ne les porte pas, « npm install »
+# puis la compilation les remettent.
+public/vendor/tesseract/

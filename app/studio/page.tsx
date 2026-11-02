@@ -36,7 +36,7 @@ const PRETES: Tuile[] = [
   {
     titre: "Scanner",
     texte:
-      "Viser une feuille, la voir détectée, capturer, corriger les coins, page suivante — puis assembler en PDF. Les pages partent au serveur dès qu'elles sont gardées : fermer l'onglet ne les perd pas.",
+      "Viser une feuille, la voir détectée, capturer, corriger les coins, page suivante — puis assembler en PDF. Le texte peut être lu sur l'appareil, en français ou en anglais, pour retrouver le document par son contenu.",
     href: "/studio/scanner",
     Icone: ScanLine,
     module: "studio.scanner",
@@ -53,11 +53,6 @@ const PRETES: Tuile[] = [
 
 /* CE QUI RESTE À CONSTRUIRE. Nommé, pas cliquable, pas maquetté. */
 const A_VENIR: { titre: string; Icone: typeof ScanLine; note: string }[] = [
-  {
-    titre: "Reconnaissance de texte dans les scans",
-    Icone: ScanLine,
-    note: "Le scanner sait déjà transporter et ranger le texte reconnu d'une page : la bibliothèque le cherche, et un PDF assemblé est trouvable par son contenu. Ce qui manque est le moteur de reconnaissance lui-même, qui demande une dépendance et ses données de langue.",
-  },
   {
     titre: "Éditeur PDF",
     Icone: FileText,
