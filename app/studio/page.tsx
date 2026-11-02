@@ -42,6 +42,14 @@ const PRETES: Tuile[] = [
     module: "studio.scanner",
   },
   {
+    titre: "Retouche photo",
+    texte:
+      "Recadrer, redresser, éclaircir un reçu photographié de travers pour que les chiffres se lisent. S'ouvre depuis une image de la bibliothèque. L'original reste intact dans tous les cas.",
+    href: "/studio/bibliotheque",
+    Icone: ImageIcon,
+    module: "studio.photo",
+  },
+  {
     titre: "Signatures et cachets",
     texte:
       "Tracer sa signature au doigt, ou importer son paraphe, puis l'apposer sur un PDF. Votre signature n'est visible que de vous. Signer crée une version de plus : l'original non signé reste intact.",
@@ -70,11 +78,6 @@ const A_VENIR: { titre: string; Icone: typeof ScanLine; note: string }[] = [
     titre: "Studio graphique",
     Icone: Palette,
     note: "Calques, modèles de cartes de visite, flyers, badges, certificats. Les modèles seront originaux : aucun modèle sous licence n'est repris.",
-  },
-  {
-    titre: "Éditeur photo",
-    Icone: ImageIcon,
-    note: "Recadrage, lumière, filtres, retouches. Travaille sur une copie : l'original reste intact et téléchargeable.",
   },
   {
     titre: "Présentations",

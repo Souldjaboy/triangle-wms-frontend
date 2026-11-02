@@ -40,7 +40,7 @@ import {
   ArrowLeft, Upload, Search, Folder, FolderPlus, FileText, Image as ImageIcon,
   Trash2, RotateCcw, Share2, Link2, History, Download, Eye, X, Lock,
   ShieldCheck, AlertTriangle, Users, Building2, Loader2, Copy, Check,
-  FileSpreadsheet, Presentation, ScanLine, PenTool, Stamp, Layers,
+  FileSpreadsheet, Presentation, ScanLine, PenTool, Stamp, Layers, Crop,
 } from "lucide-react";
 
 /* ─────────────────────────── CE QUE RENVOIE LE SERVEUR ───────────────────── */
@@ -195,6 +195,7 @@ export default function BibliothequeStudio() {
   const peutSigner = can("studio.signature", "create");
   /* Organiser les pages dépend du module de l'éditeur PDF. */
   const peutOrganiser = can("studio.pdf", "view");
+  const peutRetoucher = can("studio.photo", "view");
 
   /* ───────────────────────────── CHARGEMENTS ────────────────────────────── */
 
@@ -524,7 +525,7 @@ export default function BibliothequeStudio() {
         <FicheDocument
           detail={detail}
           enCours={detailEnCours}
-          droits={{ peutModifier, peutSupprimer, peutPartager, peutSigner, peutOrganiser }}
+          droits={{ peutModifier, peutSupprimer, peutPartager, peutSigner, peutOrganiser, peutRetoucher }}
           dossiers={dossiers}
           onFermer={fermer}
           onChange={(msg, id) => { if (msg) setMessage(msg); rafraichir(id); }}
@@ -793,7 +794,7 @@ function NouveauDossier({ dossiers, onCree }: { dossiers: Dossier[]; onCree: () 
 function FicheDocument({ detail, enCours, droits, dossiers, onFermer, onChange, onSupprime, onErreur }: {
   detail: Detail | null; enCours: boolean;
   droits: { peutModifier: boolean; peutSupprimer: boolean; peutPartager: boolean;
-    peutSigner: boolean; peutOrganiser: boolean };
+    peutSigner: boolean; peutOrganiser: boolean; peutRetoucher: boolean };
   dossiers: Dossier[];
   onFermer: () => void;
   onChange: (message: string, id?: number) => void;
@@ -928,7 +929,16 @@ function FicheDocument({ detail, enCours, droits, dossiers, onFermer, onChange, 
 
           {/* ON NE PROPOSE DE SIGNER QUE CE QUI SE SIGNE : un PDF, pas à la
               corbeille, et seulement si l'on peut modifier le document. */}
-          {droits.peutOrganiser && d.mime === "application/pdf" && !d.trashed_at && (
+          {droits.peutRetoucher && d.mime.startsWith("image/") && !d.trashed_at && (
+            <Link
+              href={`/studio/photo/${d.id}`}
+              className="flex items-center gap-2 rounded-lg border border-gray-800 px-3 py-2 text-sm hover:bg-gray-800"
+            >
+              <Crop size={14} /> Retoucher
+            </Link>
+          )}
+
+                    {droits.peutOrganiser && d.mime === "application/pdf" && !d.trashed_at && (
             <Link
               href={`/studio/pdf/${d.id}`}
               className="flex items-center gap-2 rounded-lg border border-gray-800 px-3 py-2 text-sm hover:bg-gray-800"
