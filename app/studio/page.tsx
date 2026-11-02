@@ -62,9 +62,9 @@ const PRETES: Tuile[] = [
 /* CE QUI RESTE À CONSTRUIRE. Nommé, pas cliquable, pas maquetté. */
 const A_VENIR: { titre: string; Icone: typeof ScanLine; note: string }[] = [
   {
-    titre: "Éditeur PDF",
+    titre: "Annoter et composer un PDF",
     Icone: FileText,
-    note: "Texte, images, tableaux, annotations, fusion et découpe. Demande une bibliothèque PDF côté navigateur, non encore installée.",
+    note: "Les pages se réordonnent, se tournent, se retirent, s'extraient, se fusionnent et se découpent depuis la bibliothèque. Ce qui manque est l'ajout de texte, de tableaux et d'annotations sur la page elle-même.",
   },
   {
     titre: "Studio graphique",

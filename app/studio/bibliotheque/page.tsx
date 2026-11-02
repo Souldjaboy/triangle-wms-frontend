@@ -40,7 +40,7 @@ import {
   ArrowLeft, Upload, Search, Folder, FolderPlus, FileText, Image as ImageIcon,
   Trash2, RotateCcw, Share2, Link2, History, Download, Eye, X, Lock,
   ShieldCheck, AlertTriangle, Users, Building2, Loader2, Copy, Check,
-  FileSpreadsheet, Presentation, ScanLine, PenTool, Stamp,
+  FileSpreadsheet, Presentation, ScanLine, PenTool, Stamp, Layers,
 } from "lucide-react";
 
 /* ─────────────────────────── CE QUE RENVOIE LE SERVEUR ───────────────────── */
@@ -193,6 +193,8 @@ export default function BibliothequeStudio() {
      quelqu'un peut avoir le droit de ranger des documents sans celui d'y
      apposer une marque. */
   const peutSigner = can("studio.signature", "create");
+  /* Organiser les pages dépend du module de l'éditeur PDF. */
+  const peutOrganiser = can("studio.pdf", "view");
 
   /* ───────────────────────────── CHARGEMENTS ────────────────────────────── */
 
@@ -522,7 +524,7 @@ export default function BibliothequeStudio() {
         <FicheDocument
           detail={detail}
           enCours={detailEnCours}
-          droits={{ peutModifier, peutSupprimer, peutPartager, peutSigner }}
+          droits={{ peutModifier, peutSupprimer, peutPartager, peutSigner, peutOrganiser }}
           dossiers={dossiers}
           onFermer={fermer}
           onChange={(msg, id) => { if (msg) setMessage(msg); rafraichir(id); }}
@@ -791,7 +793,7 @@ function NouveauDossier({ dossiers, onCree }: { dossiers: Dossier[]; onCree: () 
 function FicheDocument({ detail, enCours, droits, dossiers, onFermer, onChange, onSupprime, onErreur }: {
   detail: Detail | null; enCours: boolean;
   droits: { peutModifier: boolean; peutSupprimer: boolean; peutPartager: boolean;
-    peutSigner: boolean };
+    peutSigner: boolean; peutOrganiser: boolean };
   dossiers: Dossier[];
   onFermer: () => void;
   onChange: (message: string, id?: number) => void;
@@ -926,7 +928,16 @@ function FicheDocument({ detail, enCours, droits, dossiers, onFermer, onChange, 
 
           {/* ON NE PROPOSE DE SIGNER QUE CE QUI SE SIGNE : un PDF, pas à la
               corbeille, et seulement si l'on peut modifier le document. */}
-          {droits.peutSigner && d.mime === "application/pdf" && !d.trashed_at && modifiable && (
+          {droits.peutOrganiser && d.mime === "application/pdf" && !d.trashed_at && (
+            <Link
+              href={`/studio/pdf/${d.id}`}
+              className="flex items-center gap-2 rounded-lg border border-gray-800 px-3 py-2 text-sm hover:bg-gray-800"
+            >
+              <Layers size={14} /> Organiser les pages
+            </Link>
+          )}
+
+                    {droits.peutSigner && d.mime === "application/pdf" && !d.trashed_at && modifiable && (
             <button
               onClick={() => setSigner(true)}
               className="flex items-center gap-2 rounded-lg border border-gray-800 px-3 py-2 text-sm hover:bg-gray-800"
