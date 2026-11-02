@@ -128,6 +128,24 @@ function readModulesCookie(value?: string) {
 
 export function middleware(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
+
+  /* UN FICHIER N'EST PAS UNE PAGE.
+     « /vendor » désigne ici l'espace des vendeurs du marketplace, et il est
+     fermé quand le produit actif ne le propose pas. Mais le dossier public
+     contient aussi « /vendor/opencv.js » et « /vendor/jscanify.min.js » :
+     ces deux fichiers étaient donc redirigés vers la page de connexion, avec
+     le type text/html. Le navigateur chargeait la redirection, criait
+     « Unexpected token '<' », et window.cv n'apparaissait jamais — ce qui
+     cassait silencieusement le scanner ET la capture de reçus, sans aucune
+     erreur réseau pour le dire.
+
+     Un chemin dont le dernier segment porte une extension est un fichier
+     servi tel quel : le filtre n'a rien à y faire. Cela ne desserre aucune
+     protection, car aucune page de cette application ne s'appelle ainsi, et
+     tout ce qui est dans « public » est de toute façon public. */
+  const dernier = pathname.slice(pathname.lastIndexOf("/") + 1);
+  if (dernier.includes(".")) return NextResponse.next();
+
   const product = productFromRequest(req);
 
   if (pathname === "/" && product !== "malilink") {

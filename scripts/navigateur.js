@@ -70,11 +70,26 @@ function cheminChrome() {
 async function lancer(options = {}) {
   const { chromium } = chargerPlaywright();
   const chemin = cheminChrome();
+  const { args = [], ...reste } = options;
   return chromium.launch({
-    args: ["--no-sandbox", "--disable-dev-shm-usage"],
+    /* Les arguments donnés S'AJOUTENT aux nôtres au lieu de les remplacer :
+       écraser « --no-sandbox » dans un conteneur empêche le navigateur de
+       démarrer, et l'erreur ne dit pas que c'est l'appelant qui l'a retiré. */
+    args: ["--no-sandbox", "--disable-dev-shm-usage", ...args],
     ...(chemin ? { executablePath: chemin } : {}),
-    ...options,
+    ...reste,
   });
 }
 
-module.exports = { chargerPlaywright, cheminChrome, lancer };
+/** Les arguments qui donnent à Chromium une caméra simulée à partir d'un
+    fichier Y4M. Sans eux, getUserMedia échoue dans un conteneur sans
+    périphérique — et l'essai conclurait à tort que le viseur est cassé. */
+function cameraSimulee(fichierY4m) {
+  return [
+    "--use-fake-ui-for-media-stream",      /* accorde l'autorisation seule */
+    "--use-fake-device-for-media-stream",
+    `--use-file-for-fake-video-capture=${fichierY4m}`,
+  ];
+}
+
+module.exports = { chargerPlaywright, cheminChrome, lancer, cameraSimulee };

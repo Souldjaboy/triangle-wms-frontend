@@ -34,6 +34,14 @@ type Tuile = {
 /* CE QUI EXISTE ET RÉPOND. Rien d'autre n'a sa place ici. */
 const PRETES: Tuile[] = [
   {
+    titre: "Scanner",
+    texte:
+      "Viser une feuille, la voir détectée, capturer, corriger les coins, page suivante — puis assembler en PDF. Les pages partent au serveur dès qu'elles sont gardées : fermer l'onglet ne les perd pas.",
+    href: "/studio/scanner",
+    Icone: ScanLine,
+    module: "studio.scanner",
+  },
+  {
     titre: "Bibliothèque",
     texte:
       "Déposer, chercher, partager et versionner les documents. Les fichiers sont rangés hors du dossier public : aucune URL ne les atteint.",
@@ -46,9 +54,9 @@ const PRETES: Tuile[] = [
 /* CE QUI RESTE À CONSTRUIRE. Nommé, pas cliquable, pas maquetté. */
 const A_VENIR: { titre: string; Icone: typeof ScanLine; note: string }[] = [
   {
-    titre: "Scanner intelligent",
+    titre: "Reconnaissance de texte dans les scans",
     Icone: ScanLine,
-    note: "Détection des quatre coins, redressement, capture automatique, multipage. Les bibliothèques de vision sont déjà présentes dans le dépôt ; la reconnaissance de texte demandera une dépendance supplémentaire.",
+    note: "Le scanner sait déjà transporter et ranger le texte reconnu d'une page : la bibliothèque le cherche, et un PDF assemblé est trouvable par son contenu. Ce qui manque est le moteur de reconnaissance lui-même, qui demande une dépendance et ses données de langue.",
   },
   {
     titre: "Éditeur PDF",
