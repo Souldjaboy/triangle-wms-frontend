@@ -42,6 +42,14 @@ const PRETES: Tuile[] = [
     module: "studio.scanner",
   },
   {
+    titre: "Studio graphique",
+    texte:
+      "Cartes de visite, badges avec QR, certificats, étiquettes, affichettes. Tout est en millimètres, et le PDF d'impression sort aux dimensions exactes. Les modèles sont originaux.",
+    href: "/studio/design",
+    Icone: Palette,
+    module: "studio.design",
+  },
+  {
     titre: "Retouche photo",
     texte:
       "Recadrer, redresser, éclaircir un reçu photographié de travers pour que les chiffres se lisent. S'ouvre depuis une image de la bibliothèque. L'original reste intact dans tous les cas.",
@@ -73,11 +81,6 @@ const A_VENIR: { titre: string; Icone: typeof ScanLine; note: string }[] = [
     titre: "Annoter et composer un PDF",
     Icone: FileText,
     note: "Les pages se réordonnent, se tournent, se retirent, s'extraient, se fusionnent et se découpent depuis la bibliothèque. Ce qui manque est l'ajout de texte, de tableaux et d'annotations sur la page elle-même.",
-  },
-  {
-    titre: "Studio graphique",
-    Icone: Palette,
-    note: "Calques, modèles de cartes de visite, flyers, badges, certificats. Les modèles seront originaux : aucun modèle sous licence n'est repris.",
   },
   {
     titre: "Présentations",

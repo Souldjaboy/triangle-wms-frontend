@@ -10,6 +10,7 @@ const ROUTES: Array<[string, string]> = [
   ["/studio/signatures", "studio.signature"],
   ["/studio/pdf", "studio.pdf"],
   ["/studio/photo", "studio.photo"],
+  ["/studio/design", "studio.design"],
   ["/studio", "studio"],
   /* L'écran des doublons dépend du module du PRODUIT, pas d'un module à lui :
      c'est le même droit qui ouvre les ventes de sable. */
