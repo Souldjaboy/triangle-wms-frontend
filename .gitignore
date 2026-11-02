@@ -51,3 +51,4 @@ next-env.d.ts
 # Une vingtaine de mégaoctets : le dépôt ne les porte pas, « npm install »
 # puis la compilation les remettent.
 public/vendor/tesseract/
+public/vendor/pdfjs/

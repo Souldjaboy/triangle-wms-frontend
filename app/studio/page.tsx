@@ -42,6 +42,14 @@ const PRETES: Tuile[] = [
     module: "studio.scanner",
   },
   {
+    titre: "Signatures et cachets",
+    texte:
+      "Tracer sa signature au doigt, ou importer son paraphe, puis l'apposer sur un PDF. Votre signature n'est visible que de vous. Signer crée une version de plus : l'original non signé reste intact.",
+    href: "/studio/signatures",
+    Icone: PenTool,
+    module: "studio.signature",
+  },
+  {
     titre: "Bibliothèque",
     texte:
       "Déposer, chercher, partager et versionner les documents. Les fichiers sont rangés hors du dossier public : aucune URL ne les atteint.",
@@ -57,11 +65,6 @@ const A_VENIR: { titre: string; Icone: typeof ScanLine; note: string }[] = [
     titre: "Éditeur PDF",
     Icone: FileText,
     note: "Texte, images, tableaux, annotations, fusion et découpe. Demande une bibliothèque PDF côté navigateur, non encore installée.",
-  },
-  {
-    titre: "Signatures et cachets",
-    Icone: PenTool,
-    note: "Le socle est posé : la bibliothèque sait déjà stocker une signature ou un cachet comme document à part entière, cloisonné par société.",
   },
   {
     titre: "Studio graphique",

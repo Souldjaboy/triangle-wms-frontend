@@ -35,6 +35,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { apiUrl, authFetch } from "../../lib/api";
 import { usePermissions } from "../../lib/permissions";
+import SignerDocument from "../../components/SignerDocument";
 import {
   ArrowLeft, Upload, Search, Folder, FolderPlus, FileText, Image as ImageIcon,
   Trash2, RotateCcw, Share2, Link2, History, Download, Eye, X, Lock,
@@ -188,6 +189,10 @@ export default function BibliothequeStudio() {
   const peutModifier = can("studio.bibliotheque", "update");
   const peutSupprimer = can("studio.bibliotheque", "delete");
   const peutPartager = can("studio.bibliotheque", "share");
+  /* Signer dépend du module des signatures, pas de celui de la bibliothèque :
+     quelqu'un peut avoir le droit de ranger des documents sans celui d'y
+     apposer une marque. */
+  const peutSigner = can("studio.signature", "create");
 
   /* ───────────────────────────── CHARGEMENTS ────────────────────────────── */
 
@@ -517,7 +522,7 @@ export default function BibliothequeStudio() {
         <FicheDocument
           detail={detail}
           enCours={detailEnCours}
-          droits={{ peutModifier, peutSupprimer, peutPartager }}
+          droits={{ peutModifier, peutSupprimer, peutPartager, peutSigner }}
           dossiers={dossiers}
           onFermer={fermer}
           onChange={(msg, id) => { if (msg) setMessage(msg); rafraichir(id); }}
@@ -785,7 +790,8 @@ function NouveauDossier({ dossiers, onCree }: { dossiers: Dossier[]; onCree: () 
 
 function FicheDocument({ detail, enCours, droits, dossiers, onFermer, onChange, onSupprime, onErreur }: {
   detail: Detail | null; enCours: boolean;
-  droits: { peutModifier: boolean; peutSupprimer: boolean; peutPartager: boolean };
+  droits: { peutModifier: boolean; peutSupprimer: boolean; peutPartager: boolean;
+    peutSigner: boolean };
   dossiers: Dossier[];
   onFermer: () => void;
   onChange: (message: string, id?: number) => void;
@@ -794,6 +800,7 @@ function FicheDocument({ detail, enCours, droits, dossiers, onFermer, onChange, 
 }) {
   const [onglet, setOnglet] = useState<"apercu" | "versions" | "partages" | "journal">("apercu");
   const [occupe, setOccupe] = useState("");
+  const [signer, setSigner] = useState(false);
 
   useEffect(() => { setOnglet("apercu"); }, [detail?.document?.id]);
 
@@ -917,6 +924,17 @@ function FicheDocument({ detail, enCours, droits, dossiers, onFermer, onChange, 
         <div className="flex flex-wrap gap-2 border-t border-gray-800 p-4">
           <Telecharger chemin={`/studio/documents/${d.id}/fichier`} nom={d.name} mime={d.mime} onErreur={onErreur} />
 
+          {/* ON NE PROPOSE DE SIGNER QUE CE QUI SE SIGNE : un PDF, pas à la
+              corbeille, et seulement si l'on peut modifier le document. */}
+          {droits.peutSigner && d.mime === "application/pdf" && !d.trashed_at && modifiable && (
+            <button
+              onClick={() => setSigner(true)}
+              className="flex items-center gap-2 rounded-lg border border-gray-800 px-3 py-2 text-sm hover:bg-gray-800"
+            >
+              <PenTool size={14} /> Signer
+            </button>
+          )}
+
           {droits.peutModifier && !d.trashed_at && !lectureSeule && (
             <button
               disabled={!!occupe}
@@ -943,6 +961,15 @@ function FicheDocument({ detail, enCours, droits, dossiers, onFermer, onChange, 
           )}
         </div>
       </div>
+
+      {signer && (
+        <SignerDocument
+          documentId={d.id}
+          documentNom={d.name}
+          onFermer={() => setSigner(false)}
+          onFini={(m) => { setSigner(false); onChange(m, d.id); }}
+        />
+      )}
     </div>
   );
 }

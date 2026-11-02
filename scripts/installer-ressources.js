@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 "use strict";
 /**
- * METTRE LA RECONNAISSANCE DE TEXTE À PORTÉE DU NAVIGATEUR.
+ * METTRE À PORTÉE DU NAVIGATEUR CE QUI DOIT ÊTRE SERVI PAR LE SITE.
  *
- * Tesseract tourne dans le navigateur, donc son ouvrier, son moteur
- * WebAssembly et ses données de langue doivent être SERVIS par le site. Ils
- * arrivent par npm ; ce script les recopie dans « public/vendor/tesseract ».
+ * Deux outils tournent dans le navigateur et ont besoin de fichiers servis
+ * par le site plutôt qu'empaquetés : Tesseract, pour lire le texte des
+ * scans, et pdf.js, pour afficher un PDF page par page. Leurs fichiers
+ * arrivent par npm ; ce script les recopie sous « public/vendor/ ».
  *
  * POURQUOI RECOPIER PLUTÔT QUE VERSIONNER. Ces fichiers pèsent une vingtaine
  * de mégaoctets. Les figer dans le dépôt alourdirait chaque clone pour
@@ -27,6 +28,7 @@ const path = require("path");
 
 const RACINE = path.join(__dirname, "..");
 const CIBLE = path.join(RACINE, "public", "vendor", "tesseract");
+const CIBLE_PDF = path.join(RACINE, "public", "vendor", "pdfjs");
 
 /* Ce dont le navigateur a besoin.
 
@@ -115,8 +117,43 @@ function main() {
     `(${poids(total)}${copies ? `, ${copies} recopiés` : ", déjà à jour"}).`);
 }
 
+/* ─────────────────────────────────────────────────────────────────────────
+   pdf.js
+
+   Son ouvrier doit être un FICHIER SERVI : empaqueté avec le reste, il ne
+   peut pas être lancé comme ouvrier, et pdf.js bascule alors sur un mode
+   dégradé qui bloque le fil principal — une page de cent feuillets fige
+   l'onglet. On le recopie donc, comme le reste.
+   ───────────────────────────────────────────────────────────────────────── */
+function pdfjs() {
+  let dossier;
+  try {
+    dossier = path.dirname(require.resolve("pdfjs-dist/package.json", { paths: [RACINE] }));
+  } catch {
+    console.log("  Affichage des PDF : paquet pdfjs-dist absent, étape ignorée.");
+    console.log("    Pour l'activer : npm install");
+    return;
+  }
+  const source = path.join(dossier, "build", "pdf.worker.min.mjs");
+  if (!fs.existsSync(source)) {
+    console.log("  Affichage des PDF : l'ouvrier de pdf.js est introuvable dans le paquet.");
+    return;
+  }
+  fs.mkdirSync(CIBLE_PDF, { recursive: true });
+  const cible = path.join(CIBLE_PDF, "pdf.worker.min.mjs");
+  const taille = fs.statSync(source).size;
+  const dejaLa = fs.existsSync(cible) && fs.statSync(cible).size === taille;
+  if (!dejaLa) fs.copyFileSync(source, cible);
+  console.log(`  Affichage des PDF : ouvrier pdf.js en place (${poids(taille)}` +
+    `${dejaLa ? ", déjà à jour" : ""}).`);
+}
+
 try { main(); } catch (e) {
   /* Une erreur ici ne doit pas faire échouer la compilation de toute
      l'application pour une fonction facultative. */
   console.log(`  Reconnaissance de texte : mise en place impossible (${e.message}).`);
+}
+
+try { pdfjs(); } catch (e) {
+  console.log(`  Affichage des PDF : mise en place impossible (${e.message}).`);
 }

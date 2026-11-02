@@ -12,8 +12,8 @@
     "cap:sync": "capacitor sync",
     "cap:android": "capacitor add android && capacitor sync android",
     "cap:ios": "capacitor add ios && capacitor sync ios",
-    "prebuild": "node scripts/installer-ocr.js",
-    "installer-ocr": "node scripts/installer-ocr.js"
+    "prebuild": "node scripts/installer-ressources.js",
+    "installer-ressources": "node scripts/installer-ressources.js"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.0",
@@ -25,6 +25,7 @@
     "html5-qrcode": "^2.3.8",
     "lucide-react": "^1.16.0",
     "next": "16.2.6",
+    "pdfjs-dist": "^5.4.149",
     "qrcode.react": "^4.2.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
