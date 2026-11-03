@@ -233,16 +233,54 @@ async function ouvrirDocument(page, nom) {
   v("la tuile « Bibliothèque » est là", corpsAccueil.includes("Bibliothèque"));
   v("les modules à construire sont annoncés comme tels",
     corpsAccueil.includes("Pas encore construit"));
-  v("le scanner est nommé sans être proposé",
-    corpsAccueil.includes("Scanner intelligent"));
+  /* CE QUI N'EST PAS CONSTRUIT EST NOMMÉ SANS ÊTRE CLIQUABLE. C'est la
+     promesse de cet accueil : on peut lire ce qui viendra, mais rien ne
+     s'ouvre sur du vide. */
+  const aVenir = await page.$$eval(
+    "section:has(> h2) li",
+    (lis) => lis.filter((li) => /Pas encore construit/.test(
+      li.closest("section")?.textContent || "")).map((li) => ({
+        texte: (li.textContent || "").slice(0, 60),
+        cliquable: !!li.querySelector("a,button"),
+      })));
+  v("ce qui reste à construire est annoncé", corpsAccueil.includes("Pas encore construit"));
+  v("et rien de ce qui reste à construire n'est cliquable",
+    aVenir.every((x) => !x.cliquable),
+    JSON.stringify(aVenir.filter((x) => x.cliquable)));
 
   /* AUCUN LIEN MORT. Une tuile qui ouvre une page vide coûte plus cher
-     qu'une tuile absente : on vérifie qu'aucun lien ne pointe vers un
-     module qui n'existe pas. */
-  const liens = await page.$$eval("a[href^='/studio']", (as) => as.map((a) => a.getAttribute("href")));
-  const attendus = new Set(["/studio", "/studio/bibliotheque"]);
-  v("aucune tuile ne mène à un module inexistant",
-    liens.every((h) => attendus.has(h)), `liens trouvés : ${liens.join(", ")}`);
+     qu'une tuile absente.
+
+     LE PREMIER JET COMPARAIT LES LIENS À UNE LISTE ÉCRITE EN DUR — « /studio »
+     et « /studio/bibliotheque ». Elle était juste au moment où elle a été
+     écrite, et fausse dès le module suivant : chaque écran construit ajoutait
+     légitimement une tuile, et l'essai criait au lien mort. Une liste figée
+     ne décrit pas une promesse, elle décrit un instant.
+
+     Ce qui se vérifie maintenant est la promesse elle-même : on SUIT chaque
+     lien et on regarde où il atterrit. */
+  const liens = [...new Set(await page.$$eval("main a[href^='/studio']",
+    (as) => as.map((a) => a.getAttribute("href"))))];
+  v("l'accueil propose au moins un module", liens.length > 0, JSON.stringify(liens));
+  const morts = [];
+  for (const href of liens) {
+    await page.goto(`${BASE}${href}`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector("main, h1", { timeout: 20000 }).catch(() => {});
+    await page.waitForTimeout(400);
+    const ou = page.url();
+    const texte = (await page.textContent("body").catch(() => "")).replace(/\s+/g, " ");
+    /* Un module indisponible redirige vers la connexion ; une page vide
+       affiche « introuvable » ou « non accessible ». Les deux sont des
+       liens morts du point de vue de qui a cliqué. */
+    if (/\/login/.test(ou) || /introuvable|non accessible|module=indisponible/i.test(texte)) {
+      morts.push(`${href} → ${ou}`);
+    }
+  }
+  v("AUCUNE TUILE NE MÈNE À UNE PAGE VIDE : chaque lien a été suivi",
+    morts.length === 0, morts.join(" | "));
+  await page.goto(`${BASE}/studio`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector("main", { timeout: 20000 });
+  await nettoyer(page);
 
   /* La dépendance extérieure est dite, pas cachée. */
   v("WhatsApp est annoncé comme exigeant une API dédiée",

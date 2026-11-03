@@ -9,6 +9,7 @@ const ROUTES: Array<[string, string]> = [
   ["/studio/scanner", "studio.scanner"],
   ["/studio/signatures", "studio.signature"],
   ["/studio/pdf", "studio.pdf"],
+  ["/studio/presentations", "studio.presentation"],
   ["/studio/photo", "studio.photo"],
   ["/studio/design", "studio.design"],
   ["/studio/detente", "studio.detente"],

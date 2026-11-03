@@ -74,6 +74,14 @@ const PRETES: Tuile[] = [
     module: "studio.signature",
   },
   {
+    titre: "Présentations",
+    texte:
+      "Des diapositives en 16/9 ou 4/3, avec six modèles originaux. Le PDF produit est exact. L'export PowerPoint donne de vraies formes modifiables, et un .pptx déposé est lu, montré, et son compte rendu affiché avant d'être gardé.",
+    href: "/studio/presentations",
+    Icone: Presentation,
+    module: "studio.presentation",
+  },
+  {
     titre: "Bibliothèque",
     texte:
       "Déposer, chercher, partager et versionner les documents. Les fichiers sont rangés hors du dossier public : aucune URL ne les atteint.",
@@ -91,14 +99,14 @@ const A_VENIR: { titre: string; Icone: typeof ScanLine; note: string }[] = [
     note: "Les pages se réordonnent, se tournent, se retirent, s'extraient, se fusionnent et se découpent depuis la bibliothèque. Ce qui manque est l'ajout de texte, de tableaux et d'annotations sur la page elle-même.",
   },
   {
-    titre: "Présentations",
-    Icone: Presentation,
-    note: "Diapositives, transitions, import et export PowerPoint.",
-  },
-  {
     titre: "Partage externe",
     Icone: MessageSquare,
     note: "Les liens signés fonctionnent déjà depuis la bibliothèque. L'envoi par courriel demande un serveur SMTP configuré ; l'envoi de pièces jointes WhatsApp demande un compte WhatsApp Business API — sans lui, rien ne part automatiquement.",
+  },
+  {
+    titre: "Transitions et animations de diapositive",
+    Icone: Presentation,
+    note: "Les présentations existent, avec leurs diapositives, leur PDF et leur aller-retour PowerPoint. Les transitions entre diapositives et les animations d'apparition, elles, ne sont pas faites : elles n'existent ni dans le PDF, ni dans l'export.",
   },
 ];
 
