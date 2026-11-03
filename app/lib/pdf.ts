@@ -22,8 +22,34 @@ export type PageRendue = {
   versPdf: (x: number, y: number) => { x: number; y: number };
   /** Et l'inverse, pour dessiner un repère à la bonne place. */
   versEcran: (x: number, y: number) => { x: number; y: number };
-  largeurPdf: number;
-  hauteurPdf: number;
+  /**
+   * Convertit un point de l'écran en point du repère de L'AFFICHAGE : origine
+   * en bas à gauche de la page TELLE QU'ON LA VOIT, en points.
+   *
+   * POURQUOI DEUX CONVERSIONS, ET NON UNE.
+   *
+   * `versPdf` donne les coordonnées du CONTENU du PDF. C'est ce qu'attend
+   * l'apposition d'une signature : une image à poser, dont seule
+   * l'orientation doit être redressée.
+   *
+   * Les annotations, elles, ont un sens de lecture interne — les lignes d'un
+   * tableau, les lignes d'un paragraphe. Le serveur les calcule donc dans le
+   * repère de l'affichage et ne le quitte qu'au dernier moment (voir
+   * services/pdf-reperes.js). Ici, la conversion est une division : la vue de
+   * pdf.js a déjà absorbé la rotation de la page, il ne reste qu'à défaire
+   * l'échelle et à retourner l'ordonnée.
+   *
+   * LES DEUX REPÈRES NE SE MÉLANGENT PAS. Envoyer l'un là où l'autre est
+   * attendu place l'annotation à l'autre bout du papier sur toute page
+   * tournée — et nulle part ailleurs, donc sans qu'on s'en aperçoive.
+   */
+  versAffichage: (x: number, y: number) => { x: number; y: number };
+  /** Et l'inverse : du repère de l'affichage aux pixels CSS. */
+  affichageVersEcran: (x: number, y: number) => { x: number; y: number };
+  /** Les dimensions de la page TELLE QU'ON LA VOIT, en points. Une page
+      tournée d'un quart de tour les a déjà échangées. */
+  largeurVue: number;
+  hauteurVue: number;
   rotation: number;
   echelle: number;
 };
@@ -120,7 +146,9 @@ export async function rendre(
       const [ex, ey] = vue.convertToViewportPoint(x, y);
       return { x: ex, y: ey };
     },
-    largeurPdf: base.width, hauteurPdf: base.height,
+    versAffichage: (x, y) => ({ x: x / echelle, y: (vue.height - y) / echelle }),
+    affichageVersEcran: (x, y) => ({ x: x * echelle, y: vue.height - y * echelle }),
+    largeurVue: base.width, hauteurVue: base.height,
     rotation: vue.rotation || 0,
     echelle,
   };

@@ -35,7 +35,7 @@ import { usePermissions } from "../../../lib/permissions";
 import { ouvrir, rendre } from "../../../lib/pdf";
 import {
   AlertTriangle, ArrowLeft, Check, ChevronLeft, ChevronRight, Copy, FileText,
-  FolderOpen, Loader2, Lock, RotateCcw, RotateCw, Scissors, Trash2, X,
+  FolderOpen, Loader2, Lock, RotateCcw, RotateCw, Scissors, Trash2, Type, X,
 } from "lucide-react";
 
 type Doc = {
@@ -213,6 +213,15 @@ export default function EditeurPdf() {
                 : "Ouverture…"}
             </p>
           </div>
+          {/* ANNOTER EST UN AUTRE MÉTIER QUE RÉORGANISER : on écrit SUR la
+              page au lieu de bouger les pages. D'où un écran à part, qui
+              affiche la page en grand — et non des vignettes. */}
+          {peutModifier && (
+            <Link href={`/studio/pdf/${documentId}/annoter`}
+              className="shrink-0 flex items-center gap-1.5 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm hover:bg-gray-800">
+              <Type size={15} /> <span className="hidden sm:inline">Annoter</span>
+            </Link>
+          )}
         </div>
       </header>
 
