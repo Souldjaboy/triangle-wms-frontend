@@ -158,7 +158,11 @@ export default function Studio() {
         </div>
       </header>
 
-      <div className="mx-auto max-w-5xl px-4 py-6 min-w-0">
+      {/* UN REPÈRE « main ». Tous les autres écrans du Studio en ont un ; cet
+          accueil n'avait que des div. Un lecteur d'écran n'y trouvait donc
+          aucun point d'entrée vers le contenu, et il fallait parcourir
+          l'en-tête à chaque visite. */}
+      <main className="mx-auto max-w-5xl px-4 py-6 min-w-0">
         {tuiles.length ? (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {tuiles.map(({ titre, texte, href, Icone }) => (
@@ -202,7 +206,7 @@ export default function Studio() {
             ))}
           </ul>
         </section>
-      </div>
+      </main>
     </div>
   );
 }
