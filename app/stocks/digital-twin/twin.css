@@ -728,3 +728,143 @@
     transition: none !important;
   }
 }
+.dt-auto-notice {
+  padding: 14px 18px;
+  background: #eaf2f8;
+  color: #21415c;
+  border-radius: 12px;
+  margin: 12px 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.dt-integrity {
+  margin: 12px 0;
+  padding: 12px 18px;
+  border: 1px solid #eed79e;
+  border-radius: 12px;
+  background: #fff9eb;
+  color: #836016;
+  font-size: 13px;
+}
+.dt-integrity summary {
+  cursor: pointer;
+  display: flex;
+  gap: 9px;
+  align-items: center;
+}
+.dt-integrity .dt-warning {
+  margin: 8px 0;
+}
+.dt-auto-map {
+  max-height: 650px;
+  min-height: 420px;
+  overflow: auto;
+  padding: 22px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 22px;
+  align-items: start;
+  background: #edf2f6;
+}
+.dt-auto-rack {
+  border: 2px solid #28435a;
+  border-radius: 10px;
+  background: #fff;
+  overflow: hidden;
+}
+.dt-shell .dt-auto-rack-title {
+  display: flex !important;
+  justify-content: space-between;
+  width: 100%;
+  background: #18364d !important;
+  color: white !important;
+  border-radius: 0 !important;
+  padding: 12px !important;
+  text-align: left;
+}
+.dt-auto-rack-title small {
+  color: #d8e4ee;
+}
+.dt-auto-level {
+  padding: 10px;
+  border-bottom: 5px solid #c6a452;
+}
+.dt-auto-level-title {
+  font-size: 12px !important;
+  padding: 2px 4px !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: #547087 !important;
+}
+.dt-auto-bins {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+.dt-shell .dt-auto-bin {
+  min-width: 85px;
+  flex: 1;
+  border: 1px solid #ccd7e0;
+  border-top-width: 6px;
+  align-items: flex-start;
+  justify-content: flex-start;
+  border-radius: 6px !important;
+  padding: 10px !important;
+  text-align: left;
+  background: #f6f9fc !important;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.dt-auto-bin span {
+  font-size: 11px;
+  line-height: 1.45;
+  color: #405e76;
+}
+.dt-auto-bin small {
+  color: #946818;
+  font-size: 11px;
+}
+.dt-auto-bin.selected {
+  outline: 3px solid #e3b32e;
+  background: #fff9e9 !important;
+}
+.dt-table-scroll {
+  max-height: 440px;
+  overflow: auto;
+}
+.dt-location-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.dt-location-table th {
+  position: sticky;
+  top: 0;
+  background: #edf2f6;
+  text-align: left;
+  padding: 12px;
+  color: #21415c;
+}
+.dt-location-table td {
+  padding: 10px;
+  border-bottom: 1px solid #e2e9ef;
+  vertical-align: top;
+}
+.dt-location-table td button {
+  padding: 0 !important;
+  text-align: left;
+  border: 0 !important;
+  background: none !important;
+  font-size: 12px !important;
+  color: #215e82 !important;
+}
+.dt-location-table .selected {
+  background: #fff7db;
+}
+.dt-location-table small {
+  display: block;
+  color: #936a22;
+  margin-top: 6px;
+}

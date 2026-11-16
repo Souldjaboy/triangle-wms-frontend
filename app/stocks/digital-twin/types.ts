@@ -31,6 +31,9 @@ export type Metrics = {
   capacities: Capacity[];
 };
 export type PlanNode = {
+  schematic?: boolean;
+  display_label?: string;
+  contents?: Balance[];
   id: string;
   parent_id: string | null;
   kind: Kind;
@@ -82,6 +85,13 @@ export type Balance = {
   category: string;
 };
 export type Location = {
+  rayon_code?: string;
+  case_code?: string;
+  level_code?: string;
+  zone?: string;
+  rayon?: string;
+  etagere?: string;
+  status?: string;
   id: number;
   full_code: string;
   emplacement_code: string;
@@ -109,7 +119,8 @@ export type Snapshot = {
   capabilities: { configure: boolean; publish: boolean };
   as_of: string;
 };
-export type ColorMode = "occupation" | "disponibilite" | "etat" | "alertes";
+export type ColorMode =
+  "contenu" | "occupation" | "disponibilite" | "etat" | "alertes";
 export const labels: Record<Kind, string> = {
   warehouse: "Entrepôt",
   zone: "Zone",
@@ -129,9 +140,16 @@ export const format = (v: unknown) =>
   typeof v === "number" || typeof v === "string"
     ? Number(v).toLocaleString("fr-FR", { maximumFractionDigits: 1 })
     : "—";
+export const quantityText = (v: string | number) => String(v).replace(".", ",");
 export function color(n: PlanNode, mode: ColorMode) {
   const m = n.metrics,
     state = n.effective_state || n.operational_state;
+  if (mode === "contenu") {
+    if (state !== "active" || m?.blocked) return "#8b5cc7";
+    if (m?.unverified) return "#d5a52a";
+    if (m?.reserved) return "#3988dc";
+    return m?.occupied ? "#16a37d" : "#bbc4cf";
+  }
   if (mode === "etat") return state === "active" ? "#16a37d" : "#8b5cc7";
   if (mode === "alertes")
     return m?.overloaded

@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import Link from "next/link";
 import {
   Box,
@@ -22,6 +22,7 @@ import {
   Metrics,
   ColorMode,
   format,
+  quantityText,
   labels,
   stateLabels,
   descendants,
@@ -29,6 +30,7 @@ import {
   Location,
 } from "./types";
 import Scene from "./Scene";
+import { automaticNodes, automaticScene, address } from "./automatic";
 import Configurator from "./Configurator";
 import "./twin.css";
 type Detail = {
@@ -59,6 +61,13 @@ type Hit = {
   }[];
 };
 const legends: Record<ColorMode, string[]> = {
+  contenu: [
+    "Gris : aucun stock enregistré",
+    "Vert : stock enregistré",
+    "Bleu : réservation",
+    "Jaune : contenu à vérifier",
+    "Violet : indisponible",
+  ],
   occupation: [
     "Gris : vide",
     "Vert : normal",
@@ -86,10 +95,10 @@ const legends: Record<ColorMode, string[]> = {
 export default function DigitalTwin() {
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]),
     [warehouseId, setWarehouseId] = useState<number | null>(null),
-    [data, setData] = useState<Snapshot | null>(null);
+    [rawData, setData] = useState<Snapshot | null>(null);
   const [selected, setSelected] = useState<string | null>(null),
     [view, setView] = useState("2d"),
-    [mode, setMode] = useState<ColorMode>("occupation"),
+    [mode, setMode] = useState<ColorMode>("contenu"),
     [showLabels, setShowLabels] = useState(true),
     [facade, setFacade] = useState(false);
   const [detail, setDetail] = useState<Detail | null>(null),
@@ -102,6 +111,18 @@ export default function DigitalTwin() {
     [hits, setHits] = useState<Hit[]>([]),
     [searchCursor, setSearchCursor] = useState<number | null>(null),
     [searchError, setSearchError] = useState("");
+  const [automatic, setAutomatic] = useState(true);
+  const schematic = automatic || !rawData?.layout;
+  const data = useMemo(
+    () =>
+      rawData
+        ? {
+            ...rawData,
+            nodes: schematic ? automaticNodes(rawData) : rawData.nodes,
+          }
+        : null,
+    [rawData, schematic],
+  );
   const pendingLocation = useRef<number | null>(null),
     generation = useRef(0);
   const load = useCallback(
@@ -122,8 +143,22 @@ export default function DigitalTwin() {
         if (g !== generation.current) return;
         if (warehouseId) {
           setData(j);
+          const refreshedNodes =
+            automatic || !j.layout ? automaticNodes(j) : j.nodes;
+          setSelected((previous) =>
+            refreshedNodes.some((n: PlanNode) => n.id === previous)
+              ? previous
+              : null,
+          );
+          setDetailLocation((previous) =>
+            j.locations.some((l: Location) => l.id === previous)
+              ? previous
+              : null,
+          );
           if (pendingLocation.current) {
-            const n = j.nodes.find(
+            const viewNodes =
+              automatic || !j.layout ? automaticNodes(j) : j.nodes;
+            const n = viewNodes.find(
               (n: PlanNode) =>
                 Number(n.location_id) === pendingLocation.current,
             );
@@ -145,7 +180,7 @@ export default function DigitalTwin() {
         if (g === generation.current) setLoading(false);
       }
     },
-    [warehouseId],
+    [warehouseId, automatic],
   );
   useEffect(() => {
     const c = new AbortController();
@@ -250,12 +285,23 @@ export default function DigitalTwin() {
   }
   const sceneNodes = !data
     ? []
-    : facade && node?.kind === "rack"
-      ? descendants(data.nodes, node.id).filter((n) => n.kind === "bin")
-      : focus?.kind === "bin"
-        ? data.nodes.filter((n) => n.parent_id === focus.parent_id)
-        : data.nodes.filter((n) => n.parent_id === focus?.id);
+    : schematic
+      ? automaticScene(data.nodes, focus)
+      : facade && node?.kind === "rack"
+        ? descendants(data.nodes, node.id).filter((n) => n.kind === "bin")
+        : focus?.kind === "bin"
+          ? data.nodes.filter((n) => n.parent_id === focus.parent_id)
+          : data.nodes.filter((n) => n.parent_id === focus?.id);
   const visible = data?.nodes.filter((n) => n.parent_id === focus?.id) || [];
+  const sceneLocations = new Set(
+    sceneNodes
+      .filter((n) => n.location_id != null)
+      .map((n) => Number(n.location_id)),
+  );
+  const tableLocations =
+    data?.locations.filter(
+      (l) => !schematic || sceneLocations.has(Number(l.id)),
+    ) || [];
   const allMetrics = warehouses
     .map((w) => w.metrics)
     .filter((m): m is Metrics => !!m);
@@ -405,8 +451,8 @@ export default function DigitalTwin() {
               <div className="dt-kpis">
                 <Stat title="Entrepôts accessibles" value={warehouses.length} />
                 <Stat
-                  title="Plans configurés"
-                  value={warehouses.filter((w) => w.configured).length}
+                  title="Emplacements enregistrés"
+                  value={warehouses.reduce((sum, w) => sum + w.locations, 0)}
                 />
                 <Stat
                   title="Bins vides confirmés¹"
@@ -437,8 +483,8 @@ export default function DigitalTwin() {
                       <span>{w.code}</span>
                       <small>
                         {w.configured
-                          ? `${w.zones} zones configurées`
-                          : "Plan physique à configurer"}
+                          ? `${w.locations} emplacements · plan mesuré disponible`
+                          : "Vue automatique 2D / 3D disponible"}
                       </small>
                     </div>
                     <div className="dt-card-body">
@@ -450,20 +496,18 @@ export default function DigitalTwin() {
                       </p>
                       <div className="dt-card-stats">
                         <span>{w.locations} emplacements</span>
-                        <span>{w.racks} racks configurés</span>
+                        <span>Visuel synchronisé avec les emplacements</span>
                       </div>
-                      <CapacityBlock metrics={w.metrics} />
-                      {w.discrepancies > 0 && (
-                        <p className="dt-warning">
-                          {w.discrepancies} références avec un écart de
-                          répartition. Capacités concernées non calculables.
-                        </p>
-                      )}
-                      {(w.unmapped > 0 || w.unallocated > 0) && (
-                        <p className="dt-warning">
-                          {w.unmapped} emplacements à positionner ·{" "}
-                          {w.unallocated} produits à vérifier
-                        </p>
+                      {w.metrics && <CapacityBlock metrics={w.metrics} />}
+                      {(w.discrepancies > 0 || w.unallocated > 0) && (
+                        <details className="dt-integrity">
+                          <summary>Répartition des stocks à vérifier</summary>
+                          <p>
+                            {w.discrepancies || 0} références en écart ·{" "}
+                            {w.unallocated} répartitions historiques. Le visuel
+                            reste disponible.
+                          </p>
+                        </details>
                       )}
                       <div className="dt-toolbar">
                         <button
@@ -511,7 +555,7 @@ export default function DigitalTwin() {
               {config ? (
                 <Configurator
                   key={data.warehouse.id}
-                  data={data}
+                  data={rawData!}
                   onClose={() => setConfig(false)}
                   onPublished={() => {
                     setConfig(false);
@@ -539,12 +583,38 @@ export default function DigitalTwin() {
                       </button>
                     </div>
                     <select
+                      aria-label="Type de plan"
+                      value={schematic ? "auto" : "physical"}
+                      onChange={(e) => {
+                        const next = e.target.value === "auto";
+                        const ns = next
+                          ? automaticNodes(rawData!)
+                          : rawData!.nodes;
+                        const matched = detailLocation
+                          ? ns.find((n) => n.location_id === detailLocation)
+                          : null;
+                        setAutomatic(next);
+                        setSelected(matched?.id || null);
+                        setMode("contenu");
+                      }}
+                    >
+                      <option value="auto">Vue automatique</option>
+                      <option value="physical" disabled={!rawData?.layout}>
+                        Plan physique mesuré
+                      </option>
+                    </select>
+                    <select
                       aria-label="Mode de couleur"
                       value={mode}
                       onChange={(e) => setMode(e.target.value as ColorMode)}
                     >
-                      <option value="occupation">Occupation</option>
-                      <option value="disponibilite">Disponibilité</option>
+                      <option value="contenu">Contenu enregistré</option>
+                      <option value="occupation" disabled={schematic}>
+                        Occupation physique
+                      </option>
+                      <option value="disponibilite" disabled={schematic}>
+                        Disponibilité physique
+                      </option>
                       <option value="etat">État opérationnel</option>
                       <option value="alertes">Alertes de capacité</option>
                       <option disabled>Rotation — données à qualifier</option>
@@ -558,7 +628,7 @@ export default function DigitalTwin() {
                       />{" "}
                       Étiquettes
                     </label>
-                    {node?.kind === "rack" && (
+                    {!schematic && node?.kind === "rack" && (
                       <button
                         onClick={() => {
                           setFacade(!facade);
@@ -570,35 +640,57 @@ export default function DigitalTwin() {
                     )}
                     {data.capabilities.configure && (
                       <button onClick={() => setConfig(true)}>
-                        <Settings2 size={16} /> Configurer le plan
+                        <Settings2 size={16} /> Plan mesuré (facultatif)
                       </button>
                     )}
                   </div>
-                  {data.unallocated.length > 0 && (
-                    <p className="dt-warning">
-                      <AlertTriangle size={16} /> {data.unallocated.length}{" "}
-                      produits historiques ont une répartition à vérifier. Leur
-                      stock global n’est pas attribué artificiellement à un bin.
+                  {schematic && (
+                    <p className="dt-auto-notice">
+                      Vue schématique automatique · Rayon → Étagère → Niveau →
+                      Bin. Les positions servent à la lecture ; elles ne
+                      représentent pas des dimensions mesurées. Mise à jour
+                      toutes les 15 secondes et au retour sur cet écran.
                     </p>
                   )}
-                  {data.discrepancies?.length > 0 && (
-                    <div className="dt-warning" role="status">
-                      <AlertTriangle size={16} /> {data.discrepancies.length}{" "}
-                      références ont un écart entre stock global et répartition.
-                      Les quantités enregistrées restent consultables ; les
-                      emplacements concernés ne sont pas déclarés libres et
-                      leurs capacités disponibles ne sont pas calculées.
-                      <details>
-                        <summary>Références à vérifier dans les stocks</summary>
-                        <ul>
-                          {data.discrepancies.map((p) => (
-                            <li key={p.id}>
-                              {p.reference} — {p.name}
-                            </li>
-                          ))}
-                        </ul>
-                      </details>
-                    </div>
+                  {(data.unallocated.length > 0 ||
+                    data.discrepancies?.length > 0) && (
+                    <details className="dt-integrity">
+                      <summary>
+                        <AlertTriangle size={16} /> Stocks à vérifier :{" "}
+                        {data.discrepancies?.length || 0} références en écart ·{" "}
+                        {data.unallocated.length} répartitions historiques
+                      </summary>
+                      {data.unallocated.length > 0 && (
+                        <p className="dt-warning">
+                          <AlertTriangle size={16} /> {data.unallocated.length}{" "}
+                          produits historiques ont une répartition à vérifier.
+                          Leur stock global n’est pas attribué artificiellement
+                          à un bin.
+                        </p>
+                      )}
+                      {data.discrepancies?.length > 0 && (
+                        <div className="dt-warning" role="status">
+                          <AlertTriangle size={16} />{" "}
+                          {data.discrepancies.length} références ont un écart
+                          entre stock global et répartition. Les quantités
+                          enregistrées restent consultables ; les emplacements
+                          concernés ne sont pas déclarés libres et leurs
+                          capacités disponibles ne sont pas calculées.
+                          <details>
+                            <summary>
+                              Références à vérifier dans les stocks
+                            </summary>
+                            <ul>
+                              {data.discrepancies.map((p) => (
+                                <li key={p.id}>
+                                  {p.reference} — {p.name}
+                                </li>
+                              ))}
+                            </ul>
+                          </details>
+                        </div>
+                      )}
+                    </details>
                   )}
                   <div className="dt-explorer">
                     <section className="dt-scene-card">
@@ -606,20 +698,23 @@ export default function DigitalTwin() {
                         <div>
                           <h3>
                             {focus
-                              ? `${labels[focus.kind]} · ${focus.code}`
+                              ? `${focus.display_label || labels[focus.kind]} · ${focus.code}`
                               : "Implantation non configurée"}
                           </h3>
                           <span>
-                            {view === "3d"
-                              ? "Volumes aux dimensions enregistrées"
-                              : "Coordonnées physiques en mètres"}
+                            {schematic
+                              ? "Organisation automatique des emplacements enregistrés"
+                              : view === "3d"
+                                ? "Volumes aux dimensions enregistrées"
+                                : "Coordonnées physiques en mètres"}
                           </span>
                         </div>
                         <Layers3 size={23} />
                       </div>
-                      {data.layout ? (
+                      {schematic || data.layout ? (
                         <Scene
                           nodes={sceneNodes}
+                          schematic={schematic}
                           selected={selected}
                           onSelect={select}
                           mode={mode}
@@ -662,12 +757,18 @@ export default function DigitalTwin() {
                           }
                         </span>
                       )}
-                      <CapacityBlock metrics={focus?.metrics || null} />
+                      {!schematic && (
+                        <CapacityBlock metrics={focus?.metrics || null} />
+                      )}
                       {focus?.metrics && (
                         <dl>
                           <dt>Emplacements</dt>
                           <dd>{focus.metrics.bins}</dd>
-                          <dt>Vides confirmés</dt>
+                          <dt>
+                            {schematic
+                              ? "Sans stock enregistré"
+                              : "Vides confirmés"}
+                          </dt>
                           <dd>{focus.metrics.empty}</dd>
                           <dt>Occupés</dt>
                           <dd>{focus.metrics.occupied}</dd>
@@ -675,7 +776,7 @@ export default function DigitalTwin() {
                           <dd>{focus.metrics.blocked}</dd>
                         </dl>
                       )}
-                      {node?.geometry && (
+                      {node?.geometry && !schematic && (
                         <p>
                           Dimensions : {format(node.geometry.width)} ×{" "}
                           {format(node.geometry.depth)} ×{" "}
@@ -703,9 +804,12 @@ export default function DigitalTwin() {
                                   </p>
                                 )}
                                 <p>
-                                  {format(b.quantity)} {b.unit} ·{" "}
-                                  {format(b.reserved_quantity)} réservés ·{" "}
-                                  {format(b.available)} disponibles
+                                  {quantityText(b.quantity)} {b.unit} ·{" "}
+                                  {quantityText(b.reserved_quantity)} réservés ·{" "}
+                                  {quantityText(b.available)}{" "}
+                                  {b.unverified
+                                    ? "hors réservation (à vérifier)"
+                                    : "disponibles"}
                                 </p>
                               </div>
                             ))
@@ -762,13 +866,17 @@ export default function DigitalTwin() {
                           key={n.id}
                           onClick={() => select(n.id)}
                         >
-                          <span className="dt-eyebrow">{labels[n.kind]}</span>
+                          <span className="dt-eyebrow">
+                            {n.display_label || labels[n.kind]}
+                          </span>
                           <strong>
                             {n.code} {n.name}
                           </strong>
-                          <CapacityBlock metrics={n.metrics || null} />
+                          {!schematic && (
+                            <CapacityBlock metrics={n.metrics || null} />
+                          )}
                           <small>
-                            {n.metrics?.empty || 0} bins vides ·{" "}
+                            {n.metrics?.empty || 0} sans stock enregistré ·{" "}
                             {n.metrics?.occupied || 0} occupés ·{" "}
                             {
                               stateLabels[
@@ -780,39 +888,76 @@ export default function DigitalTwin() {
                       ))}
                     </div>
                   )}
-                  {(data.unmapped.length > 0 || !data.layout) && (
-                    <section className="dt-panel">
-                      <h3>Emplacements sans position graphique</h3>
-                      <p>
-                        Les repères historiques sont conservés ; ils ne sont pas
-                        transformés automatiquement en zones ou racks.
-                      </p>
-                      <div className="dt-location-list">
-                        {data.locations
-                          .filter((l) => data.unmapped.includes(l.id))
-                          .map((l) => (
-                            <button
-                              key={l.id}
-                              onClick={() => {
-                                setSelected(null);
-                                setDetailLocation(l.id);
-                              }}
-                            >
-                              {l.full_code ||
-                                l.emplacement_code ||
-                                `Emplacement ${l.id}`}
-                              <small>
-                                {l.configuration_issue
-                                  ? "Localisation à clarifier"
-                                  : l.unverified
-                                    ? "Répartition à vérifier"
-                                    : "Position à configurer"}
-                              </small>
-                            </button>
-                          ))}
-                      </div>
-                    </section>
-                  )}
+                  <section className="dt-panel">
+                    <h3>Emplacements et contenu · {tableLocations.length}</h3>
+                    <div className="dt-table-scroll">
+                      <table className="dt-location-table">
+                        <thead>
+                          <tr>
+                            {[
+                              "Code",
+                              "Rayon",
+                              "Étagère",
+                              "Niveau",
+                              "Bin",
+                              "Contenu",
+                            ].map((h) => (
+                              <th key={h}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {tableLocations.map((l) => {
+                            const a = address(l),
+                              bs = data.balances.filter(
+                                (b) => Number(b.location_id) === Number(l.id),
+                              );
+                            return (
+                              <tr
+                                key={l.id}
+                                className={
+                                  detailLocation === l.id ? "selected" : ""
+                                }
+                              >
+                                <td>
+                                  <button
+                                    onClick={() => {
+                                      const n = data.nodes.find(
+                                        (n) => n.location_id === l.id,
+                                      );
+                                      setSelected(n?.id || null);
+                                      setDetailLocation(l.id);
+                                    }}
+                                  >
+                                    {l.full_code || l.emplacement_code || l.id}
+                                  </button>
+                                </td>
+                                <td>{a.rayon || "—"}</td>
+                                <td>{a.etagere || "—"}</td>
+                                <td>{a.niveau || "—"}</td>
+                                <td>{a.bin || "—"}</td>
+                                <td>
+                                  {bs.length
+                                    ? bs.map((b) => (
+                                        <div key={b.product_id}>
+                                          {b.reference} · {b.name} :{" "}
+                                          {quantityText(b.quantity)} {b.unit}
+                                        </div>
+                                      ))
+                                    : l.unverified
+                                      ? "Contenu à vérifier"
+                                      : "Aucune balance enregistrée"}
+                                  {l.configuration_issue && (
+                                    <small>Repère à préciser</small>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
                   <section className="dt-panel">
                     <h3>Préparer les opérations</h3>
                     <p>

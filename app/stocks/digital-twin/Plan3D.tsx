@@ -23,6 +23,7 @@ function Objects({
     () =>
       nodes.filter(
         (n) =>
+          (!n.schematic || n.kind === "bin") &&
           n.geometry &&
           Object.values(n.geometry).length === 7 &&
           Object.values(n.geometry).every(Number.isFinite) &&
@@ -71,22 +72,92 @@ function Objects({
         <meshStandardMaterial roughness={0.7} />
       </instancedMesh>
       {labels &&
-        placed.slice(0, 80).map((n) => {
-          const g = n.geometry!,
-            sw = g.yaw === 90 || g.yaw === 270;
+        placed
+          .filter(
+            (n) => !n.schematic || placed.length <= 40 || n.id === selected,
+          )
+          .slice(0, 80)
+          .map((n) => {
+            const g = n.geometry!,
+              sw = g.yaw === 90 || g.yaw === 270;
+            return (
+              <Html
+                key={n.id}
+                position={[
+                  g.x + (sw ? g.depth : g.width) / 2,
+                  g.y + g.height,
+                  g.z + (sw ? g.width : g.depth) / 2,
+                ]}
+                center
+                style={{ pointerEvents: "none" }}
+              >
+                <span className="dt-3d-label">{n.code}</span>
+              </Html>
+            );
+          })}
+    </>
+  );
+}
+function RackFrames({
+  nodes,
+  onSelect,
+  labels,
+}: {
+  nodes: PlanNode[];
+  onSelect: (id: string) => void;
+  labels: boolean;
+}) {
+  return (
+    <>
+      {nodes
+        .filter((n) => n.schematic && n.kind === "rack" && n.geometry)
+        .map((r) => {
+          const g = r.geometry!;
+          const beams: [number, number, number, number, number, number][] = [];
+          for (const x of [g.x, g.x + g.width])
+            for (const z of [g.z, g.z + g.depth])
+              beams.push([x, g.height / 2, z, 0.09, g.height, 0.09]);
+          for (const l of nodes.filter(
+            (n) => n.parent_id === r.id && n.kind === "level" && n.geometry,
+          ))
+            beams.push([
+              g.x + g.width / 2,
+              l.geometry!.y - 0.12,
+              g.z + g.depth / 2,
+              g.width,
+              0.12,
+              g.depth,
+            ]);
           return (
-            <Html
-              key={n.id}
-              position={[
-                g.x + (sw ? g.depth : g.width) / 2,
-                g.y + g.height,
-                g.z + (sw ? g.width : g.depth) / 2,
-              ]}
-              center
-              style={{ pointerEvents: "none" }}
+            <group
+              key={r.id}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelect(r.id);
+              }}
             >
-              <span className="dt-3d-label">{n.code}</span>
-            </Html>
+              {beams.map((b, i) => (
+                <mesh key={i} position={[b[0], b[1], b[2]]}>
+                  <boxGeometry args={[b[3], b[4], b[5]]} />
+                  <meshStandardMaterial color={i < 4 ? "#18364d" : "#c8a246"} />
+                </mesh>
+              ))}
+              {labels && (
+                <Html
+                  position={[
+                    g.x + g.width / 2,
+                    g.height + 0.3,
+                    g.z + g.depth / 2,
+                  ]}
+                  center
+                  style={{ pointerEvents: "none" }}
+                >
+                  <span className="dt-3d-label">
+                    {r.name} · Étagère {r.code}
+                  </span>
+                </Html>
+              )}
+            </group>
           );
         })}
     </>
@@ -99,6 +170,7 @@ export default function Plan3D(props: {
   mode: ColorMode;
   labels: boolean;
   onUnavailable: () => void;
+  schematic?: boolean;
 }) {
   const placed = props.nodes.filter(
     (n) =>
@@ -131,7 +203,9 @@ export default function Plan3D(props: {
   if (!placed.length)
     return (
       <div className="dt-empty">
-        Renseignez les dimensions physiques pour activer la 3D.
+        {props.schematic
+          ? "Aucun emplacement enregistré. Les nouveaux emplacements apparaîtront automatiquement."
+          : "Renseignez les dimensions physiques pour activer la 3D."}
       </div>
     );
   return (
@@ -164,6 +238,7 @@ export default function Plan3D(props: {
         <directionalLight position={[50, 100, 40]} intensity={2} />
         <Suspense fallback={null}>
           <Objects {...props} />
+          <RackFrames {...props} />
           <OrbitControls
             makeDefault
             target={center}
