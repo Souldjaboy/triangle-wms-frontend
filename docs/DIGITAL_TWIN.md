@@ -38,3 +38,15 @@ La lecture se renouvelle toutes les 15 secondes lorsque l'écran est visible, au
 Les écarts de stock restent signalés dans un panneau dépliable ; ils n'empêchent plus d'afficher les emplacements. Les stocks historiques non répartis ne sont pas artificiellement affectés à un bin. Le mode « Contenu enregistré » distingue stock enregistré, réservation, données à vérifier et indisponibilité, sans assimiler la présence de produits à un taux de remplissage physique.
 
 Tests : `node --test tests/digital-twin-automatic.test.cjs` vérifie huit scénarios, dont 569 bins rendus en HTML, les champs historiques, les codes composites, la stabilité des identifiants et l'absence de mutation des plans publiés. La vérification locale du rendu WebGL n'a pas pu être réalisée : le téléchargement du navigateur de test échoue dans cet environnement. Elle reste à effectuer sur le VPS dans le navigateur utilisateur.
+
+### Navigation et rendu — révision du 16 novembre
+
+Les rayons sont regroupés dans une disposition compacte. Les emplacements historiques très nombreux sur un seul niveau sont repliés sur plusieurs rangées de dessin, sans inventer de niveaux officiels. Les positions restent schématiques et ne décrivent pas une implantation mesurée.
+
+Les filtres Rayon, Étagère et Niveau et la bande de boutons permettent de naviguer sans viser un petit objet 3D. « Vue d’ensemble » revient à l'entrepôt. Un clic sur un bin affiche les quantités et l'historique existants ; le passage 2D/3D conserve sa sélection. « Agrandir la vue » utilise la fenêtre ; Échap ou « Réduire la vue » permet d'en sortir. La caméra propose Recentrer, Vue du dessus et deux boutons de zoom.
+
+Le mobilier utilise l'apparence de référence : montants bleus, traverses orange, plateaux gris. Ces couleurs illustratives ne prétendent pas certifier la peinture des racks réels. Les produits enregistrés sont symbolisés par un volume neutre, sans déduire le nombre de cartons de leur quantité. Les marqueurs de statut, à l'avant des bins, conservent leur légende. Le bin sélectionné est surligné en jaune.
+
+En vue générale, les étiquettes concernent les rayons ; dans un rayon, elles concernent les étagères. Le bin sélectionné ou survolé a priorité. Les étiquettes qui se chevauchent ou sortent de la fenêtre sont masquées. Les structures, volumes et marqueurs utilisent des objets instanciés et un rendu à la demande.
+
+Validation : 12 tests de projection/cadrage/étiquettes, TypeScript et ESLint. Le scénario navigateur `tests/digital-twin-navigation.browser.cjs` couvre 569 emplacements de test locaux, les filtres, le détail, 2D/3D, la caméra, l'agrandissement, l'actualisation et la tablette. Il est fourni mais n'a pas pu être exécuté ici : Chromium et le serveur local sont bloqués par l'interdiction des sockets dans l'environnement. Le contrôle visuel dans Triangle reste nécessaire après installation. Aucune donnée de test n'est envoyée à PostgreSQL.

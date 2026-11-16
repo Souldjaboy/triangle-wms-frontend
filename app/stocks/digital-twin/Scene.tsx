@@ -30,6 +30,7 @@ export default function Scene(p: {
   onUnavailable: () => void;
   facade?: boolean;
   schematic?: boolean;
+  overview?: boolean;
 }) {
   const Flat = p.schematic ? Automatic2D : Plan2D;
   const fallback = (

@@ -30,6 +30,7 @@ import {
   Location,
 } from "./types";
 import Scene from "./Scene";
+import Navigation from "./Navigation";
 import { automaticNodes, automaticScene, address } from "./automatic";
 import Configurator from "./Configurator";
 import "./twin.css";
@@ -275,6 +276,14 @@ export default function DigitalTwin() {
       pendingLocation.current = null;
     } else openWarehouse(hit.warehouse_id);
   }
+  const [expanded, setExpanded] = useState(false);
+  useEffect(() => {
+    const escape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setExpanded(false);
+    };
+    if (expanded) window.addEventListener("keydown", escape);
+    return () => window.removeEventListener("keydown", escape);
+  }, [expanded]);
   const root = data?.nodes.find((n) => n.kind === "warehouse");
   const focus = node || root;
   const breadcrumb: PlanNode[] = [];
@@ -646,10 +655,10 @@ export default function DigitalTwin() {
                   </div>
                   {schematic && (
                     <p className="dt-auto-notice">
-                      Vue schématique automatique · Rayon → Étagère → Niveau →
-                      Bin. Les positions servent à la lecture ; elles ne
-                      représentent pas des dimensions mesurées. Mise à jour
-                      toutes les 15 secondes et au retour sur cet écran.
+                      Sélectionnez un rayon pour voir ses étagères, puis un bin
+                      pour consulter son contenu. Vue schématique · positions et
+                      mobilier illustratifs · stocks enregistrés · actualisation
+                      15 s.
                     </p>
                   )}
                   {(data.unallocated.length > 0 ||
@@ -692,8 +701,19 @@ export default function DigitalTwin() {
                       )}
                     </details>
                   )}
+                  {schematic && (
+                    <Navigation
+                      nodes={data.nodes}
+                      selected={selected}
+                      onSelect={select}
+                    />
+                  )}
                   <div className="dt-explorer">
-                    <section className="dt-scene-card">
+                    <section
+                      className={
+                        "dt-scene-card" + (expanded ? " dt-expanded" : "")
+                      }
+                    >
                       <div className="dt-scene-title">
                         <div>
                           <h3>
@@ -709,12 +729,15 @@ export default function DigitalTwin() {
                                 : "Coordonnées physiques en mètres"}
                           </span>
                         </div>
-                        <Layers3 size={23} />
+                        <button onClick={() => setExpanded(!expanded)}>
+                          {expanded ? "Réduire la vue" : "Agrandir la vue"}
+                        </button>
                       </div>
                       {schematic || data.layout ? (
                         <Scene
                           nodes={sceneNodes}
                           schematic={schematic}
+                          overview={focus?.kind === "warehouse"}
                           selected={selected}
                           onSelect={select}
                           mode={mode}
@@ -858,7 +881,7 @@ export default function DigitalTwin() {
                       )}
                     </aside>
                   </div>
-                  {!!visible.length && (
+                  {!schematic && !!visible.length && (
                     <div className="dt-zone-grid">
                       {visible.map((n) => (
                         <button

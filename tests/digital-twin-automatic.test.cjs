@@ -181,3 +181,73 @@ test("empty warehouses produce no fictional shelf or bin", () => {
   assert.equal(ns.length, 1);
   assert.equal(automaticScene(ns, ns[0]).length, 0);
 });
+
+test("compact warehouse layout, no overlapping rayon bounds and no unbounded historical strip", () => {
+  const locs = Array.from({ length: 486 }, (_, i) =>
+    location(
+      i + 1,
+      String.fromCharCode(65 + Math.floor(i / 27)),
+      String((Math.floor(i / 9) % 3) + 1),
+      String((Math.floor(i / 3) % 3) + 1),
+      `B${(i % 3) + 1}`,
+    ),
+  );
+  locs.push(
+    ...Array.from({ length: 83 }, (_, i) =>
+      location(487 + i, "R&I", "HISTORY", "SOL", `POS${i}`),
+    ),
+  );
+  const ns = automaticNodes(snapshot(locs)),
+    root = ns[0].geometry;
+  assert.ok(Math.max(root.width / root.depth, root.depth / root.width) < 2.5);
+  const rows = ns.filter((n) => n.kind === "aisle");
+  for (let i = 0; i < rows.length; i++)
+    for (let j = i + 1; j < rows.length; j++) {
+      const a = rows[i].geometry,
+        b = rows[j].geometry;
+      assert.ok(
+        !(
+          a.x < b.x + b.width &&
+          a.x + a.width > b.x &&
+          a.z < b.z + b.depth &&
+          a.z + a.depth > b.z
+        ),
+      );
+    }
+  const history = ns.find((n) => n.kind === "rack" && n.code === "HISTORY");
+  assert.ok(history.geometry.width < 30);
+  assert.equal(ns.filter((n) => n.kind === "bin").length, 569);
+});
+test("level filter shows only that official level; its bin still opens the entire shelf", () => {
+  const ns = automaticNodes(
+    snapshot([location(1, "A", "1", "1"), location(2, "A", "1", "2")]),
+  );
+  const level = ns.find((n) => n.kind === "level" && n.code === "1");
+  assert.deepEqual(
+    automaticScene(ns, level)
+      .filter((n) => n.kind === "bin")
+      .map((n) => n.location_id),
+    [1],
+  );
+});
+const { fitDistance, nonOverlappingLabels } = compiled("scene-math.ts");
+test("camera fits a bounding sphere even in portrait view", () => {
+  for (const aspect of [0.35, 0.7, 1, 2, 3]) {
+    const d = fitDistance(100, aspect),
+      angle = Math.min(Math.PI / 8, Math.atan(Math.tan(Math.PI / 8) * aspect));
+    assert.ok(d * Math.sin(angle) >= 100);
+  }
+  assert.ok(fitDistance(100, 0.5) > fitDistance(100, 2));
+});
+test("screen labels stay inside viewport and selected-first labels win collisions", () => {
+  const labels = [
+    { id: "selected", x: 20, y: 80, width: 100, height: 25 },
+    { id: "overlap", x: 30, y: 85, width: 100, height: 25 },
+    { id: "other", x: 200, y: 80, width: 100, height: 25 },
+    { id: "outside", x: 390, y: 80, width: 100, height: 25 },
+  ];
+  assert.deepEqual(
+    [...nonOverlappingLabels(labels, 400, 300)],
+    ["selected", "other"],
+  );
+});

@@ -106,43 +106,47 @@ export function automaticNodes(data: Snapshot): PlanNode[] {
           ? "blocked"
           : "active";
   }
-  let z = 0,
-    maxX = 1;
-  for (const row of children.get(root.id) || []) {
-    const racks = children.get(row.id) || [],
-      cols = Math.min(4, Math.max(1, Math.ceil(Math.sqrt(racks.length))));
-    const widths = racks.map(
-      (r) =>
-        Math.max(
-          1,
-          ...(children.get(r.id) || []).map(
-            (l) => (children.get(l.id) || []).length,
-          ),
-        ) *
-          1.6 +
-        0.6,
-    );
-    const columnWidth = Math.max(...widths, 2.2) + 3;
-    let rowHeight = 1;
-    racks.forEach((rack, index) => {
-      const x = (index % cols) * columnWidth,
-        rz = z + Math.floor(index / cols) * 6;
-      const levels = children.get(rack.id) || [];
-      levels.forEach((level, i) => {
-        level.geometry = {
-          x,
-          y: 0.4 + i * 1.8,
-          z: rz,
-          width: widths[index],
-          depth: 2.1,
-          height: 1.5,
-          yaw: 0,
-        };
-        (children.get(level.id) || []).forEach((bin, j) => {
+  // Compact drawing layout. Wrapping preserves official levels and bin IDs.
+  const rows = children.get(root.id) || [];
+  for (const row of rows) {
+    const racks = children.get(row.id) || [];
+    const cols = Math.max(1, Math.ceil(Math.sqrt(racks.length)));
+    const sizes = racks.map((r) => {
+      const levels = children.get(r.id) || [];
+      const count = Math.max(
+        1,
+        ...levels.map((l) => (children.get(l.id) || []).length),
+      );
+      const columns = count <= 8 ? count : Math.ceil(Math.sqrt(count * 2));
+      return {
+        columns,
+        width: columns * 1.6 + 0.6,
+        depth: Math.ceil(count / columns) * 2 + 0.4,
+        height: Math.max(1, levels.length) * 1.8 + 0.2,
+      };
+    });
+    const cw = Math.max(1, ...sizes.map((s) => s.width)) + 3.5;
+    const cd = Math.max(1, ...sizes.map((s) => s.depth)) + 4;
+    racks.forEach((rack, i) => {
+      const s = sizes[i],
+        x = (i % cols) * cw,
+        z = Math.floor(i / cols) * cd;
+      rack.geometry = {
+        x,
+        y: 0,
+        z,
+        width: s.width,
+        depth: s.depth,
+        height: s.height,
+        yaw: 0,
+      };
+      (children.get(rack.id) || []).forEach((level, j) => {
+        level.geometry = { ...rack.geometry!, y: 0.4 + j * 1.8, height: 1.5 };
+        (children.get(level.id) || []).forEach((bin, k) => {
           bin.geometry = {
-            x: x + 0.3 + j * 1.6,
-            y: 0.4 + i * 1.8,
-            z: rz + 0.3,
+            x: x + 0.3 + (k % s.columns) * 1.6,
+            y: 0.4 + j * 1.8,
+            z: z + 0.3 + Math.floor(k / s.columns) * 2,
             width: 1.3,
             depth: 1.5,
             height: 1.15,
@@ -150,37 +154,59 @@ export function automaticNodes(data: Snapshot): PlanNode[] {
           };
         });
       });
-      rack.geometry = {
-        x,
-        y: 0,
-        z: rz,
-        width: widths[index],
-        depth: 2.1,
-        height: Math.max(1, levels.length) * 1.8 + 0.2,
-        yaw: 0,
-      };
-      rowHeight = Math.max(rowHeight, rack.geometry.height);
-      maxX = Math.max(maxX, x + widths[index]);
     });
-    const depth = Math.max(1, Math.ceil(racks.length / cols)) * 6;
     row.geometry = {
       x: 0,
       y: 0,
-      z,
-      width: cols * columnWidth - 3,
-      depth: depth - 3,
-      height: rowHeight,
+      z: 0,
+      width: cols * cw - 3.5,
+      depth: Math.ceil(racks.length / cols) * cd - 4,
+      height: Math.max(1, ...sizes.map((s) => s.height)),
       yaw: 0,
     };
-    z += depth + 3;
+  }
+  const target = Math.max(
+    1,
+    ...rows.map((r) => r.geometry!.width),
+    Math.sqrt(
+      rows.reduce(
+        (sum, r) => sum + (r.geometry!.width + 6) * (r.geometry!.depth + 6),
+        0,
+      ),
+    ) * 1.15,
+  );
+  let x = 0,
+    z = 0,
+    bandDepth = 0,
+    maxX = 1,
+    maxZ = 1;
+  for (const row of rows) {
+    const g = row.geometry!;
+    if (x > 0 && x + g.width > target) {
+      x = 0;
+      z += bandDepth + 6;
+      bandDepth = 0;
+    }
+    function translate(n: PlanNode) {
+      if (n.geometry) {
+        n.geometry.x += x;
+        n.geometry.z += z;
+      }
+      for (const child of children.get(n.id) || []) translate(child);
+    }
+    translate(row);
+    maxX = Math.max(maxX, x + g.width);
+    maxZ = Math.max(maxZ, z + g.depth);
+    x += g.width + 6;
+    bandDepth = Math.max(bandDepth, g.depth);
   }
   root.geometry = {
     x: 0,
     y: 0,
     z: 0,
     width: maxX,
-    depth: Math.max(1, z),
-    height: Math.max(1, ...nodes.map((n) => n.geometry?.height || 0)),
+    depth: maxZ,
+    height: Math.max(1, ...rows.map((r) => r.geometry!.height)),
     yaw: 0,
   };
   function summarize(n: PlanNode): Metrics {
@@ -234,8 +260,10 @@ export function automaticScene(
 ): PlanNode[] {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   let focus = selected;
-  if (focus?.kind === "bin") focus = byId.get(focus.parent_id!);
-  if (focus?.kind === "level") focus = byId.get(focus.parent_id!);
+  if (focus?.kind === "bin") {
+    focus = byId.get(focus.parent_id!);
+    if (focus?.kind === "level") focus = byId.get(focus.parent_id!);
+  }
   const bins = nodes.filter((n) => {
     if (n.kind !== "bin") return false;
     if (!focus || focus.kind === "warehouse") return true;
@@ -254,5 +282,12 @@ export function automaticScene(
       if (level.parent_id) parents.add(level.parent_id);
     }
   }
-  return nodes.filter((n) => parents.has(n.id) || bins.includes(n));
+  const rows = new Set(
+    nodes
+      .filter((n) => parents.has(n.id) && n.kind === "rack")
+      .map((n) => n.parent_id),
+  );
+  return nodes.filter(
+    (n) => parents.has(n.id) || bins.includes(n) || rows.has(n.id),
+  );
 }
