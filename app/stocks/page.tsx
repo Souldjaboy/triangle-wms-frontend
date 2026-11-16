@@ -588,6 +588,7 @@ export default function StocksPage() {
           className="inline-block rounded-xl border border-gray-300 bg-white px-5 py-3 font-black text-gray-900">
           Réceptions conteneur
         </Link>
+        {process.env.NEXT_PUBLIC_DIGITAL_TWIN_ENABLED === "true" && <Link href="/stocks/digital-twin" className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-amber-300">Digital Twin 3D</Link>}
         <Link href="/stocks/entrepots"
           className="inline-block rounded-xl border border-gray-300 bg-white px-5 py-3 font-black text-gray-900">
           Entrepôts
