@@ -59,6 +59,7 @@ export type Warehouse = {
   configured: boolean;
   unmapped: number;
   unallocated: number;
+  discrepancies: number;
   locations: number;
   preview: {
     id: string;
@@ -68,6 +69,7 @@ export type Warehouse = {
   }[];
 };
 export type Balance = {
+  unverified?: boolean;
   location_id: number;
   product_id: number;
   name: string;
@@ -98,6 +100,12 @@ export type Snapshot = {
   locations: Location[];
   unmapped: number[];
   unallocated: { id: number; name: string; stock: string }[];
+  discrepancies: {
+    id: number;
+    name: string;
+    reference: string;
+    location_id: number | null;
+  }[];
   capabilities: { configure: boolean; publish: boolean };
   as_of: string;
 };

@@ -115,11 +115,9 @@ export default function DigitalTwin() {
             : "/digital-twin/warehouses",
           { cache: "no-store", signal },
         );
-        const j = await r
-          .json()
-          .catch(() => ({
-            error: "Module non activé ou réponse indisponible.",
-          }));
+        const j = await r.json().catch(() => ({
+          error: "Module non activé ou réponse indisponible.",
+        }));
         if (!r.ok) throw Error(j.error || "Chargement impossible.");
         if (g !== generation.current) return;
         if (warehouseId) {
@@ -455,6 +453,12 @@ export default function DigitalTwin() {
                         <span>{w.racks} racks configurés</span>
                       </div>
                       <CapacityBlock metrics={w.metrics} />
+                      {w.discrepancies > 0 && (
+                        <p className="dt-warning">
+                          {w.discrepancies} références avec un écart de
+                          répartition. Capacités concernées non calculables.
+                        </p>
+                      )}
                       {(w.unmapped > 0 || w.unallocated > 0) && (
                         <p className="dt-warning">
                           {w.unmapped} emplacements à positionner ·{" "}
@@ -577,6 +581,25 @@ export default function DigitalTwin() {
                       stock global n’est pas attribué artificiellement à un bin.
                     </p>
                   )}
+                  {data.discrepancies?.length > 0 && (
+                    <div className="dt-warning" role="status">
+                      <AlertTriangle size={16} /> {data.discrepancies.length}{" "}
+                      références ont un écart entre stock global et répartition.
+                      Les quantités enregistrées restent consultables ; les
+                      emplacements concernés ne sont pas déclarés libres et
+                      leurs capacités disponibles ne sont pas calculées.
+                      <details>
+                        <summary>Références à vérifier dans les stocks</summary>
+                        <ul>
+                          {data.discrepancies.map((p) => (
+                            <li key={p.id}>
+                              {p.reference} — {p.name}
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    </div>
+                  )}
                   <div className="dt-explorer">
                     <section className="dt-scene-card">
                       <div className="dt-scene-title">
@@ -662,11 +685,23 @@ export default function DigitalTwin() {
                       {detail && (
                         <>
                           <h4>Stock réel par référence</h4>
+                          {detail.location.unverified && (
+                            <p className="dt-warning">
+                              Répartition à vérifier : aucune disponibilité
+                              physique ne peut être confirmée.
+                            </p>
+                          )}
                           {detail.balances.length ? (
                             detail.balances.map((b) => (
                               <div className="dt-product" key={b.product_id}>
                                 <strong>{b.name}</strong>
                                 <small>{b.reference}</small>
+                                {b.unverified && (
+                                  <p className="dt-warning">
+                                    Quantité enregistrée — répartition non
+                                    vérifiée
+                                  </p>
+                                )}
                                 <p>
                                   {format(b.quantity)} {b.unit} ·{" "}
                                   {format(b.reserved_quantity)} réservés ·{" "}
