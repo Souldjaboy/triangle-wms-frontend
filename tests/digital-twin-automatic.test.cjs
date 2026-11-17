@@ -251,3 +251,15 @@ test("screen labels stay inside viewport and selected-first labels win collision
     ["selected", "other"],
   );
 });
+
+test('private entry and page never disclose the module before the server access check',()=>{
+ const source=fs.readFileSync(path.join(root,'Access.tsx'),'utf8');
+ const output=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX,target:ts.ScriptTarget.ES2020}}).outputText;
+ const m=new Module(path.join(root,'Access.tsx'));m.paths=module.paths;const original=m.require.bind(m);
+ m.require=name=>name==='../../lib/api'?{authFetch:()=>{throw Error('No request during SSR');}}:name==='next/link'?(({children})=>children):original(name);
+ m._compile(output,path.join(root,'Access.tsx'));
+ const React=require('react'),{renderToStaticMarkup}=require('react-dom/server');
+ assert.equal(renderToStaticMarkup(React.createElement(m.exports.default)),'');
+ const html=renderToStaticMarkup(React.createElement(m.exports.AccessGate,null,React.createElement('div',null,'PRIVATE STOCK')));
+ assert.ok(!html.includes('PRIVATE STOCK'));assert.match(html,/Vérification/);
+});

@@ -1032,3 +1032,7 @@
     min-width: 120px;
   }
 }
+.dt-access-owner{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:12px 24px;background:#153752;color:#f6ce65;font:14px Arial,sans-serif;flex-wrap:wrap}
+.dt-access-owner button{border:1px solid #f6ce65;border-radius:8px;background:#f6ce65;color:#153752;padding:10px 16px;cursor:pointer;font-weight:bold}
+.dt-access-panel,.dt-access-message{font:14px/1.6 Arial,sans-serif;background:#fff;color:#153752;padding:24px;border:1px solid #dce5ed}
+.dt-access-panel h2{font-size:22px;font-weight:bold}.dt-access-panel p{margin:10px 0;color:#526a7d}.dt-access-panel input:not([type=checkbox]){display:block;padding:10px;border:1px solid #bdcdda;border-radius:7px;max-width:100%;width:350px}.dt-access-table{overflow:auto;max-height:440px}.dt-access-table table{width:100%;border-collapse:collapse}.dt-access-table td,.dt-access-table th{padding:12px;text-align:left;border-bottom:1px solid #e4eaf0}.dt-access-table small{display:block;color:#667f93}.dt-access-table input[type=checkbox]{margin-right:8px;accent-color:#153752}.dt-access-panel [role=alert]{color:#a22132}.dt-access-message a{display:inline-block;padding:12px 0;text-decoration:underline}

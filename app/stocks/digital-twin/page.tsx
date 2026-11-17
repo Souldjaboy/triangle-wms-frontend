@@ -30,6 +30,7 @@ import {
   Location,
 } from "./types";
 import Scene from "./Scene";
+import { AccessGate } from "./Access";
 import Navigation from "./Navigation";
 import { automaticNodes, automaticScene, address } from "./automatic";
 import Configurator from "./Configurator";
@@ -93,7 +94,10 @@ const legends: Record<ColorMode, string[]> = {
     "Rouge : surcharge",
   ],
 };
-export default function DigitalTwin() {
+export default function DigitalTwinPage() {
+  return <AccessGate><DigitalTwin /></AccessGate>;
+}
+function DigitalTwin() {
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]),
     [warehouseId, setWarehouseId] = useState<number | null>(null),
     [rawData, setData] = useState<Snapshot | null>(null);

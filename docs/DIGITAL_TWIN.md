@@ -50,3 +50,13 @@ Le mobilier utilise l'apparence de référence : montants bleus, traverses orang
 En vue générale, les étiquettes concernent les rayons ; dans un rayon, elles concernent les étagères. Le bin sélectionné ou survolé a priorité. Les étiquettes qui se chevauchent ou sortent de la fenêtre sont masquées. Les structures, volumes et marqueurs utilisent des objets instanciés et un rendu à la demande.
 
 Validation : 12 tests de projection/cadrage/étiquettes, TypeScript et ESLint. Le scénario navigateur `tests/digital-twin-navigation.browser.cjs` couvre 569 emplacements de test locaux, les filtres, le détail, 2D/3D, la caméra, l'agrandissement, l'actualisation et la tablette. Il est fourni mais n'a pas pu être exécuté ici : Chromium et le serveur local sont bloqués par l'interdiction des sockets dans l'environnement. Le contrôle visuel dans Triangle reste nécessaire après installation. Aucune donnée de test n'est envoyée à PostgreSQL.
+
+### Accès privé au compte propriétaire
+
+Le compte `diallogcif@gmail.com` est le propriétaire confirmé. Après installation de la restriction, l'entrée 2D/3D est masquée pour les autres comptes tant que le propriétaire ne les a pas autorisés. L'URL directe et les API restent protégées côté serveur.
+
+Dans le module, cliquer sur **Gérer les accès**, rechercher un nom ou un e-mail et cocher **Autorisé**. Décocher retire l'accès. La liste concerne l'entreprise sélectionnée. L'autorisation ne remplace pas les droits existants de consultation du stock et des entrepôts. Les autres comptes autorisés voient le module, mais ne peuvent ni partager l'accès ni modifier les plans. Les changements sont journalisés.
+
+La révocation s'applique aux prochaines requêtes. Un écran déjà ouvert est démonté à sa prochaine vérification (15 secondes s'il est visible, ou retour sur l'onglet). La vérification échoue de manière fermée si l'API est indisponible.
+
+Le test SSR vérifie que le lien et les données ne sont pas rendus avant le contrôle serveur. Les tests métier et de routes couvrent les permissions. `tests/digital-twin-access.browser.cjs` est un scénario local fourni pour la gestion visuelle, mais Chromium n'a pas pu démarrer ici (sockets interdites).

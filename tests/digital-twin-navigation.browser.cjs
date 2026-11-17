@@ -97,7 +97,8 @@ const snapshot = {
     await context.route("**/api/**", async (route) => {
       const p = new URL(route.request().url()).pathname;
       let body = {};
-      if (p.endsWith("/digital-twin/warehouses"))
+      if (p.endsWith("/digital-twin/access")) body = {canView:true,canManage:true};
+      else if (p.endsWith("/digital-twin/warehouses"))
         body = { warehouses: [warehouse], as_of: snapshot.as_of };
       else if (p.endsWith("/warehouses/1")) body = snapshot;
       else if (/\/locations\/\d+$/.test(p)) {
